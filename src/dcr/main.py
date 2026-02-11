@@ -25,3 +25,6 @@ def main() -> int:
             print("Unknown command")
 
     return 0
+
+if __name__ == "__main__":
+    raise SystemExit(main())
