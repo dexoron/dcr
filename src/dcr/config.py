@@ -1,0 +1,1 @@
+flags: list[str] = ["--release", "--debug"]
