@@ -1,7 +1,7 @@
 import os
 import subprocess
 
-from dcr.config import flags
+from ..config import flags, profile
 from .build import build
 
 
@@ -12,19 +12,24 @@ def check_dir(dir: str | None = None) -> list[str]:
         return os.listdir(os.getcwd() + "/" + dir)
 
 
-def run(args: list[str]) -> int:
+def run(args: list[str] | None = None) -> int:
+    active_profile: str = profile
     if "dcr.toml" not in os.listdir(os.getcwd()):
-        print("error: Not fond dcr.toml")
+        print("Ошибка: не найден файл dcr.toml")
         return 1
 
-    if len(args) == 0:
-        profile: str = "debug"
-    elif len(args) == 1 and args[0] in flags:
-        profile = args[0][2:]
-    else:
-        print("error: Unkown flags")
-        return 1
+    if args:
+        if len(args) >= 1 and args[0].startswith("--"):
+            candidate: str = args[0][2:]
+            if candidate in flags:
+                active_profile = candidate
+            else:
+                print("Ошибка: неверный флаг сборки")
+                return 1
+        else:
+            print("Ошибка: флаг сборки не найден")
+            return 1
 
     build(args)
     print("Run project")
-    return subprocess.run([f"./target/{profile}/main"]).returncode
+    return subprocess.run([f"./target/{active_profile}/main"]).returncode
