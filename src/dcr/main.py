@@ -19,6 +19,8 @@ def main() -> int:
             cli.build(args)
         case "run":
             cli.run(args)
+        case "clean":
+            cli.clean(args)
         case _:
             print("Unknown command")
 

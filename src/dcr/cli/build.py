@@ -1,13 +1,8 @@
+import time
 import os
 import subprocess
 from ..config import flags, profile, c_comp
-
-
-def check_dir(dir: str | None = None) -> list[str]:
-    if dir in (None, ".", "./"):
-        return os.listdir(os.getcwd())
-    else:
-        return os.listdir(os.getcwd() + "/" + dir)
+from dcr.utils.fs import check_dir
 
 
 def build(args: list[str] | None = None) -> int:
@@ -22,7 +17,7 @@ def build(args: list[str] | None = None) -> int:
         if len(args) >= 1 and args[0].startswith("--"):
             candidate: str = args[0][2:]
             if candidate in flags:
-                active_profile = candidate
+                active_profile: str = candidate
             else:
                 print("Ошибка: неверный флаг сборки")
                 return 1
@@ -33,8 +28,9 @@ def build(args: list[str] | None = None) -> int:
     if active_profile not in check_dir("target"):
         os.mkdir(f"./target/{active_profile}")
     if "main.c" in check_dir("src"):
-        print(f"Run build project as profiles {active_profile}")
+        print(f"Запуск сборки с профилем {active_profile}")
         compile_flags = flags[active_profile]
+        start_time: float = time.time()
         subprocess.run(
             [
                 c_comp,
@@ -45,5 +41,8 @@ def build(args: list[str] | None = None) -> int:
             ],
             check=True,
         )
-        print("Build complite")
+        end_time: float = time.time()
+        times: float = end_time - start_time
+        times: float = int(times * 100) / 100
+        print(f"Сборка завершена, за {times} секунд")
     return 0

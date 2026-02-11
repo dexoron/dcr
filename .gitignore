@@ -5,3 +5,5 @@ wheels/
 *.egg-info
 .venv
 sandbox/*
+.ruff_cache/
+.vscode/
