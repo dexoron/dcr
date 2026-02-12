@@ -3,7 +3,7 @@ import sys
 
 
 def main() -> int:
-    if len(sys.argv) < 2 or sys.argv[1] == "--help":
+    if len(sys.argv) < 2:
         cli.help()
         return 0
 
@@ -21,8 +21,12 @@ def main() -> int:
             cli.run(args)
         case "clean":
             cli.clean(args)
+        case "--help":
+            cli.help()
+        case "--update":
+            cli.update(args)
         case _:
-            print("Unknown command")
+            print("Неизвестная команда или аргумент")
 
     return 0
 

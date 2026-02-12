@@ -4,6 +4,7 @@ from .new import new
 from .run import run
 from .build import build
 from .clean import clean
+from .update import update
 
 
 __all__ = [
@@ -13,4 +14,5 @@ __all__ = [
     "run",
     "build",
     "clean",
+    "update",
 ]
