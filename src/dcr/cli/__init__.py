@@ -4,7 +4,7 @@ from .new import new
 from .run import run
 from .build import build
 from .clean import clean
-from .update import update
+from .flag_update import flag_update
 
 
 __all__ = [
@@ -14,5 +14,5 @@ __all__ = [
     "run",
     "build",
     "clean",
-    "update",
+    "flag_update",
 ]

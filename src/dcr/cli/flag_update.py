@@ -3,7 +3,7 @@ import shutil
 import subprocess
 
 
-def update(args: list[str] | None = None) -> int:
+def flag_update(args: list[str] | None = None) -> int:
     if args and len(args) > 0:
         print("Ошибка: команда не поддежривает аргументы")
         return 1

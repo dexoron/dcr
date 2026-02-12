@@ -1,3 +1,4 @@
+from src.dcr.config import VERSION
 import dcr.cli as cli
 import sys
 
@@ -21,10 +22,12 @@ def main() -> int:
             cli.run(args)
         case "clean":
             cli.clean(args)
+        case "--version":
+            print(f"dcr {VERSION} (GNU/Linux)")
         case "--help":
             cli.help()
         case "--update":
-            cli.update(args)
+            cli.flag_update(args)
         case _:
             print("Неизвестная команда или аргумент")
 
