@@ -1,4 +1,4 @@
-from src.dcr.config import VERSION
+from .config import VERSION
 import dcr.cli as cli
 import sys
 
