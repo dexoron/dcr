@@ -1,17 +1,11 @@
 [project]
 name = "dcr"
 version = "0.1.0"
-description = "Add your description here"
+description = "Утилита для управления проектами для C/C++"
 readme = "README.md"
+license = "LICENSE"
 authors = [
-    { name = "Dexoron", email = "probrovova1@gmail.com" }
+    { name = "Dexoron" },
+    { name = "F1F1FISHKA" }
 ]
-requires-python = ">=3.14.2"
-dependencies = []
-
-[project.scripts]
-run = "dcr.main:main"
-
-[build-system]
-requires = ["uv_build>=0.10.0,<0.11.0"]
-build-backend = "uv_build"
+requires-python = ">=3.10"

@@ -1,5 +1,4 @@
-from dcr.utils.fs import check_dir
-import os
+from ..utils.fs import check_dir
 import shutil
 
 

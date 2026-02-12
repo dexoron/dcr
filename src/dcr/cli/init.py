@@ -1,4 +1,4 @@
-from dcr.config import (
+from ..config import (
     file_dcr_toml,
     file_main_c,
     project_version,
@@ -6,13 +6,14 @@ from dcr.config import (
     project_compiler,
 )
 import os
-from dcr.utils.fs import check_dir
+from ..utils.fs import check_dir
+
 
 def init(args: list[str] | None = None) -> int:
     if args:
         print("Ошибка: команда init не поддерживает аргументы")
         return 1
-    items = check_dir()
+    items: list[str] = check_dir()
     project_name = os.path.basename(os.getcwd())
 
     if items:

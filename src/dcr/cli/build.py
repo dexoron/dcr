@@ -2,7 +2,7 @@ import time
 import os
 import subprocess
 from ..config import flags, profile, c_comp
-from dcr.utils.fs import check_dir
+from ..utils.fs import check_dir
 
 
 def build(args: list[str] | None = None) -> int:
@@ -31,18 +31,24 @@ def build(args: list[str] | None = None) -> int:
         print(f"Запуск сборки с профилем {active_profile}")
         compile_flags = flags[active_profile]
         start_time: float = time.time()
-        subprocess.run(
-            [
-                c_comp,
-                "./src/main.c",
-                *compile_flags,
-                "-o",
-                f"./target/{active_profile}/main",
-            ],
-            check=True,
-        )
-        end_time: float = time.time()
-        times: float = end_time - start_time
-        times: float = int(times * 100) / 100
-        print(f"Сборка завершена, за {times} секунд")
+        try:
+            subprocess.run(
+                [
+                    c_comp,
+                    "./src/main.c",
+                    *compile_flags,
+                    "-o",
+                    f"./target/{active_profile}/main",
+                ],
+                check=True,
+            )
+            end_time: float = time.time()
+            times: float = end_time - start_time
+            times: float = int(times * 100) / 100
+            print(f"Сборка завершена, за {times} секунд")
+            return 0
+        except:
+            print("Ошибка сборки")
+            return 1
+
     return 0
