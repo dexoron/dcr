@@ -86,7 +86,7 @@ install_wrapper() {
 
     cat > "$INSTALL_PATH/dcr" <<'EOF'
 #!/usr/bin/env bash
-BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
+BASE_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 
 if command -v python3 >/dev/null 2>&1; then
     PYTHON_BIN="python3"
