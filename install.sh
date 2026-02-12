@@ -43,6 +43,18 @@ check_os() {
     fi
 }
 
+get_latest_version() {
+    curl -fsSL "$GITHUB_API" | sed -n 's/.*"tag_name": "\(.*\)".*/\1/p'
+}
+
+get_installed_version() {
+    if [[ -f "$INSTALL_PATH/VERSION" ]]; then
+        cat "$INSTALL_PATH/VERSION"
+    else
+        echo ""
+    fi
+}
+
 install_python() {
     log "Python не найден, установка встроенного Python..."
 
@@ -59,24 +71,43 @@ install_python() {
 install_app() {
     log "Получение последнего релиза..."
 
-    TAG=$(curl -fsSL "$GITHUB_API" | sed -n 's/.*"tag_name": "\(.*\)".*/\1/p')
+    TAG=$(get_latest_version)
 
     if [[ -z "$TAG" ]]; then
         error "Не удалось определить версию релиза"
         exit 1
     fi
 
-    log "Найдена версия: $TAG"
+    INSTALLED_VERSION=$(get_installed_version)
+
+    if [[ -n "$INSTALLED_VERSION" ]]; then
+        log "Установленная версия: $INSTALLED_VERSION"
+        log "Последняя версия: $TAG"
+
+        if [[ "$INSTALLED_VERSION" == "$TAG" ]]; then
+            success "Установлена последняя версия ($TAG), обновление не требуется"
+            exit 0
+        else
+            warn "Найдена устаревшая версия, выполняется обновление"
+        fi
+
+    else
+        log "DCR не установлен, выполняется установка"
+    fi
 
     mkdir -p "$TMPDIR"
     curl -fsSL -o "$TMPDIR/sources.tar.gz" \
         "https://github.com/dexoron/dcr/archive/refs/tags/$TAG.tar.gz"
 
+    rm -rf "$INSTALL_PATH"
     mkdir -p "$INSTALL_PATH"
+
     tar -xf "$TMPDIR/sources.tar.gz" -C "$INSTALL_PATH" --strip-components=1
     rm -f "$TMPDIR/sources.tar.gz"
 
-    success "Приложение установлено"
+    echo "$TAG" > "$INSTALL_PATH/VERSION"
+
+    success "Приложение установлено (версия $TAG)"
 }
 
 install_wrapper() {
