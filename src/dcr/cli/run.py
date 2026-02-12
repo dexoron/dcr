@@ -1,5 +1,4 @@
 import subprocess
-import os
 
 from ..utils.fs import check_dir
 from ..utils.text import colored, BRIGHT_RED, BOLD
@@ -8,7 +7,6 @@ from .build import build
 
 
 def run(args: list[str] | None = None) -> int:
-    project_name = os.path.basename(os.getcwd())
     active_profile: str = profile
     if "dcr.toml" not in check_dir():
         print(colored("error", BRIGHT_RED + BOLD) + ": не найден файл dcr.toml")

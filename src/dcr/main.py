@@ -1,5 +1,5 @@
 from .config import VERSION
-import dcr.cli as cli
+import dcr.cli as cli  # ty:ignore[unresolved-import]
 import sys
 
 

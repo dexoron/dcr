@@ -1,7 +1,7 @@
 import time
 import os
 import subprocess
-from ..config import flags, profile, c_comp
+from ..config import flags, profile, project_compiler
 from ..utils.fs import check_dir
 from ..utils.text import colored, BRIGHT_GREEN, BOLD, BRIGHT_RED
 
@@ -30,7 +30,7 @@ def build(args: list[str] | None = None) -> int:
         + "`\n    Профиль: "
         + colored(active_profile, BRIGHT_GREEN + BOLD)
         + "\n    Компилятор: "
-        + colored(c_comp, BRIGHT_GREEN + BOLD)
+        + colored(project_compiler, BRIGHT_GREEN + BOLD)
         + "\n"
     )
 
@@ -44,7 +44,7 @@ def build(args: list[str] | None = None) -> int:
         try:
             subprocess.run(
                 [
-                    c_comp,
+                    project_compiler,
                     "./src/main.c",
                     *compile_flags,
                     "-o",
@@ -63,7 +63,7 @@ def build(args: list[str] | None = None) -> int:
                 + " секунд"
             )
             return 0
-        except:
+        except:  # noqa: E722
             print(colored("error", BRIGHT_RED + BOLD) + ": сборка не удалась")
             return 1
 

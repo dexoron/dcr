@@ -26,7 +26,7 @@ def init(args: list[str] | None = None) -> int:
 
     print("Инициализация проекта в " + os.getcwd())
 
-    with open(f"./dcr.toml", "w") as file:
+    with open("./dcr.toml", "w") as file:
         file.write(
             file_dcr_toml.format(
                 project_name=project_name,
