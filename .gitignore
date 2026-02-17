@@ -1,9 +1,5 @@
-__pycache__/
-build/
-dist/
-wheels/
-*.egg-info
-.venv
-sandbox/*
-.ruff_cache/
+target/
+sandbox/**
+.idea/
 .vscode/
+.env

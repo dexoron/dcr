@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.0] - 2026-02-17
+Изменено:
+- Проект переведен с Python на Rust
+- CLI и команды (`new`, `init`, `build`, `run`, `clean`, `--help`, `--version`, `--update`) перенесены на Rust
+- Обновлен флаг `--update` - добавлена поддержка GNU\Linux, Windows, MacOS
+- Обновлены `README.md`, `CONTRIBUTING.md`, `install.sh` под Rust-реализацию
+- Добавлен `install.ps1` для Windows
+- Обновлен `install.sh` для GNU/Linux и MacOS
+
+Добавлено:
+- Добавлен `install.ps1` для Windows
+- Поддержка GNU\Linux, Windows, MacOS(x86_64/arm)
+
+ВАЖНО:
+- Код перенесен с помощью нейронных сетей, в будущих версиях будет баг-фикс и изменение логики
+
 ## [0.1.2] - 2026-02-12
 Добавлено:
 - Команда обновления

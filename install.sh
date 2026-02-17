@@ -1,14 +1,11 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# ===== CONFIG =====
-TMPDIR="/tmp/dcr-temp"
+TMPDIR="/tmp/dcr-install"
 INSTALL_PATH="$HOME/.local/share/dcr"
-PYTHON_DIR="$INSTALL_PATH/Python"
 BINPATH="$HOME/.local/bin"
 LOGFILE="$HOME/.cache/dcr-install.log"
-
-PYTHON_DOWNLOAD_URL="https://github.com/astral-sh/python-build-standalone/releases/download/20260203/cpython-3.10.19+20260203-x86_64-unknown-linux-gnu-install_only.tar.gz"
+REPO_URL="https://github.com/dexoron/dcr"
 GITHUB_API="https://api.github.com/repos/dexoron/dcr/releases/latest"
 
 RED='\033[0;31m'
@@ -27,118 +24,89 @@ error() { echo -e "${RED}✖ $1${NC}"; }
 
 trap 'error "Ошибка на строке $LINENO"; exit 1' ERR
 
-check_dependencies() {
-    log "Проверка зависимостей..."
-
-    command -v curl >/dev/null 2>&1 || { error "curl не установлен"; exit 1; }
-    command -v tar >/dev/null 2>&1 || { error "tar не установлен"; exit 1; }
-
-    success "Зависимости в порядке"
-}
-
 check_os() {
-    if [[ "$(uname -s)" != "Linux" ]]; then
-        error "Поддерживается только Linux"
-        exit 1
-    fi
+    case "$(uname -s)" in
+        Linux|Darwin) ;;
+        *) error "Поддерживаются только Linux и macOS"; exit 1 ;;
+    esac
 }
 
-get_latest_version() {
-    curl -fsSL "$GITHUB_API" | sed -n 's/.*"tag_name": "\(.*\)".*/\1/p'
+detect_target() {
+    local os arch
+    os="$(uname -s)"
+    arch="$(uname -m)"
+
+    case "$os:$arch" in
+        Linux:x86_64) TARGET_TRIPLE="x86_64-unknown-linux-gnu" ;;
+        Darwin:x86_64) TARGET_TRIPLE="x86_64-apple-darwin" ;;
+        Darwin:arm64|Darwin:aarch64) TARGET_TRIPLE="aarch64-apple-darwin" ;;
+        *) error "Неподдерживаемая платформа: $os/$arch"; exit 1 ;;
+    esac
+
+    ASSET_NAME="dcr-${TARGET_TRIPLE}"
 }
 
-get_installed_version() {
-    if [[ -f "$INSTALL_PATH/VERSION" ]]; then
-        cat "$INSTALL_PATH/VERSION"
-    else
-        echo ""
-    fi
+check_common_dependencies() {
+    command -v curl >/dev/null 2>&1 || { error "curl не установлен"; exit 1; }
 }
 
-install_python() {
-    log "Python не найден, установка встроенного Python..."
-
-    mkdir -p "$PYTHON_DIR"
-    mkdir -p "$TMPDIR"
-
-    curl -fsSL "$PYTHON_DOWNLOAD_URL" -o "$TMPDIR/python.tar.gz"
-    tar -xf "$TMPDIR/python.tar.gz" -C "$PYTHON_DIR" --strip-components=1
-    rm -f "$TMPDIR/python.tar.gz"
-
-    success "Встроенный Python установлен"
+check_build_dependencies() {
+    command -v git >/dev/null 2>&1 || { error "git не установлен"; exit 1; }
+    command -v cargo >/dev/null 2>&1 || { error "cargo не установлен"; exit 1; }
 }
 
-install_app() {
+prepare_sources() {
+    log "Получение исходников..."
+    rm -rf "$TMPDIR"
+    git clone --depth 1 "$REPO_URL" "$TMPDIR"
+    success "Исходники получены"
+}
+
+build_binary() {
+    log "Сборка release-бинарника..."
+    (cd "$TMPDIR" && cargo build --release)
+    success "Сборка завершена"
+}
+
+fetch_latest_release_json() {
+    curl -fsSL "$GITHUB_API"
+}
+
+download_binary() {
     log "Получение последнего релиза..."
 
-    TAG=$(get_latest_version)
+    local release_json download_url tag
+    release_json="$(fetch_latest_release_json)"
 
-    if [[ -z "$TAG" ]]; then
+    tag="$(printf '%s\n' "$release_json" | sed -n 's/.*"tag_name": "\([^"]*\)".*/\1/p' | head -n1)"
+    if [[ -z "$tag" ]]; then
         error "Не удалось определить версию релиза"
         exit 1
     fi
 
-    INSTALLED_VERSION=$(get_installed_version)
-
-    if [[ -n "$INSTALLED_VERSION" ]]; then
-        log "Установленная версия: $INSTALLED_VERSION"
-        log "Последняя версия: $TAG"
-
-        if [[ "$INSTALLED_VERSION" == "$TAG" ]]; then
-            success "Установлена последняя версия ($TAG), обновление не требуется"
-            exit 0
-        else
-            warn "Найдена устаревшая версия, выполняется обновление"
-        fi
-
-    else
-        log "DCR не установлен, выполняется установка"
+    download_url="$(printf '%s\n' "$release_json" | sed -n "s#.*\"browser_download_url\": \"\([^\"]*${ASSET_NAME}\)\".*#\1#p" | head -n1)"
+    if [[ -z "$download_url" ]]; then
+        error "Не найден ассет ${ASSET_NAME} в релизе ${tag}"
+        exit 1
     fi
 
-    mkdir -p "$TMPDIR"
-    curl -fsSL -o "$TMPDIR/sources.tar.gz" \
-        "https://github.com/dexoron/dcr/archive/refs/tags/$TAG.tar.gz"
-
-    rm -rf "$INSTALL_PATH"
     mkdir -p "$INSTALL_PATH"
-
-    tar -xf "$TMPDIR/sources.tar.gz" -C "$INSTALL_PATH" --strip-components=1
-    rm -f "$TMPDIR/sources.tar.gz"
-
-    echo "$TAG" > "$INSTALL_PATH/VERSION"
-
-    success "Приложение установлено (версия $TAG)"
+    curl -fL "$download_url" -o "$INSTALL_PATH/dcr"
+    chmod +x "$INSTALL_PATH/dcr"
+    success "Скачан бинарник ${ASSET_NAME} (${tag})"
 }
 
-install_wrapper() {
-    log "Создание launcher..."
-
+install_built_binary() {
     mkdir -p "$INSTALL_PATH"
-
-    cat > "$INSTALL_PATH/dcr" <<'EOF'
-#!/usr/bin/env bash
-BASE_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
-
-if command -v python3 >/dev/null 2>&1; then
-    PYTHON_BIN="python3"
-else
-    PYTHON_BIN="$BASE_DIR/Python/bin/python3"
-fi
-
-PYTHONPATH="$BASE_DIR/src" exec "$PYTHON_BIN" -m dcr.main "$@"
-EOF
-
+    cp "$TMPDIR/target/release/dcr" "$INSTALL_PATH/dcr"
     chmod +x "$INSTALL_PATH/dcr"
-
-    success "Launcher создан"
+    success "Установлен бинарник из исходников"
 }
 
 install_link() {
     log "Создание симлинка..."
-
     mkdir -p "$BINPATH"
     ln -sf "$INSTALL_PATH/dcr" "$BINPATH/dcr"
-
     success "Команда 'dcr' добавлена в $BINPATH"
 }
 
@@ -154,23 +122,37 @@ cleanup() {
     rm -rf "$TMPDIR" 2>/dev/null || true
 }
 
+select_install_mode() {
+    echo "Выбери способ установки:"
+    echo "  1) Скачать готовый бинарник из GitHub Release (рекомендуется)"
+    echo "  2) Собрать из git"
+    read -r -p "Введите 1 или 2 [1]: " choice
+
+    case "${choice:-1}" in
+        1) INSTALL_MODE="release" ;;
+        2) INSTALL_MODE="build" ;;
+        *) error "Неизвестный вариант"; exit 1 ;;
+    esac
+}
+
 main() {
     log "Запуск установки DCR"
 
     check_os
-    check_dependencies
-
+    detect_target
+    check_common_dependencies
+    select_install_mode
     cleanup
 
-    install_app
-
-    if ! command -v python3 >/dev/null 2>&1; then
-        install_python
+    if [[ "$INSTALL_MODE" == "build" ]]; then
+        check_build_dependencies
+        prepare_sources
+        build_binary
+        install_built_binary
     else
-        success "Найден системный Python"
+        download_binary
     fi
 
-    install_wrapper
     install_link
     check_path
     cleanup
