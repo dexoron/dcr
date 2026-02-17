@@ -1,0 +1,10 @@
+[package]
+name = "dcr"
+version = "2.0.0"
+edition = "2024"
+build = "build.rs"
+
+[dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+self-replace = "1"
