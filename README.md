@@ -1,31 +1,31 @@
 # DCR (Dexoron Cargo Realization)
 
-DCR — это утилита для управления проектами на C/C++ в стиле Cargo.
+DCR is a utility for managing C/C++ projects in a Cargo-like style.
 
-Текущая реализация написана на Rust.
+The current implementation is written in Rust.
 
-## Зачем DCR
-- Единая структура проекта без ручной настройки
-- Простые команды для типовых задач
-- Прозрачная компиляция и предсказуемые профили сборки
+## Why DCR
+- Unified project structure without manual setup
+- Simple commands for common tasks
+- Transparent compilation and predictable build profiles
 
-## Возможности
-- Создание нового проекта или инициализация текущей директории
-- Сборка проекта в профилях `debug` и `release`
-- Запуск собранного бинарника
-- Очистка результатов сборки
-- Генерация минимального шаблона C-проекта
-- Обновление бинарника через `dcr --update` (GitHub Releases)
+## Features
+- Create a new project or initialize the current directory
+- Build a project with `debug` and `release` profiles
+- Run the compiled binary
+- Clean build artifacts
+- Generate a minimal C project template
+- Update the binary via `dcr --update` (GitHub Releases)
 
-## Поддерживаемые платформы
+## Supported Platforms
 - Linux: `x86_64-unknown-linux-gnu`
 - macOS Intel: `x86_64-apple-darwin`
 - macOS Apple Silicon: `aarch64-apple-darwin`
 - Windows: `x86_64-pc-windows-msvc`
 
-## Установка
+## Installation
 
-### Из исходников
+### From Source
 
 ```sh
 git clone https://github.com/dexoron/dcr.git
@@ -35,37 +35,37 @@ mkdir -p ~/.local/bin
 ln -sf "$PWD/target/release/dcr" ~/.local/bin/dcr
 ```
 
-### Через install.sh (Linux/macOS)
+### Via `install.sh` (Linux/macOS)
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/dexoron/dcr/master/install.sh | bash
+curl -fsSL https://dcr.dexoron.su/install.sh | bash
 ```
 
-### Через install.ps1 (Windows)
+### Via `install.ps1` (Windows)
 
 ```powershell
-irm https://raw.githubusercontent.com/dexoron/dcr/master/install.ps1 | iex
+irm https://dcr.dexoron.su/install.ps1 | iex
 ```
 
-Оба скрипта при запуске спрашивают:
-- скачать готовый бинарник из GitHub Release
-- или собрать проект из `git`
+When executed, both scripts ask whether to:
+- download a prebuilt binary from GitHub Releases
+- or build the project from `git`
 
-Релизные ассеты:
+Release assets:
 - `dcr-x86_64-unknown-linux-gnu`
 - `dcr-x86_64-apple-darwin`
 - `dcr-aarch64-apple-darwin`
 - `dcr-x86_64-pc-windows-msvc.exe`
 
-## Быстрый старт
+## Quick Start
 
-Создать новый проект:
+Create a new project:
 `dcr new hello`
 
-Или инициализировать текущую директорию (директория должна быть пустой):
+Or initialize the current directory (the directory must be empty):
 `dcr init`
 
-Структура проекта:
+Project structure:
 
 ```txt
 hello/
@@ -74,38 +74,38 @@ hello/
 - dcr.toml
 ```
 
-Сборка и запуск проекта:
-`dcr run` или `dcr run --release`
+Build and run the project:
+`dcr run` or `dcr run --release`
 
-## Команды
+## Commands
 
 ### `dcr new <name>`
-Создает проект в текущей директории с указанным именем.
+Creates a project with the specified name in the current directory.
 
 ### `dcr init`
-Создает проект в текущей директории. Имя проекта будет равно имени директории. Директория должна быть пустой.
+Creates a project in the current directory. The project name is taken from the directory name. The directory must be empty.
 
 ### `dcr build [profile]`
-Собирает проект. Если профиль не указан, используется `--debug`.
+Builds the project. If no profile is specified, `--debug` is used.
 
 ### `dcr run [profile]`
-Собирает проект и запускает бинарник. Если профиль не указан, используется `--debug`.
+Builds the project and runs the binary. If no profile is specified, `--debug` is used.
 
-Запуск вручную:
+Run manually:
 `./target/<profile>/main`
 
 ### `dcr clean`
-Удаляет папку `target` в корне проекта.
+Removes the `target` directory in the project root.
 
-## Профили сборки
-Поддерживаются два профиля:
-- `--debug` (по умолчанию) — флаги: `-O0 -g -Wall -Wextra -fno-omit-frame-pointer -DDEBUG`
-- `--release` — флаги: `-O3 -DNDEBUG -march=native`
+## Build Profiles
+Two profiles are supported:
+- `--debug` (default) - flags: `-O0 -g -Wall -Wextra -fno-omit-frame-pointer -DDEBUG`
+- `--release` - flags: `-O3 -DNDEBUG -march=native`
 
-## Конфигурация
-Основной файл проекта — `dcr.toml`.
+## Configuration
+The main project file is `dcr.toml`.
 
-Пример `dcr.toml`:
+Example `dcr.toml`:
 
 ```toml
 [package]
@@ -117,12 +117,12 @@ compiler = "clang"
 [dependencies]
 ```
 
-## Требования
-- Rust toolchain (`rustc`, `cargo`) - Для ручной сборки DCR
-- C-компилятор (`clang`, `gcc` или другие)
+## Requirements
+- Rust toolchain (`rustc`, `cargo`) - for building DCR from source
+- C compiler (`clang`, `gcc`, or others)
 
-## Релизы
-Релизы собираются автоматически через GitHub Actions (`.github/workflows/release.yml`) при пуше тега формата `v*`.
+## Releases
+Releases are built automatically via GitHub Actions (`.github/workflows/release.yml`) when a tag matching `v*` is pushed.
 
-## Лицензия
-См. файл `LICENSE`.
+## License
+See `LICENSE`.
