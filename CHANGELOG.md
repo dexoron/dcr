@@ -2,8 +2,8 @@
 
 ## [0.2.1] - 2026-02-18
 Changed:
-- Translated user-facing CLI messages to English in `clean`, `build`, `flag_update`, and `help`
-- Unified error and warning output in `clean`, `build`, and `flag_update` via `utils::log::{error, warn}`
+- Translated user-facing CLI messages to English
+- Unified error and warning output via `utils::log::{error, warn}`
 - Updated `--help` output: translated headers and examples to English, used `printc`, and applied `BOLD_*` styles
 - Translated installer script messages in `install.sh` and `install.ps1` to English
 
