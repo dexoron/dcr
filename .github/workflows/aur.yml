@@ -1,0 +1,121 @@
+name: AUR Publish
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  publish-aur:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Derive version and checksum
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          PKGVER="${GITHUB_REF_NAME#v}"
+          SRC_URL="https://github.com/dexoron/dcr/archive/refs/tags/v${PKGVER}.tar.gz"
+          SHA256="$(curl -fsSL "$SRC_URL" | sha256sum | awk '{print $1}')"
+
+          echo "pkgver=$PKGVER" >> "$GITHUB_OUTPUT"
+          echo "source_url=$SRC_URL" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+
+      - name: Render AUR metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          PKGVER='${{ steps.meta.outputs.pkgver }}'
+          SRC_URL='${{ steps.meta.outputs.source_url }}'
+          SHA256='${{ steps.meta.outputs.sha256 }}'
+
+          cat > packaging/aur/dcr/PKGBUILD <<PKG
+          pkgname=dcr
+          pkgver=${PKGVER}
+          pkgrel=1
+          pkgdesc="Cargo-like utility to manage C/C++ projects"
+          arch=('x86_64' 'aarch64')
+          url="https://github.com/dexoron/dcr"
+          license=('MIT')
+          depends=('gcc-libs')
+          makedepends=('cargo')
+          optdepends=(
+            'gcc: build C/C++ projects with GCC'
+            'clang: build C/C++ projects with Clang'
+          )
+          source=("\$pkgname-\$pkgver.tar.gz::\$url/archive/refs/tags/v\$pkgver.tar.gz")
+          sha256sums=('${SHA256}')
+
+          build() {
+            cd "\$srcdir/\$pkgname-\$pkgver"
+            cargo build --release --locked
+          }
+
+          package() {
+            cd "\$srcdir/\$pkgname-\$pkgver"
+            install -Dm755 "target/release/dcr" "\$pkgdir/usr/bin/dcr"
+            install -Dm644 LICENSE "\$pkgdir/usr/share/licenses/\$pkgname/LICENSE"
+          }
+          PKG
+
+          cat > packaging/aur/dcr/.SRCINFO <<SRC
+          pkgbase = dcr
+          	pkgdesc = Cargo-like utility to manage C/C++ projects
+          	pkgver = ${PKGVER}
+          	pkgrel = 1
+          	url = https://github.com/dexoron/dcr
+          	arch = x86_64
+          	arch = aarch64
+          	license = MIT
+          	makedepends = cargo
+          	depends = gcc-libs
+          	optdepends = gcc: build C/C++ projects with GCC
+          	optdepends = clang: build C/C++ projects with Clang
+          	source = dcr-${PKGVER}.tar.gz::${SRC_URL}
+          	sha256sums = ${SHA256}
+
+          pkgname = dcr
+          SRC
+
+      - name: Push to AUR
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          AUR_PACKAGE: dcr
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${AUR_SSH_PRIVATE_KEY:-}" ]]; then
+            echo "AUR_SSH_PRIVATE_KEY secret is missing"
+            exit 1
+          fi
+
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
+
+          export GIT_SSH_COMMAND='ssh -i ~/.ssh/aur -o IdentitiesOnly=yes'
+          git clone "ssh://aur@aur.archlinux.org/${AUR_PACKAGE}.git" aur-repo
+          cp packaging/aur/dcr/PKGBUILD aur-repo/PKGBUILD
+          cp packaging/aur/dcr/.SRCINFO aur-repo/.SRCINFO
+
+          cd aur-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git diff --quiet; then
+            echo "No AUR changes"
+            exit 0
+          fi
+
+          git add PKGBUILD .SRCINFO
+          git commit -m "dcr ${{ steps.meta.outputs.pkgver }}"
+          git push
