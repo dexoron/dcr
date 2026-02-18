@@ -1,13 +1,10 @@
 use crate::config::flags;
 use crate::utils::fs::check_dir;
-use crate::utils::text::{BOLD, BRIGHT_GREEN, BRIGHT_RED, BRIGHT_YELLOW, colored};
+use crate::utils::log::{error, warn};
+use crate::utils::text::{BOLD_GREEN, colored};
 use std::fs;
 
 pub fn clean(args: &[String]) -> i32 {
-    let red_bold = BRIGHT_RED.to_owned() + BOLD;
-    let green_bold = BRIGHT_GREEN.to_owned() + BOLD;
-    let yellow_bold = BRIGHT_YELLOW.to_owned() + BOLD;
-
     let project_name = std::env::current_dir()
         .ok()
         .and_then(|p| p.file_name().map(|v| v.to_string_lossy().to_string()))
@@ -15,23 +12,20 @@ pub fn clean(args: &[String]) -> i32 {
     let items = check_dir(None).unwrap_or_default();
 
     if args.len() > 1 {
-        println!("{}: неизвестный аргумент", colored("error", &red_bold));
+        error("Unknown argument");
         return 1;
     }
     if !items.contains(&"dcr.toml".to_string()) {
-        println!("{}: не найден файл dcr.toml", colored("error", &red_bold));
+        error("dcr.toml file not found");
         return 1;
     }
 
     println!(
-        "    Очистка проекта `{}`",
-        colored(&project_name, &green_bold)
+        "    Cleaning project `{}`",
+        colored(&project_name, BOLD_GREEN)
     );
     if !items.contains(&"target".to_string()) {
-        println!(
-            "{}: директория target не найдена",
-            colored("warn", &yellow_bold)
-        );
+        warn("Directory target not found");
         return 1;
     }
 
@@ -41,32 +35,29 @@ pub fn clean(args: &[String]) -> i32 {
             profile = profile.trim_start_matches("--").to_string();
         }
         if flags(&profile).is_none() {
-            println!("{}: неизвестный профиль", colored("error", &red_bold));
+            error("Unknown profile");
             return 1;
         }
 
         let target_items = check_dir(Some("target")).unwrap_or_default();
         if !target_items.contains(&profile) {
-            println!(
-                "{}: директория target/{profile} не найдена",
-                colored("warn", &yellow_bold)
-            );
+            warn(&format!("Directory target/{profile} not found"));
             return 1;
         }
 
-        println!("    Профиль: {}", colored(&profile, &green_bold));
+        println!("    Profile: {}", colored(&profile, BOLD_GREEN));
         let _ = fs::remove_dir_all(format!("target/{profile}"));
         println!(
-            "{} Удалена директория target/{profile}",
-            colored("\n    ✔", &green_bold)
+            "{} Removed directory target/{profile}",
+            colored("\n    ✔", BOLD_GREEN)
         );
         return 0;
     }
 
     let _ = fs::remove_dir_all("target");
     println!(
-        "{} Удалена директория target",
-        colored("\n    ✔", &green_bold)
+        "{} Removed directory target",
+        colored("\n    ✔", BOLD_GREEN)
     );
     0
 }

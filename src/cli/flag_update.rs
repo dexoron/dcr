@@ -1,3 +1,4 @@
+use crate::utils::log::{error, warn};
 use reqwest::blocking::Client;
 use serde::Deserialize;
 use std::fs;
@@ -20,7 +21,7 @@ struct ReleaseAsset {
 
 pub fn flag_update(args: &[String]) -> i32 {
     if !args.is_empty() {
-        println!("Ошибка: команда не поддежривает аргументы");
+        warn("Command does not support additional arguments");
         return 1;
     }
 
@@ -29,7 +30,7 @@ pub fn flag_update(args: &[String]) -> i32 {
     let client = match Client::builder().user_agent("dcr-updater").build() {
         Ok(client) => client,
         Err(_) => {
-            println!("Ошибка: не удалось инициализировать HTTP клиент");
+            error("Failed to initialize HTTP client");
             return 1;
         }
     };
@@ -37,14 +38,14 @@ pub fn flag_update(args: &[String]) -> i32 {
     let release = match fetch_latest_release(&client) {
         Ok(release) => release,
         Err(err) => {
-            println!("Ошибка: не удалось проверить обновления: {err}");
+            error(&format!("Failed to check for updates: {err}"));
             return 1;
         }
     };
 
     let latest_version = release.tag_name.trim_start_matches('v');
     if latest_version == current_version {
-        println!("Установлена последняя версия: {current_version}");
+        println!("Latest version is already installed: {current_version}");
         return 0;
     }
 
@@ -54,14 +55,14 @@ pub fn flag_update(args: &[String]) -> i32 {
         .iter()
         .find(|asset| candidate_names.iter().any(|name| name == &asset.name))
     else {
-        println!("Ошибка: не найден бинарник для таргета {target}");
+        error(&format!("Binary for target {target} not found"));
         return 1;
     };
 
     let bytes = match download_asset(&client, &asset.browser_download_url) {
         Ok(bytes) => bytes,
         Err(err) => {
-            println!("Ошибка: не удалось скачать обновление: {err}");
+            error(&format!("Failed to download update: {err}"));
             return 1;
         }
     };
@@ -69,26 +70,26 @@ pub fn flag_update(args: &[String]) -> i32 {
     let current_exe = match std::env::current_exe() {
         Ok(path) => path,
         Err(_) => {
-            println!("Ошибка: не удалось определить путь текущего бинарника");
+            error("Failed to resolve current binary path");
             return 1;
         }
     };
     let temp_path = temp_binary_path(&current_exe);
 
     if fs::write(&temp_path, &bytes).is_err() {
-        println!("Ошибка: не удалось записать временный бинарник");
+        error("Failed to write temporary binary");
         return 1;
     }
     set_executable_permissions(&temp_path);
 
     if self_replace::self_replace(&temp_path).is_err() {
         let _ = fs::remove_file(&temp_path);
-        println!("Ошибка: не удалось заменить текущий бинарник");
+        error("Failed to replace current binary");
         return 1;
     }
 
     let _ = fs::remove_file(&temp_path);
-    println!("Обновление завершено: {current_version} -> {latest_version}");
+    println!("Update completed: {current_version} -> {latest_version}");
     0
 }
 
@@ -96,31 +97,31 @@ fn fetch_latest_release(client: &Client) -> Result<Release, String> {
     let response = client
         .get(LATEST_RELEASE_URL)
         .send()
-        .map_err(|_| "запрос к GitHub API завершился ошибкой".to_string())?;
+        .map_err(|_| "GitHub API request failed".to_string())?;
 
     if !response.status().is_success() {
-        return Err(format!("GitHub API вернул статус {}", response.status()));
+        return Err(format!("GitHub API returned status {}", response.status()));
     }
 
     response
         .json::<Release>()
-        .map_err(|_| "ответ GitHub API имеет неожиданный формат".to_string())
+        .map_err(|_| "GitHub API response has an unexpected format".to_string())
 }
 
 fn download_asset(client: &Client, url: &str) -> Result<Vec<u8>, String> {
     let response = client
         .get(url)
         .send()
-        .map_err(|_| "запрос на скачивание завершился ошибкой".to_string())?;
+        .map_err(|_| "Download request failed".to_string())?;
 
     if !response.status().is_success() {
-        return Err(format!("скачивание вернуло статус {}", response.status()));
+        return Err(format!("Download returned status {}", response.status()));
     }
 
     response
         .bytes()
         .map(|bytes| bytes.to_vec())
-        .map_err(|_| "не удалось прочитать скачанные данные".to_string())
+        .map_err(|_| "Failed to read downloaded data".to_string())
 }
 
 fn asset_candidates(target: &str) -> Vec<String> {

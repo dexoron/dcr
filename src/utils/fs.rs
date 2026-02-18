@@ -1,6 +1,7 @@
 use std::io;
 use std::path::PathBuf;
 
+#[allow(dead_code)]
 pub fn check_dir(dir: Option<&str>) -> io::Result<Vec<String>> {
     let path: PathBuf = match dir {
         None | Some(".") | Some("./") => std::env::current_dir()?,

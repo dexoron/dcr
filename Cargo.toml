@@ -1,6 +1,6 @@
 [package]
 name = "dcr"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 build = "build.rs"
 
@@ -8,3 +8,4 @@ build = "build.rs"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 self-replace = "1"
+log = "0.4.29"

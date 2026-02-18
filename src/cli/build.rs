@@ -1,14 +1,13 @@
 use crate::config::{PROFILE, PROJECT_COMPILER, flags};
 use crate::utils::fs::check_dir;
-use crate::utils::text::{BOLD, BRIGHT_GREEN, BRIGHT_RED, colored};
+use crate::utils::log::{error, warn};
+use crate::utils::text::{BOLD_GREEN, colored};
 use std::fs;
 use std::process::Command;
 use std::time::Instant;
 
 pub fn build(args: &[String]) -> i32 {
     let mut active_profile = PROFILE.to_string();
-    let red_bold = BRIGHT_RED.to_owned() + BOLD;
-    let green_bold = BRIGHT_GREEN.to_owned() + BOLD;
     let project_name = std::env::current_dir()
         .ok()
         .and_then(|p| p.file_name().map(|v| v.to_string_lossy().to_string()))
@@ -16,7 +15,7 @@ pub fn build(args: &[String]) -> i32 {
 
     let items = check_dir(None).unwrap_or_default();
     if !items.contains(&"dcr.toml".to_string()) {
-        println!("{}: не найден файл dcr.toml", colored("error", &red_bold));
+        error("dcr.toml file not found");
         return 1;
     }
 
@@ -26,20 +25,20 @@ pub fn build(args: &[String]) -> i32 {
             if flags(candidate).is_some() {
                 active_profile = candidate.to_string();
             } else {
-                println!("{}: неизвестный флаг сборки", colored("error", &red_bold));
+                warn("Unknown build flag");
                 return 1;
             }
         } else {
-            println!("{}: неизвестный аргумент", colored("error", &red_bold));
+            warn("Unknown argument");
             return 1;
         }
     }
 
     println!(
-        "    Сборка проекта `{}`\n    Профиль: {}\n    Компилятор: {}\n",
-        colored(&project_name, &green_bold),
-        colored(&active_profile, &green_bold),
-        colored(PROJECT_COMPILER, &green_bold)
+        "    Building project `{}`\n    Profile: {}\n    Compiler: {}\n",
+        colored(&project_name, BOLD_GREEN),
+        colored(&active_profile, BOLD_GREEN),
+        colored(PROJECT_COMPILER, BOLD_GREEN)
     );
 
     if !items.contains(&"target".to_string()) {
@@ -65,14 +64,14 @@ pub fn build(args: &[String]) -> i32 {
             Ok(status) if status.success() => {
                 let times = ((start_time.elapsed().as_secs_f64() * 100.0).trunc()) / 100.0;
                 println!(
-                    "    {} Сборка завершена успешно, за {} секунд",
-                    colored("✔", &green_bold),
-                    colored(&times.to_string(), &green_bold)
+                    "    {} Build completed successfully in {} seconds",
+                    colored("✔", BOLD_GREEN),
+                    colored(&times.to_string(), BOLD_GREEN)
                 );
                 return 0;
             }
             _ => {
-                println!("{}: сборка не удалась", colored("error", &red_bold));
+                error("Build failed");
                 return 1;
             }
         }

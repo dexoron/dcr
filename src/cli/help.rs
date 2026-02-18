@@ -1,36 +1,33 @@
-use crate::utils::text::{BOLD, BRIGHT_CYAN, BRIGHT_GREEN, colored};
+use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, printc};
 
 pub fn help() -> i32 {
-    let green_bold = BRIGHT_GREEN.to_owned() + BOLD;
-    let cyan_bold = BRIGHT_CYAN.to_owned() + BOLD;
-
     println!("DCR (Dexoron Cargo Realization)");
-    println!("Менеджер C-проектов, вдохновленный Cargo.");
+    println!("C project manager inspired by Cargo.");
     println!();
-    println!("{}", colored("ИСПОЛЬЗОВАНИЕ:", &green_bold));
-    println!("{}", colored("    dcr <команда> [опции]", &cyan_bold));
+    printc("USAGE:", BOLD_GREEN);
+    printc("    dcr <command> [options]", BOLD_CYAN);
     println!();
-    println!("{}", colored("КОМАНДЫ:", &green_bold));
-    println!("    new <name>        Создать новый проект");
-    println!("    init              Инициализировать текущую директорию как проект");
-    println!("    build [--profile] Собрать проект (по умолчанию: --debug)");
-    println!("    run [--profile]   Собрать и запустить (по умолчанию: --debug)");
-    println!("    clean             Удалить директорию target");
-    println!("{}", colored("ФЛАГИ:", &green_bold));
-    println!("    --help            Показать справку по команде");
-    println!("    --update          Обновить dcr до актуальной версии");
-    println!("    --version         Показать версию dcr");
+    printc("COMMANDS:", BOLD_GREEN);
+    println!("    new <name>        Create a new project");
+    println!("    init              Initialize the current directory as a project");
+    println!("    build [--profile] Build the project (default: --debug)");
+    println!("    run [--profile]   Build and run the project (default: --debug)");
+    println!("    clean             Remove the target directory");
+    printc("FLAGS:", BOLD_GREEN);
+    println!("    --help            Show command help");
+    println!("    --update          Update dcr to the latest version");
+    println!("    --version         Show dcr version");
     println!();
-    println!("{}", colored("ОПЦИИ:", &green_bold));
-    println!("    --debug           Сборка с профилем debug");
-    println!("    --release         Сборка с профилем release");
+    printc("OPTIONS:", BOLD_GREEN);
+    println!("    --debug           Build with debug profile");
+    println!("    --release         Build with release profile");
     println!();
-    println!("{}", colored("ПРИМЕРЫ:", &green_bold));
-    println!("{}", colored("    dcr new hello", &cyan_bold));
-    println!("{}", colored("    dcr build --release", &cyan_bold));
-    println!("{}", colored("    dcr run --debug", &cyan_bold));
+    printc("EXAMPLES:", BOLD_GREEN);
+    printc("    dcr new hello", BOLD_CYAN);
+    printc("    dcr build --release", BOLD_CYAN);
+    printc("    dcr run --debug", BOLD_CYAN);
     println!();
-    println!("{}", colored("ПОДСКАЗКА:", &green_bold));
-    println!("    Запусти 'dcr <команда> --help' для справки по команде.");
+    printc("TIP:", BOLD_GREEN);
+    println!("    Run 'dcr <command> --help' for command-specific help.");
     0
 }

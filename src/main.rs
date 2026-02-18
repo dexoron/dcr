@@ -1,3 +1,4 @@
+use crate::utils::log::error;
 mod cli;
 mod config;
 mod utils;
@@ -25,7 +26,7 @@ fn main() {
         "--help" => cli::help::help(),
         "--update" => cli::flag_update::flag_update(rest),
         _ => {
-            println!("Неизвестная команда или аргумент");
+            error("Unknown command or argument");
             0
         }
     };
