@@ -46,6 +46,7 @@ jobs:
           license=('MIT')
           depends=('gcc-libs')
           makedepends=('cargo')
+          options=('!lto')
           optdepends=(
             'gcc: build C/C++ projects with GCC'
             'clang: build C/C++ projects with Clang'
@@ -75,6 +76,7 @@ jobs:
           	arch = aarch64
           	license = MIT
           	makedepends = cargo
+          	options = !lto
           	depends = gcc-libs
           	optdepends = gcc: build C/C++ projects with GCC
           	optdepends = clang: build C/C++ projects with Clang
