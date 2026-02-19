@@ -3,6 +3,7 @@ use reqwest::blocking::Client;
 use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const LATEST_RELEASE_URL: &str = "https://api.github.com/repos/dexoron/dcr/releases/latest";
@@ -23,6 +24,22 @@ pub fn flag_update(args: &[String]) -> i32 {
     if !args.is_empty() {
         warn("Command does not support additional arguments");
         return 1;
+    }
+
+    let current_exe = match std::env::current_exe() {
+        Ok(path) => path,
+        Err(_) => {
+            error("Failed to resolve current binary path");
+            return 1;
+        }
+    };
+
+    if let Some(package_name) = pacman_owned_package(&current_exe) {
+        warn("This dcr binary is managed by pacman/AUR");
+        println!(
+            "Update via package manager: yay/paru -Syu {package_name} or sudo pacman -Syu {package_name}"
+        );
+        return 0;
     }
 
     let current_version = env!("CARGO_PKG_VERSION");
@@ -67,13 +84,6 @@ pub fn flag_update(args: &[String]) -> i32 {
         }
     };
 
-    let current_exe = match std::env::current_exe() {
-        Ok(path) => path,
-        Err(_) => {
-            error("Failed to resolve current binary path");
-            return 1;
-        }
-    };
     let temp_path = temp_binary_path(&current_exe);
 
     if fs::write(&temp_path, &bytes).is_err() {
@@ -156,4 +166,24 @@ fn set_executable_permissions(path: &Path) {
             let _ = fs::set_permissions(path, perms);
         }
     }
+}
+
+#[cfg(target_os = "linux")]
+fn pacman_owned_package(path: &Path) -> Option<String> {
+    let output = Command::new("pacman").arg("-Qoq").arg(path).output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    let package_name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if package_name.is_empty() {
+        return None;
+    }
+
+    Some(package_name)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn pacman_owned_package(_path: &Path) -> Option<String> {
+    None
 }

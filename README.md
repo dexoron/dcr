@@ -15,7 +15,7 @@ The current implementation is written in Rust.
 - Run the compiled binary
 - Clean build artifacts
 - Generate a minimal C project template
-- Update the binary via `dcr --update` (GitHub Releases)
+- Update the binary via `dcr --update` (GitHub Releases, not for pacman/AUR installs)
 
 ## Supported Platforms
 - Linux: `x86_64-unknown-linux-gnu`
@@ -24,6 +24,13 @@ The current implementation is written in Rust.
 - Windows: `x86_64-pc-windows-msvc`
 
 ## Installation
+
+### Package Manager
+
+**Arch Linux**
+```sh
+yay -S dcr # or paru and other AUR package managers
+```
 
 ### From Source
 
@@ -56,6 +63,14 @@ Release assets:
 - `dcr-x86_64-apple-darwin`
 - `dcr-aarch64-apple-darwin`
 - `dcr-x86_64-pc-windows-msvc.exe`
+
+## Update
+
+- If DCR was installed from GitHub release assets, `install.sh`, `install.ps1`, or built manually:
+  - use `dcr --update`
+- If DCR is installed via `pacman/AUR`:
+  - update with your package manager: `paru/yay -Syu dcr` or `sudo pacman -Syu dcr`
+  - `dcr --update` detects package-managed installs and asks you to update via package manager
 
 ## Quick Start
 

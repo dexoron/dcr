@@ -56,6 +56,8 @@ jobs:
 
           build() {
             cd "\$srcdir/\$pkgname-\$pkgver"
+            export CARGO_PROFILE_RELEASE_LTO=false
+            export RUSTFLAGS="${RUSTFLAGS/-C link-arg=-fuse-ld=lld/}"
             cargo build --release --locked
           }
 
@@ -76,10 +78,10 @@ jobs:
           	arch = aarch64
           	license = MIT
           	makedepends = cargo
-          	options = !lto
           	depends = gcc-libs
           	optdepends = gcc: build C/C++ projects with GCC
           	optdepends = clang: build C/C++ projects with Clang
+            options = !lto
           	source = dcr-${PKGVER}.tar.gz::${SRC_URL}
           	sha256sums = ${SHA256}
 
