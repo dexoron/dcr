@@ -1,9 +1,11 @@
-use crate::config::{FILE_MAIN_C, file_dcr_toml};
+use crate::config::FILE_MAIN_C;
+use crate::core::config::Config;
 use crate::utils::fs::check_dir;
 use crate::utils::log::{error, warn};
 use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
 use std::fs;
 use std::io::Write;
+use toml::Value;
 
 pub fn init(args: &[String]) -> i32 {
     if !args.is_empty() {
@@ -27,15 +29,15 @@ pub fn init(args: &[String]) -> i32 {
         .unwrap_or_else(|_| ".".to_string());
     println!("Initializing the project in {cwd}");
 
-    let mut dcr_toml = match fs::File::create("./dcr.toml") {
-        Ok(file) => file,
+    let mut config = match Config::new("./dcr.toml") {
+        Ok(cfg) => cfg,
         Err(_) => {
             error("Failed to create dcr.toml");
             return 1;
         }
     };
-    if dcr_toml
-        .write_all(file_dcr_toml(&project_name).as_bytes())
+    if config
+        .edit("package.name", Value::String(project_name.clone()))
         .is_err()
     {
         error("Failed to write dcr.toml");
@@ -43,7 +45,7 @@ pub fn init(args: &[String]) -> i32 {
     }
     println!(
         "    {} Created file {}",
-        colored("✔", BOLD_CYAN),
+        colored("✔", BOLD_GREEN),
         colored("dcr.toml", BOLD_CYAN)
     );
 
@@ -73,6 +75,6 @@ pub fn init(args: &[String]) -> i32 {
         colored(project_name.as_str(), BOLD_GREEN)
     );
     printc("Next step:", BOLD_GREEN);
-    printc("    cd {}\n    dcr run", project_name.as_str());
+    printc("    dcr run", BOLD_CYAN);
     0
 }

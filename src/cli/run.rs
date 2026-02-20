@@ -1,5 +1,6 @@
 use crate::cli::build::build;
 use crate::config::{PROFILE, flags};
+use crate::core::config::Config;
 use crate::utils::fs::check_dir;
 use crate::utils::log::{error, warn};
 use crate::utils::text::{BOLD_GREEN, colored};
@@ -13,6 +14,18 @@ pub fn run(args: &[String]) -> i32 {
         error("dcr.toml file not found");
         return 1;
     }
+
+    let config = match Config::open("./dcr.toml") {
+        Ok(cfg) => cfg,
+        Err(_) => {
+            error("dcr.toml file not found");
+            return 1;
+        }
+    };
+    let project_name: &str = config
+        .get("package.name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
 
     if let Some(first_arg) = args.first() {
         if first_arg.starts_with("--") {
@@ -32,11 +45,11 @@ pub fn run(args: &[String]) -> i32 {
     let build_status = build(args);
     if build_status == 0 {
         println!(
-            "\n    {} target/{active_profile}/main",
+            "\n    {} target/{active_profile}/{project_name}",
             colored("Running", BOLD_GREEN)
         );
         println!("--------------------------------");
-        return Command::new(format!("./target/{active_profile}/main"))
+        return Command::new(format!("./target/{active_profile}/{project_name}"))
             .status()
             .map(|status| status.code().unwrap_or(1))
             .unwrap_or(1);
@@ -47,7 +60,7 @@ pub fn run(args: &[String]) -> i32 {
         .contains(&active_profile)
     {
         warn("Launch of the latest release");
-        return Command::new(format!("./target/{active_profile}/main"))
+        return Command::new(format!("./target/{active_profile}/{project_name}"))
             .status()
             .map(|status| status.code().unwrap_or(1))
             .unwrap_or(1);

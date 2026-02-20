@@ -1,4 +1,5 @@
-use crate::config::{PROFILE, PROJECT_COMPILER, flags};
+use crate::config::{PROFILE, flags};
+use crate::core::config::Config;
 use crate::utils::fs::check_dir;
 use crate::utils::log::{error, warn};
 use crate::utils::text::{BOLD_GREEN, colored};
@@ -8,16 +9,28 @@ use std::time::Instant;
 
 pub fn build(args: &[String]) -> i32 {
     let mut active_profile = PROFILE.to_string();
-    let project_name = std::env::current_dir()
-        .ok()
-        .and_then(|p| p.file_name().map(|v| v.to_string_lossy().to_string()))
-        .unwrap_or_else(|| "project".to_string());
 
     let items = check_dir(None).unwrap_or_default();
     if !items.contains(&"dcr.toml".to_string()) {
         error("dcr.toml file not found");
         return 1;
     }
+
+    let config = match Config::open("./dcr.toml") {
+        Ok(cfg) => cfg,
+        Err(_) => {
+            error("dcr.toml file not found");
+            return 1;
+        }
+    };
+    let project_compiler: &str = config
+        .get("package.compiler")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let project_name: &str = config
+        .get("package.name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
 
     if let Some(first_arg) = args.first() {
         if first_arg.starts_with("--") {
@@ -36,9 +49,9 @@ pub fn build(args: &[String]) -> i32 {
 
     println!(
         "    Building project `{}`\n    Profile: {}\n    Compiler: {}\n",
-        colored(&project_name, BOLD_GREEN),
+        colored(project_name, BOLD_GREEN),
         colored(&active_profile, BOLD_GREEN),
-        colored(PROJECT_COMPILER, BOLD_GREEN)
+        colored(project_compiler, BOLD_GREEN)
     );
 
     if !items.contains(&"target".to_string()) {
@@ -53,12 +66,13 @@ pub fn build(args: &[String]) -> i32 {
     if src_items.contains(&"main.c".to_string()) {
         let compile_flags = flags(&active_profile).unwrap_or(&[]);
         let start_time = Instant::now();
-        let mut cmd = Command::new(PROJECT_COMPILER);
+        let mut cmd = Command::new(project_compiler);
         cmd.arg("./src/main.c");
         for flag in compile_flags {
             cmd.arg(flag);
         }
-        cmd.arg("-o").arg(format!("./target/{active_profile}/main"));
+        cmd.arg("-o")
+            .arg(format!("./target/{active_profile}/{project_name}"));
 
         match cmd.status() {
             Ok(status) if status.success() => {

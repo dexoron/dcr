@@ -1,6 +1,7 @@
 use crate::utils::log::error;
 mod cli;
 mod config;
+mod core;
 mod utils;
 
 fn main() {
