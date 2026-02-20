@@ -57,7 +57,8 @@ jobs:
           build() {
             cd "\$srcdir/\$pkgname-\$pkgver"
             export CARGO_PROFILE_RELEASE_LTO=false
-            export RUSTFLAGS="${RUSTFLAGS/-C link-arg=-fuse-ld=lld/}"
+            export RUSTFLAGS="\${RUSTFLAGS:-}"
+            export RUSTFLAGS="\${RUSTFLAGS/-C link-arg=-fuse-ld=lld/}"
             cargo build --release --locked
           }
 
