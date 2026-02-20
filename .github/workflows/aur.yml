@@ -2,6 +2,10 @@ name: AUR Publish
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Tag version without v prefix (e.g. 0.2.2)"
+        required: true
   push:
     tags:
       - "v*"
@@ -21,7 +25,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PKGVER="${GITHUB_REF_NAME#v}"
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            PKGVER="${{ inputs.version }}"
+          else
+            PKGVER="${GITHUB_REF_NAME#v}"
+          fi
           SRC_URL="https://github.com/dexoron/dcr/archive/refs/tags/v${PKGVER}.tar.gz"
           SHA256="$(curl -fsSL "$SRC_URL" | sha256sum | awk '{print $1}')"
 
