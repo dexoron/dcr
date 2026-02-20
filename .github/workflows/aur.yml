@@ -16,6 +16,7 @@ permissions:
 jobs:
   publish-aur:
     runs-on: ubuntu-latest
+    environment: aur
     steps:
       - name: Checkout
         uses: actions/checkout@v4
