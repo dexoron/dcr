@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.2] - 2026-02-20
+Changed:
+- Reworked `dcr.toml` handling: added read, validation, and edit through `core::config`
+- `new` and `init` use the new config creation logic
+- `build` and `run` now require `dcr.toml` and read `compiler` and `name` from it
+
 ## [0.2.1] - 2026-02-18
 Changed:
 - Translated user-facing CLI messages to English
