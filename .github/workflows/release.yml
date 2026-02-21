@@ -22,9 +22,9 @@ jobs:
           notes_file=".github/release-notes.md"
           if grep -q "^## \\[${tag}\\]" CHANGELOG.md; then
             awk -v ver="$tag" '
-              $0 ~ "^## \\["ver"\\]" {in=1; next}
-              in && $0 ~ "^## \\[" {exit}
-              in {print}
+              $0 ~ "^## \\[" ver "\\]" {found=1; next}
+              found && $0 ~ "^## \\[" {exit}
+              found {print}
             ' CHANGELOG.md | sed -e '${/^$/d;}' > "$notes_file"
           else
             echo "No CHANGELOG section for $tag." > "$notes_file"
