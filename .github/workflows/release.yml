@@ -9,6 +9,34 @@ permissions:
   contents: write
 
 jobs:
+  notes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare Release Notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          notes_file=".github/release-notes.md"
+          if grep -q "^## \\[${tag}\\]" CHANGELOG.md; then
+            awk -v ver="$tag" '
+              $0 ~ "^## \\["ver"\\]" {in=1; next}
+              in && $0 ~ "^## \\[" {exit}
+              in {print}
+            ' CHANGELOG.md | sed -e '${/^$/d;}' > "$notes_file"
+          else
+            echo "No CHANGELOG section for $tag." > "$notes_file"
+            git log -1 --pretty=format:"%s%n%n%b" >> "$notes_file"
+          fi
+
+      - name: Upload Notes Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: .github/release-notes.md
+
   build:
     strategy:
       fail-fast: false
@@ -28,8 +56,14 @@ jobs:
             asset_name: dcr-x86_64-pc-windows-msvc.exe
 
     runs-on: ${{ matrix.os }}
+    needs: notes
     steps:
       - uses: actions/checkout@v4
+      - name: Download Release Notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: .github
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -55,3 +89,4 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ matrix.asset_name }}
+          body_path: .github/release-notes.md
