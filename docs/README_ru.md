@@ -107,15 +107,15 @@ hello/
 Собирает проект и запускает бинарник. Если профиль не указан, используется `--debug`.
 
 Запуск вручную:
-`./target/<profile>/main`
+`./target/<profile>/<name>`
 
 ### `dcr clean`
 Удаляет папку `target` в корне проекта.
 
 ## Профили сборки
 Поддерживаются два профиля:
-- `--debug` (по умолчанию) — флаги: `-O0 -g -Wall -Wextra -fno-omit-frame-pointer -DDEBUG`
-- `--release` — флаги: `-O3 -DNDEBUG -march=native`
+- `--debug` (по умолчанию) — флаги: `-O0 -g -Wall -Wextra -fno-omit-frame-pointer -DDEBUG`(Clang)
+- `--release` — флаги: `-O3 -DNDEBUG -march=native`(Clang)
 
 ## Конфигурация
 Основной файл проекта — `dcr.toml`.
@@ -126,7 +126,10 @@ hello/
 [package]
 name = "hello"
 version = "0.1.0"
+
+[build]
 language = "c"
+standard = "c11"
 compiler = "clang"
 
 [dependencies]
@@ -134,7 +137,7 @@ compiler = "clang"
 
 ## Требования
 - Rust toolchain (`rustc`, `cargo`) - Для ручной сборки DCR
-- C-компилятор (`clang`, `gcc` или другие)
+- C-компилятор (`clang`, `gcc` или 'cl'(msvc))
 
 ## Релизы
 Релизы собираются автоматически через GitHub Actions (`.github/workflows/release.yml`) при пуше тега формата `v*`.

@@ -107,15 +107,15 @@ Builds the project. If no profile is specified, `--debug` is used.
 Builds the project and runs the binary. If no profile is specified, `--debug` is used.
 
 Run manually:
-`./target/<profile>/main`
+`./target/<profile>/<name>`
 
 ### `dcr clean`
 Removes the `target` directory in the project root.
 
 ## Build Profiles
 Two profiles are supported:
-- `--debug` (default) - flags: `-O0 -g -Wall -Wextra -fno-omit-frame-pointer -DDEBUG`
-- `--release` - flags: `-O3 -DNDEBUG -march=native`
+- `--debug` (default) - flags: `-O0 -g -Wall -Wextra -fno-omit-frame-pointer -DDEBUG`(Clang)
+- `--release` - flags: `-O3 -DNDEBUG -march=native`(Clang)
 
 ## Configuration
 The main project file is `dcr.toml`.
@@ -126,7 +126,10 @@ Example `dcr.toml`:
 [package]
 name = "hello"
 version = "0.1.0"
+
+[build]
 language = "c"
+standard = "c11"
 compiler = "clang"
 
 [dependencies]
@@ -134,7 +137,7 @@ compiler = "clang"
 
 ## Requirements
 - Rust toolchain (`rustc`, `cargo`) - for building DCR from source
-- C compiler (`clang`, `gcc`, or others)
+- C compiler (`clang`, `gcc`, or 'cl'(msvc))
 
 ## Releases
 Releases are built automatically via GitHub Actions (`.github/workflows/release.yml`) when a tag matching `v*` is pushed.

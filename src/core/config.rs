@@ -5,6 +5,7 @@ use toml::map::Map;
 
 const DEFAULT_VERSION: &str = "0.1.0";
 const DEFAULT_LANGUAGE: &str = "c";
+const DEFAULT_STANDARD: &str = "c11";
 const DEFAULT_COMPILER: &str = "clang";
 
 #[derive(Debug)]
@@ -101,10 +102,22 @@ impl Config {
             .and_then(|v| v.as_table())
             .ok_or_else(|| ConfigError::Invalid("missing [package]".into()))?;
 
-        for key in ["name", "version", "language", "compiler"] {
+        for key in ["name", "version"] {
             let value = package.get(key).and_then(|v| v.as_str()).unwrap_or("");
             if value.trim().is_empty() {
                 return Err(ConfigError::Invalid(format!("package.{key} is empty")));
+            }
+        }
+
+        let build = self
+            .get("build")
+            .and_then(|v| v.as_table())
+            .ok_or_else(|| ConfigError::Invalid("missing [build]".into()))?;
+
+        for key in ["language", "standard", "compiler"] {
+            let value = build.get(key).and_then(|v| v.as_str()).unwrap_or("");
+            if value.trim().is_empty() {
+                return Err(ConfigError::Invalid(format!("build.{key} is empty")));
             }
         }
         Ok(())
@@ -128,7 +141,7 @@ fn read_toml(path: &Path) -> Result<Value, ConfigError> {
 }
 
 fn write_toml(path: &Path, value: &Value) -> Result<(), ConfigError> {
-    let content = toml::to_string(value)?;
+    let content = format_toml(value)?;
     fs::write(path, content)?;
     Ok(())
 }
@@ -145,20 +158,76 @@ fn default_toml() -> Result<Value, ConfigError> {
         "version".to_string(),
         Value::String(DEFAULT_VERSION.to_string()),
     );
-    package.insert(
+    let mut build = Map::new();
+    build.insert(
         "language".to_string(),
         Value::String(DEFAULT_LANGUAGE.to_string()),
     );
-    package.insert(
+    build.insert(
+        "standard".to_string(),
+        Value::String(DEFAULT_STANDARD.to_string()),
+    );
+    build.insert(
         "compiler".to_string(),
         Value::String(DEFAULT_COMPILER.to_string()),
     );
 
     let mut root = Map::new();
     root.insert("package".to_string(), Value::Table(package));
+    root.insert("build".to_string(), Value::Table(build));
     root.insert("dependencies".to_string(), Value::Table(Map::new()));
 
     Ok(Value::Table(root))
+}
+
+fn format_toml(value: &Value) -> Result<String, ConfigError> {
+    let root = value
+        .as_table()
+        .ok_or_else(|| ConfigError::Invalid("root is not a table".into()))?;
+
+    let package = root
+        .get("package")
+        .and_then(|v| v.as_table())
+        .ok_or_else(|| ConfigError::Invalid("missing [package]".into()))?;
+    let build = root
+        .get("build")
+        .and_then(|v| v.as_table())
+        .ok_or_else(|| ConfigError::Invalid("missing [build]".into()))?;
+    let deps = root
+        .get("dependencies")
+        .and_then(|v| v.as_table())
+        .ok_or_else(|| ConfigError::Invalid("missing [dependencies]".into()))?;
+
+    let name = package.get("name").and_then(|v| v.as_str()).unwrap_or("");
+    let version = package
+        .get("version")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    let language = build.get("language").and_then(|v| v.as_str()).unwrap_or("");
+    let standard = build.get("standard").and_then(|v| v.as_str()).unwrap_or("");
+    let compiler = build.get("compiler").and_then(|v| v.as_str()).unwrap_or("");
+
+    let mut out = String::new();
+    out.push_str("[package]\n");
+    out.push_str(&format!("name = \"{name}\"\n"));
+    out.push_str(&format!("version = \"{version}\"\n\n"));
+
+    out.push_str("[build]\n");
+    out.push_str(&format!("language = \"{language}\"\n"));
+    out.push_str(&format!("standard = \"{standard}\"\n"));
+    out.push_str(&format!("compiler = \"{compiler}\"\n\n"));
+
+    out.push_str("[dependencies]\n");
+    if !deps.is_empty() {
+        let mut keys: Vec<&String> = deps.keys().collect();
+        keys.sort();
+        for key in keys {
+            let val = deps.get(key).and_then(|v| v.as_str()).unwrap_or("");
+            out.push_str(&format!("{key} = \"{val}\"\n"));
+        }
+    }
+    Ok(out)
 }
 
 fn get_path<'a>(value: &'a Value, path: &[&str]) -> Option<&'a Value> {

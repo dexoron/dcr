@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.3] - 2026-02-21
+Added:
+- Modular builders for `gcc`, `clang`, `msvc`
+- Platform-specific binary path generation (Linux/macOS/Windows)
+
+Changed:
+- Build configuration moved to `[build]` (`language`, `standard`, `compiler`)
+- `dcr.toml` formatting now includes the `[build]` section
+- Build uses built-in `debug/release` flags per compiler
+- Build compiles all `*.c/*.cpp` files in `src/` into a single binary (no incremental build)
+- Updated `dcr.toml` examples in documentation
+
 ## [0.2.2] - 2026-02-20
 Changed:
 - Reworked `dcr.toml` handling: added read, validation, and edit through `core::config`
@@ -14,40 +26,40 @@ Changed:
 - Translated installer script messages in `install.sh` and `install.ps1` to English
 
 ## [0.2.0] - 2026-02-17
-Изменено:
-- Проект переведен с Python на Rust
-- CLI и команды (`new`, `init`, `build`, `run`, `clean`, `--help`, `--version`, `--update`) перенесены на Rust
-- Обновлен флаг `--update` - добавлена поддержка GNU\Linux, Windows, MacOS
-- Обновлены `README.md`, `CONTRIBUTING.md`, `install.sh` под Rust-реализацию
-- Добавлен `install.ps1` для Windows
-- Обновлен `install.sh` для GNU/Linux и MacOS
+Changed:
+- Project migrated from Python to Rust
+- CLI and commands (`new`, `init`, `build`, `run`, `clean`, `--help`, `--version`, `--update`) ported to Rust
+- Updated `--update` flag: added support for GNU/Linux, Windows, macOS
+- Updated `README.md`, `CONTRIBUTING.md`, and `install.sh` for the Rust implementation
+- Added `install.ps1` for Windows
+- Updated `install.sh` for GNU/Linux and macOS
 
-Добавлено:
-- Добавлен `install.ps1` для Windows
-- Поддержка GNU\Linux, Windows, MacOS(x86_64/arm)
+Added:
+- Added `install.ps1` for Windows
+- Support for GNU/Linux, Windows, macOS (x86_64/arm)
 
-ВАЖНО:
-- Код перенесен с помощью нейронных сетей, в будущих версиях будет баг-фикс и изменение логики
+Important:
+- Code was ported with neural networks; future versions will include bug fixes and logic changes
 
 ## [0.1.2] - 2026-02-12
-Добавлено:
-- Команда обновления
-- Скрипт установки `install.sh` и инструкции по установке в README
-- Флаг `--version` для вывода версии
+Added:
+- Update command
+- `install.sh` install script and README instructions
+- `--version` flag
 
-Изменено:
-- Улучшен консольный вывод команд, добавлены цвета и обновлена справка `--help`
-- Обновлен запуск проекта и обработка сборки в `run.py`/`build.py`
+Changed:
+- Improved CLI output, added colors, and updated `--help`
+- Updated project run/build handling in `run.py`/`build.py`
 
 ## [0.1.1] - 2026-02-11
-Изменено:
-- Обновлена справка `--help`
-- `main.py` теперь корректно запускается при прямом выполнении
+Changed:
+- Updated `--help`
+- `main.py` now runs correctly when executed directly
 
 ## [0.1.0] - 2026-02-11
-Первый публичный релиз.
+First public release.
 
-Добавлено:
-- Базовые команды `new`, `init`, `build`, `run`, `clean`
-- Профили сборки `debug` и `release`
-- Шаблоны `dcr.toml` и `src/main.c`
+Added:
+- Base commands `new`, `init`, `build`, `run`, `clean`
+- Build profiles `debug` and `release`
+- `dcr.toml` and `src/main.c` templates
