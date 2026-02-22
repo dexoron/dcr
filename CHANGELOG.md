@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.4] - 2026-02-22
+Added:
+- Custom build flags: `build.cflags` and `build.ldflags`
+- Recursive source discovery inside `src/`
+- Path dependencies with auto include/lib resolution and `dcr.lock` generation (experimental)
+- Add docs/index.md and docs/dcr-toml.md
+
 ## [0.2.3] - 2026-02-21
 Added:
 - Modular builders for `gcc`, `clang`, `msvc`

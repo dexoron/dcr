@@ -8,6 +8,11 @@ pub struct BuildContext<'a> {
     pub compiler: &'a str,
     pub language: &'a str,
     pub standard: &'a str,
+    pub include_dirs: &'a [String],
+    pub lib_dirs: &'a [String],
+    pub libs: &'a [String],
+    pub cflags: &'a [String],
+    pub ldflags: &'a [String],
 }
 
 pub fn build(ctx: &BuildContext) -> Result<f64, String> {

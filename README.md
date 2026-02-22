@@ -114,8 +114,10 @@ Removes the `target` directory in the project root.
 
 ## Build Profiles
 Two profiles are supported:
-- `--debug` (default) - flags: `-O0 -g -Wall -Wextra -fno-omit-frame-pointer -DDEBUG`(Clang)
-- `--release` - flags: `-O3 -DNDEBUG -march=native`(Clang)
+- `--debug` (default) - built-in flags per compiler
+- `--release` - built-in flags per compiler
+
+Custom flags can be added in `dcr.toml` via `build.cflags` and `build.ldflags`.
 
 ## Configuration
 The main project file is `dcr.toml`.
@@ -131,9 +133,14 @@ version = "0.1.0"
 language = "c"
 standard = "c11"
 compiler = "clang"
+# Optional custom flags
+cflags = ["-Wall", "-Wextra"]
+ldflags = ["-lm"]
 
 [dependencies]
 ```
+
+Path dependencies are supported. DCR will resolve them on build and generate `dcr.lock`.
 
 ## Requirements
 - Rust toolchain (`rustc`, `cargo`) - for building DCR from source

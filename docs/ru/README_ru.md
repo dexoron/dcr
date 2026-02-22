@@ -114,8 +114,10 @@ hello/
 
 ## Профили сборки
 Поддерживаются два профиля:
-- `--debug` (по умолчанию) — флаги: `-O0 -g -Wall -Wextra -fno-omit-frame-pointer -DDEBUG`(Clang)
-- `--release` — флаги: `-O3 -DNDEBUG -march=native`(Clang)
+- `--debug` (по умолчанию) — встроенные флаги для каждого компилятора
+- `--release` — встроенные флаги для каждого компилятора
+
+Кастомные флаги можно добавить через `build.cflags` и `build.ldflags` в `dcr.toml`.
 
 ## Конфигурация
 Основной файл проекта — `dcr.toml`.
@@ -131,9 +133,14 @@ version = "0.1.0"
 language = "c"
 standard = "c11"
 compiler = "clang"
+# Опциональные флаги
+cflags = ["-Wall", "-Wextra"]
+ldflags = ["-lm"]
 
 [dependencies]
 ```
+
+Поддерживаются path-зависимости. DCR резолвит их при сборке и создаёт `dcr.lock`.
 
 ## Требования
 - Rust toolchain (`rustc`, `cargo`) - Для ручной сборки DCR

@@ -35,6 +35,28 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     for flag in default_flags(ctx.profile) {
         cmd.arg(flag);
     }
+    for flag in ctx.cflags {
+        cmd.arg(flag);
+    }
+    for dir in ctx.include_dirs {
+        cmd.arg(format!("/I{dir}"));
+    }
+    for dir in ctx.lib_dirs {
+        cmd.arg(format!("/LIBPATH:{dir}"));
+    }
+    for lib in ctx.libs {
+        if lib.to_lowercase().ends_with(".lib") {
+            cmd.arg(lib);
+        } else {
+            cmd.arg(format!("{lib}.lib"));
+        }
+    }
+    if !ctx.ldflags.is_empty() {
+        cmd.arg("/link");
+        for flag in ctx.ldflags {
+            cmd.arg(flag);
+        }
+    }
 
     for source in &sources {
         cmd.arg(source);
@@ -57,10 +79,23 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
 fn collect_sources(language: &str) -> Result<Vec<String>, String> {
     let lang = language.to_lowercase();
     let mut sources = Vec::new();
-    let entries = fs::read_dir("./src").map_err(|err| format!("src dir error: {err}"))?;
+    collect_sources_rec("./src", &lang, &mut sources)?;
+    sources.sort();
+    if sources.is_empty() {
+        return Err("No source files found in ./src".to_string());
+    }
+    Ok(sources)
+}
+
+fn collect_sources_rec(dir: &str, lang: &str, out: &mut Vec<String>) -> Result<(), String> {
+    let entries = fs::read_dir(dir).map_err(|err| format!("src dir error: {err}"))?;
     for entry in entries {
         let entry = entry.map_err(|err| format!("src dir error: {err}"))?;
         let path = entry.path();
+        if path.is_dir() {
+            collect_sources_rec(&path.to_string_lossy(), lang, out)?;
+            continue;
+        }
         if !path.is_file() {
             continue;
         }
@@ -74,14 +109,10 @@ fn collect_sources(language: &str) -> Result<Vec<String>, String> {
             || ((lang == "c++" || lang == "cpp" || lang == "cxx")
                 && (ext == "cpp" || ext == "cxx" || ext == "cc"));
         if allowed {
-            sources.push(file);
+            out.push(file);
         }
     }
-    sources.sort();
-    if sources.is_empty() {
-        return Err("No source files found in ./src".to_string());
-    }
-    Ok(sources)
+    Ok(())
 }
 
 fn msvc_standard_flag(language: &str, standard: &str) -> Result<String, String> {

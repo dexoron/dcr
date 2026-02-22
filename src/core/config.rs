@@ -217,17 +217,64 @@ fn format_toml(value: &Value) -> Result<String, ConfigError> {
     out.push_str(&format!("language = \"{language}\"\n"));
     out.push_str(&format!("standard = \"{standard}\"\n"));
     out.push_str(&format!("compiler = \"{compiler}\"\n\n"));
+    if let Some(cflags) = build.get("cflags") {
+        out.push_str(&format!("cflags = {}\n", format_string_array(cflags)));
+    }
+    if let Some(ldflags) = build.get("ldflags") {
+        out.push_str(&format!("ldflags = {}\n", format_string_array(ldflags)));
+    }
+    if build.contains_key("cflags") || build.contains_key("ldflags") {
+        out.push('\n');
+    }
 
     out.push_str("[dependencies]\n");
     if !deps.is_empty() {
         let mut keys: Vec<&String> = deps.keys().collect();
         keys.sort();
         for key in keys {
-            let val = deps.get(key).and_then(|v| v.as_str()).unwrap_or("");
-            out.push_str(&format!("{key} = \"{val}\"\n"));
+            if let Some(val) = deps.get(key) {
+                out.push_str(&format!("{key} = {}\n", format_dep_value(val)));
+            }
         }
     }
     Ok(out)
+}
+
+fn format_dep_value(value: &Value) -> String {
+    match value {
+        Value::String(s) => format!("\"{s}\""),
+        Value::Table(tbl) => {
+            let mut parts = Vec::new();
+            if let Some(v) = tbl.get("path").and_then(|v| v.as_str()) {
+                parts.push(format!("path = \"{v}\""));
+            }
+            if let Some(v) = tbl.get("system").and_then(|v| v.as_bool()) {
+                parts.push(format!("system = {}", if v { "true" } else { "false" }));
+            }
+            if let Some(v) = tbl.get("include") {
+                parts.push(format!("include = {}", format_string_array(v)));
+            }
+            if let Some(v) = tbl.get("lib") {
+                parts.push(format!("lib = {}", format_string_array(v)));
+            }
+            if let Some(v) = tbl.get("libs") {
+                parts.push(format!("libs = {}", format_string_array(v)));
+            }
+            format!("{{ {} }}", parts.join(", "))
+        }
+        _ => "\"\"".to_string(),
+    }
+}
+
+fn format_string_array(value: &Value) -> String {
+    if let Some(arr) = value.as_array() {
+        let items: Vec<String> = arr
+            .iter()
+            .filter_map(|v| v.as_str().map(|s| format!("\"{s}\"")))
+            .collect();
+        return format!("[{}]", items.join(", "));
+    }
+    "[]".to_string()
 }
 
 fn get_path<'a>(value: &'a Value, path: &[&str]) -> Option<&'a Value> {

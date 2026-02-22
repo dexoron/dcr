@@ -1,6 +1,7 @@
 use crate::config::{PROFILE, flags};
 use crate::core::builder::{BuildContext, build as build_project};
 use crate::core::config::Config;
+use crate::core::deps::resolve_deps;
 use crate::utils::fs::check_dir;
 use crate::utils::log::{error, warn};
 use crate::utils::text::{BOLD_GREEN, colored};
@@ -29,6 +30,20 @@ pub fn build(args: &[String]) -> i32 {
     let project_compiler = get_config_str(&config, "build.compiler");
     let build_language = get_config_str(&config, "build.language");
     let build_standard = get_config_str(&config, "build.standard");
+    let build_cflags = match get_config_list(&config, "build.cflags") {
+        Ok(v) => v,
+        Err(msg) => {
+            error(&msg);
+            return 1;
+        }
+    };
+    let build_ldflags = match get_config_list(&config, "build.ldflags") {
+        Ok(v) => v,
+        Err(msg) => {
+            error(&msg);
+            return 1;
+        }
+    };
 
     println!(
         "    Building project `{}`\n    Profile: {}\n    Compiler: {}\n",
@@ -39,12 +54,31 @@ pub fn build(args: &[String]) -> i32 {
 
     ensure_target_dirs(&items, &active_profile);
 
+    let project_root = match std::env::current_dir() {
+        Ok(p) => p,
+        Err(_) => {
+            error("Failed to determine project root");
+            return 1;
+        }
+    };
+    let resolved = match resolve_deps(&config, &active_profile, &project_root) {
+        Ok(r) => r,
+        Err(msg) => {
+            error(&msg);
+            return 1;
+        }
+    };
     let ctx = BuildContext {
         profile: &active_profile,
         project_name: &project_name,
         compiler: &project_compiler,
         language: &build_language,
         standard: &build_standard,
+        include_dirs: &resolved.include_dirs,
+        lib_dirs: &resolved.lib_dirs,
+        libs: &resolved.libs,
+        cflags: &build_cflags,
+        ldflags: &build_ldflags,
     };
     match run_build(&ctx) {
         Ok(times) => {
@@ -84,6 +118,24 @@ fn get_config_str(config: &Config, key: &str) -> String {
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string()
+}
+
+fn get_config_list(config: &Config, key: &str) -> Result<Vec<String>, String> {
+    let value = match config.get(key) {
+        Some(v) => v,
+        None => return Ok(Vec::new()),
+    };
+    let arr = value
+        .as_array()
+        .ok_or_else(|| format!("{key} must be an array of strings"))?;
+    let mut out = Vec::new();
+    for item in arr {
+        let s = item
+            .as_str()
+            .ok_or_else(|| format!("{key} must be an array of strings"))?;
+        out.push(s.to_string());
+    }
+    Ok(out)
 }
 
 fn ensure_target_dirs(items: &[String], profile: &str) {
