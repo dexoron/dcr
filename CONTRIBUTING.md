@@ -1,13 +1,13 @@
-# Вклад в проект
+# Contributing
 
-Спасибо за интерес к проекту.
+Thanks for your interest in the project.
 
-## Требования
+## Requirements
 
-- Использовать Rust stable.
-- Перед PR код должен проходить форматирование, линт и сборку.
+- Use Rust stable.
+- Before opening a PR, the code must pass formatting, linting, and build.
 
-## Быстрый старт
+## Quick Start
 
 ```bash
 git clone https://github.com/dexoron/dcr.git
@@ -15,16 +15,16 @@ cd dcr
 cargo check
 ```
 
-## Стиль кода
+## Code Style
 
-- Форматируйте код через `cargo fmt`.
-- Проверяйте предупреждения через `cargo clippy`.
-- Держите функции небольшими и сфокусированными.
-- Предпочитайте понятные имена вместо "хитрых".
+- Format code with `cargo fmt`.
+- Check warnings with `cargo clippy`.
+- Keep functions small and focused.
+- Prefer clear names over clever ones.
 
-## Проверки
+## Checks
 
-Перед PR запускайте:
+Before PR, run:
 
 ```bash
 cargo fmt --all
@@ -32,26 +32,26 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo check
 ```
 
-## CI/CD и релизы
+## CI/CD and Releases
 
 - CI: `.github/workflows/ci.yml`
 - Release: `.github/workflows/release.yml`
-- Релиз запускается по тегу `v*` и публикует бинарники для:
+- Releases are triggered by tags `v*` and publish binaries for:
 - `x86_64-unknown-linux-gnu`
 - `x86_64-apple-darwin`
 - `aarch64-apple-darwin`
 - `x86_64-pc-windows-msvc`
 
-## Коммиты и PR
+## Commits and PRs
 
-- Делайте коммиты понятными.
-- В PR указывайте краткое описание и мотивацию изменений.
-- Обновляйте документацию при изменении поведения.
+- Write clear commit messages.
+- In PRs, include a short description and rationale.
+- Update documentation when behavior changes.
 
-## Вопросы
+## Questions
 
-Если что-то непонятно, открой issue или задайте вопрос в PR.
+If anything is unclear, open an issue or ask in the PR.
 
-Также можно задать вопрос напрямую:
+You can also reach out directly:
 - TG: @dexoron
 - DS: dexoron
