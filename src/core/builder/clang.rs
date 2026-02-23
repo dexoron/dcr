@@ -37,8 +37,11 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     for flag in ctx.ldflags {
         cmd.arg(flag);
     }
-    cmd.arg("-o")
-        .arg(platform::bin_path(ctx.profile, ctx.project_name));
+    cmd.arg("-o").arg(platform::bin_path(
+        ctx.profile,
+        ctx.project_name,
+        ctx.target_dir,
+    ));
 
     match cmd.status() {
         Ok(status) if status.success() => {

@@ -63,7 +63,7 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     }
     cmd.arg(format!(
         "/Fe:{}",
-        platform::bin_path(ctx.profile, ctx.project_name)
+        platform::bin_path(ctx.profile, ctx.project_name, ctx.target_dir)
     ));
 
     match cmd.status() {

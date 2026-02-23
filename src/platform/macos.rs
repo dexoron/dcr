@@ -1,3 +1,6 @@
-pub fn bin_path(profile: &str, name: &str) -> String {
-    format!("./target/{profile}/{name}")
+pub fn bin_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
+    match target_dir {
+        Some(dir) => format!("{}/{}", dir.trim_end_matches('/'), name),
+        None => format!("./target/{profile}/{name}"),
+    }
 }

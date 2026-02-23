@@ -30,6 +30,7 @@ pub fn build(args: &[String]) -> i32 {
     let project_compiler = get_config_str(&config, "build.compiler");
     let build_language = get_config_str(&config, "build.language");
     let build_standard = get_config_str(&config, "build.standard");
+    let build_target = get_config_str(&config, "build.target");
     let build_cflags = match get_config_list(&config, "build.cflags") {
         Ok(v) => v,
         Err(msg) => {
@@ -52,7 +53,7 @@ pub fn build(args: &[String]) -> i32 {
         colored(&project_compiler, BOLD_GREEN)
     );
 
-    ensure_target_dirs(&items, &active_profile);
+    ensure_target_dirs(&items, &active_profile, normalize_target(&build_target));
 
     let project_root = match std::env::current_dir() {
         Ok(p) => p,
@@ -74,6 +75,7 @@ pub fn build(args: &[String]) -> i32 {
         compiler: &project_compiler,
         language: &build_language,
         standard: &build_standard,
+        target_dir: normalize_target(&build_target),
         include_dirs: &resolved.include_dirs,
         lib_dirs: &resolved.lib_dirs,
         libs: &resolved.libs,
@@ -138,7 +140,11 @@ fn get_config_list(config: &Config, key: &str) -> Result<Vec<String>, String> {
     Ok(out)
 }
 
-fn ensure_target_dirs(items: &[String], profile: &str) {
+fn ensure_target_dirs(items: &[String], profile: &str, target_dir: Option<&str>) {
+    if let Some(dir) = target_dir {
+        let _ = fs::create_dir_all(dir);
+        return;
+    }
     if !items.contains(&"target".to_string()) {
         let _ = fs::create_dir("./target");
     }
@@ -160,5 +166,14 @@ fn run_build(ctx: &BuildContext) -> Result<f64, String> {
             Ok(times)
         }
         Err(_) => Err("Build failed".to_string()),
+    }
+}
+
+fn normalize_target(target: &str) -> Option<&str> {
+    let trimmed = target.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
     }
 }

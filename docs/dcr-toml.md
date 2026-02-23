@@ -13,6 +13,8 @@ version = "0.1.0"
 language = "c"
 standard = "c11"
 compiler = "gcc"
+# Output directory for binary (optional)
+target = "./dist"
 # Custom compile/link flags (optional)
 cflags = ["-D_POSIX_C_SOURCE=200809L", "-Wall", "-Wextra", "-O2", "-Ilib/frecli"]
 ldflags = ["-Llib/frecli", "-lfrecli", "-lm"]
@@ -31,6 +33,7 @@ frecli = { path = "./lib/frecli", include = ["."], lib = ["."], libs = ["frecli"
 - `language` (string, required): `c`, `c++`, `cpp`, or `cxx`
 - `standard` (string, required): e.g. `c99`, `c11`, `c++17`
 - `compiler` (string, required): `gcc`, `clang`, `cl`(msvc), or `clang-cl`
+- `target` (string, optional): output directory for the binary (profile-independent)
 - `cflags`   (string[], optional): additional compile flags
 - `ldflags`  (string[], optional): additional link flags
 

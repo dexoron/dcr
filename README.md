@@ -118,6 +118,7 @@ Two profiles are supported:
 - `--release` - built-in flags per compiler
 
 Custom flags can be added in `dcr.toml` via `build.cflags` and `build.ldflags`.
+You can also set `build.target` to override the output directory (profile-independent).
 
 ## Configuration
 The main project file is `dcr.toml`.

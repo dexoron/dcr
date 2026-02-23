@@ -23,6 +23,7 @@ You can add custom compile and link flags in `[build]`:
 [build]
 compiler = "gcc"
 standard = "c99"
+target = "./dist"
 cflags = ["-D_POSIX_C_SOURCE=200809L", "-Wall", "-Wextra", "-O2", "-Ilib/frecli"]
 ldflags = ["-Llib/frecli", "-lfrecli", "-lm"]
 ```
