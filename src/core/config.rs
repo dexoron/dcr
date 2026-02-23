@@ -217,10 +217,10 @@ fn format_toml(value: &Value) -> Result<String, ConfigError> {
     out.push_str(&format!("language = \"{language}\"\n"));
     out.push_str(&format!("standard = \"{standard}\"\n"));
     out.push_str(&format!("compiler = \"{compiler}\"\n"));
-    if let Some(target) = build.get("target").and_then(|v| v.as_str()) {
-        if !target.trim().is_empty() {
-            out.push_str(&format!("target = \"{target}\"\n"));
-        }
+    if let Some(target) = build.get("target").and_then(|v| v.as_str())
+        && !target.trim().is_empty()
+    {
+        out.push_str(&format!("target = \"{target}\"\n"));
     }
     if let Some(cflags) = build.get("cflags") {
         out.push_str(&format!("cflags = {}\n", format_string_array(cflags)));
