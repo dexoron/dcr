@@ -20,7 +20,7 @@
 ## Commands
 
 * [Global options](commands/global-options.md)
-* [dcr init/new](commands/dcr-init-new.md)
+* [dcr init/new](commands/dcr-init-or-new.md)
 * [dcr build](commands/dcr-build.md)
 * [dcr run](commands/dcr-run.md)
 * [dcr clean](commands/dcr-clean.md)
