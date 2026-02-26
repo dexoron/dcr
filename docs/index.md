@@ -23,6 +23,7 @@ You can add custom compile and link flags in `[build]`:
 [build]
 compiler = "gcc"
 standard = "c99"
+kind = "bin"
 target = "./dist"
 cflags = ["-D_POSIX_C_SOURCE=200809L", "-Wall", "-Wextra", "-O2", "-Ilib/frecli"]
 ldflags = ["-Llib/frecli", "-lfrecli", "-lm"]
@@ -40,3 +41,8 @@ frecli = { path = "./lib/frecli", include = ["."], lib = ["."], libs = ["frecli"
 ## Source Discovery
 
 DCR compiles all `.c`/`.cpp` files under `src/` recursively. The file containing `main()` can be in any subdirectory.
+
+## Notes
+
+- `dcr run` works only for `kind = "bin"`.
+- Incremental rebuild currently tracks source file changes only (`.c/.cpp`).

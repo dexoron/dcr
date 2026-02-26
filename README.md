@@ -119,6 +119,8 @@ Two profiles are supported:
 
 Custom flags can be added in `dcr.toml` via `build.cflags` and `build.ldflags`.
 You can also set `build.target` to override the output directory (profile-independent).
+Use `build.kind = "staticlib"` to build a static library instead of a binary.
+`dcr run` is only for `build.kind = "bin"` and will fail for `staticlib`.
 
 ## Configuration
 The main project file is `dcr.toml`.
@@ -142,6 +144,8 @@ ldflags = ["-lm"]
 ```
 
 Path dependencies are supported. DCR will resolve them on build and generate `dcr.lock`.
+
+Incremental build note: object files are rebuilt when source `.c/.cpp` files change. Header dependency tracking is not implemented yet.
 
 ## Requirements
 - Rust toolchain (`rustc`, `cargo`) - for building DCR from source

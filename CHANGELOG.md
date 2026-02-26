@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.5] - 2026-02-26
+Added:
+- Incremental builds (object caching by mtime)
+- `build.kind` with `staticlib` support
+- Custom output directory via `build.target`
+
 ## [0.2.4] - 2026-02-22
 Added:
 - Custom build flags: `build.cflags` and `build.ldflags`

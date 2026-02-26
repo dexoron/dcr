@@ -1,6 +1,7 @@
 use crate::core::builder::BuildContext;
 use crate::platform;
 use std::fs;
+use std::path::Path;
 use std::process::Command;
 use std::time::Instant;
 
@@ -11,9 +12,28 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
         ctx.compiler
     };
     let start_time = Instant::now();
-    let mut cmd = Command::new(compiler);
     let sources = collect_sources(ctx.language)?;
+    let obj_dir = Path::new("./target").join(ctx.profile).join("obj");
+    let objects = build_objects(compiler, &sources, &obj_dir, ctx, "obj")?;
 
+    if ctx.kind == "staticlib" {
+        let lib_path = platform::lib_path(ctx.profile, ctx.project_name, ctx.target_dir);
+        let mut cmd = Command::new("lib");
+        cmd.arg("/nologo").arg(format!("/OUT:{lib_path}"));
+        for obj in &objects {
+            cmd.arg(obj);
+        }
+        match cmd.status() {
+            Ok(status) if status.success() => {
+                let elapsed = ((start_time.elapsed().as_secs_f64() * 100.0).trunc()) / 100.0;
+                return Ok(elapsed);
+            }
+            Ok(_) => return Err("Build failed".to_string()),
+            Err(err) => return Err(format!("Build failed: {err}")),
+        }
+    }
+
+    let mut cmd = Command::new(compiler);
     cmd.arg("/nologo");
     match ctx.language.to_lowercase().as_str() {
         "c" => {
@@ -32,14 +52,14 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
         cmd.arg(std_flag);
     }
 
+    for obj in &objects {
+        cmd.arg(obj);
+    }
     for flag in default_flags(ctx.profile) {
         cmd.arg(flag);
     }
     for flag in ctx.cflags {
         cmd.arg(flag);
-    }
-    for dir in ctx.include_dirs {
-        cmd.arg(format!("/I{dir}"));
     }
     for dir in ctx.lib_dirs {
         cmd.arg(format!("/LIBPATH:{dir}"));
@@ -56,10 +76,6 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
         for flag in ctx.ldflags {
             cmd.arg(flag);
         }
-    }
-
-    for source in &sources {
-        cmd.arg(source);
     }
     cmd.arg(format!(
         "/Fe:{}",
@@ -143,5 +159,78 @@ fn default_flags(profile: &str) -> &'static [&'static str] {
         "release" => &["/O2", "/DNDEBUG"],
         "debug" => &["/Od", "/Zi", "/W4", "/DDEBUG", "/Oy-"],
         _ => &[],
+    }
+}
+
+fn build_objects(
+    compiler: &str,
+    sources: &[String],
+    obj_dir: &Path,
+    ctx: &BuildContext,
+    obj_ext: &str,
+) -> Result<Vec<String>, String> {
+    let mut objects = Vec::new();
+    for source in sources {
+        let obj_path = object_path(obj_dir, source, obj_ext);
+        if let Some(parent) = Path::new(&obj_path).parent() {
+            fs::create_dir_all(parent).map_err(|err| format!("obj dir error: {err}"))?;
+        }
+        if needs_rebuild(source, &obj_path) {
+            let mut cmd = Command::new(compiler);
+            cmd.arg("/nologo");
+            match ctx.language.to_lowercase().as_str() {
+                "c" => {
+                    cmd.arg("/TC");
+                }
+                "c++" | "cpp" | "cxx" => {
+                    cmd.arg("/TP");
+                }
+                _ => {
+                    return Err("Unsupported language".to_string());
+                }
+            }
+            if !ctx.standard.is_empty() {
+                let std_flag = msvc_standard_flag(ctx.language, ctx.standard)?;
+                cmd.arg(std_flag);
+            }
+            for flag in default_flags(ctx.profile) {
+                cmd.arg(flag);
+            }
+            for flag in ctx.cflags {
+                cmd.arg(flag);
+            }
+            for dir in ctx.include_dirs {
+                cmd.arg(format!("/I{dir}"));
+            }
+            cmd.arg("/c").arg(source).arg(format!("/Fo:{}", obj_path));
+            match cmd.status() {
+                Ok(status) if status.success() => {}
+                Ok(_) => return Err("Build failed".to_string()),
+                Err(err) => return Err(format!("Build failed: {err}")),
+            }
+        }
+        objects.push(obj_path);
+    }
+    Ok(objects)
+}
+
+fn object_path(obj_dir: &Path, source: &str, obj_ext: &str) -> String {
+    let src_path = Path::new(source);
+    let rel = src_path
+        .strip_prefix("./src")
+        .or_else(|_| src_path.strip_prefix("src"))
+        .unwrap_or(src_path);
+    let mut out = obj_dir.join(rel);
+    out.set_extension(obj_ext.trim_start_matches('.'));
+    out.to_string_lossy().to_string()
+}
+
+fn needs_rebuild(source: &str, object: &str) -> bool {
+    let src_time = fs::metadata(source).and_then(|m| m.modified());
+    let obj_time = fs::metadata(object).and_then(|m| m.modified());
+    match (src_time, obj_time) {
+        (Ok(s), Ok(o)) => s > o,
+        (Ok(_), Err(_)) => true,
+        _ => true,
     }
 }

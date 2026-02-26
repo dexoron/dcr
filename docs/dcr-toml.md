@@ -13,6 +13,8 @@ version = "0.1.0"
 language = "c"
 standard = "c11"
 compiler = "gcc"
+# Build kind: "bin" (default) or "staticlib"
+kind = "bin"
 # Output directory for binary (optional)
 target = "./dist"
 # Custom compile/link flags (optional)
@@ -33,9 +35,14 @@ frecli = { path = "./lib/frecli", include = ["."], lib = ["."], libs = ["frecli"
 - `language` (string, required): `c`, `c++`, `cpp`, or `cxx`
 - `standard` (string, required): e.g. `c99`, `c11`, `c++17`
 - `compiler` (string, required): `gcc`, `clang`, `cl`(msvc), or `clang-cl`
+- `kind` (string, optional): `bin` (default) or `staticlib`
 - `target` (string, optional): output directory for the binary (profile-independent)
 - `cflags`   (string[], optional): additional compile flags
 - `ldflags`  (string[], optional): additional link flags
+
+Notes:
+- `dcr run` is supported only for `kind = "bin"`.
+- Incremental rebuild currently tracks source file changes (`.c/.cpp`) only.
 
 ### [dependencies]
 Only `path` dependencies are supported right now.

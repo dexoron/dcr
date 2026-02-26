@@ -9,6 +9,7 @@ pub struct BuildContext<'a> {
     pub language: &'a str,
     pub standard: &'a str,
     pub target_dir: Option<&'a str>,
+    pub kind: &'a str,
     pub include_dirs: &'a [String],
     pub lib_dirs: &'a [String],
     pub libs: &'a [String],

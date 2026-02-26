@@ -7,6 +7,7 @@ const DEFAULT_VERSION: &str = "0.1.0";
 const DEFAULT_LANGUAGE: &str = "c";
 const DEFAULT_STANDARD: &str = "c11";
 const DEFAULT_COMPILER: &str = "clang";
+const DEFAULT_KIND: &str = "bin";
 
 #[derive(Debug)]
 pub enum ConfigError {
@@ -114,10 +115,16 @@ impl Config {
             .and_then(|v| v.as_table())
             .ok_or_else(|| ConfigError::Invalid("missing [build]".into()))?;
 
-        for key in ["language", "standard", "compiler"] {
+        for key in ["language", "standard", "compiler", "kind"] {
             let value = build.get(key).and_then(|v| v.as_str()).unwrap_or("");
             if value.trim().is_empty() {
                 return Err(ConfigError::Invalid(format!("build.{key} is empty")));
+            }
+        }
+        if let Some(kind) = build.get("kind").and_then(|v| v.as_str()) {
+            let kind = kind.trim();
+            if kind != "bin" && kind != "staticlib" {
+                return Err(ConfigError::Invalid("build.kind is invalid".into()));
             }
         }
         Ok(())
@@ -171,6 +178,7 @@ fn default_toml() -> Result<Value, ConfigError> {
         "compiler".to_string(),
         Value::String(DEFAULT_COMPILER.to_string()),
     );
+    build.insert("kind".to_string(), Value::String(DEFAULT_KIND.to_string()));
 
     let mut root = Map::new();
     root.insert("package".to_string(), Value::Table(package));
@@ -217,6 +225,11 @@ fn format_toml(value: &Value) -> Result<String, ConfigError> {
     out.push_str(&format!("language = \"{language}\"\n"));
     out.push_str(&format!("standard = \"{standard}\"\n"));
     out.push_str(&format!("compiler = \"{compiler}\"\n"));
+    let kind = build
+        .get("kind")
+        .and_then(|v| v.as_str())
+        .unwrap_or(DEFAULT_KIND);
+    out.push_str(&format!("kind = \"{kind}\"\n"));
     if let Some(target) = build.get("target").and_then(|v| v.as_str())
         && !target.trim().is_empty()
     {
