@@ -1,4 +1,5 @@
 pub mod clang;
+pub mod gas;
 pub mod gcc;
 pub mod gas;
 pub mod msvc;

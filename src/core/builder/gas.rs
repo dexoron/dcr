@@ -9,7 +9,11 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     if ctx.language.to_lowercase().as_str() != "asm" {
         return Err("GAS backend requires build.language = \"asm\"".to_string());
     }
-    let assembler = if ctx.compiler.is_empty() { "as" } else { ctx.compiler };
+    let assembler = if ctx.compiler.is_empty() {
+        "as"
+    } else {
+        ctx.compiler
+    };
     let start_time = Instant::now();
     let sources = collect_sources(ctx.language)?;
     let obj_dir = Path::new("./target").join(ctx.profile).join("obj");
@@ -17,7 +21,11 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
 
     if ctx.kind == "staticlib" {
         let lib_path = platform::lib_path(ctx.profile, ctx.project_name, ctx.target_dir);
-        let mut cmd = Command::new(if cfg!(target_os = "windows") { "lib" } else { "ar" });
+        let mut cmd = Command::new(if cfg!(target_os = "windows") {
+            "lib"
+        } else {
+            "ar"
+        });
         if cfg!(target_os = "windows") {
             cmd.arg("/nologo").arg(format!("/OUT:{lib_path}"));
         } else {

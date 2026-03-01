@@ -150,10 +150,10 @@ fn build_objects(
             if ctx.kind == "sharedlib" {
                 cmd.arg("-fPIC");
             }
-            if let Some(platform) = ctx.platform {
-                if !platform.trim().is_empty() {
-                    cmd.arg(format!("-march={}", platform));
-                }
+            if let Some(platform) = ctx.platform
+                && !platform.trim().is_empty()
+            {
+                cmd.arg(format!("-march={}", platform));
             }
             if !ctx.standard.is_empty() && ctx.language.to_lowercase() != "asm" {
                 cmd.arg(format!("-std={}", ctx.standard));

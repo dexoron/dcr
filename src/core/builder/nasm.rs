@@ -21,7 +21,11 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
 
     if ctx.kind == "staticlib" {
         let lib_path = platform::lib_path(ctx.profile, ctx.project_name, ctx.target_dir);
-        let mut cmd = Command::new(if cfg!(target_os = "windows") { "lib" } else { "ar" });
+        let mut cmd = Command::new(if cfg!(target_os = "windows") {
+            "lib"
+        } else {
+            "ar"
+        });
         if cfg!(target_os = "windows") {
             cmd.arg("/nologo").arg(format!("/OUT:{lib_path}"));
         } else {
@@ -40,7 +44,7 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
         }
     }
 
-    let linker = if cfg!(target_os = "windows") { "cc" } else { "cc" };
+    let linker = "cc";
     let mut cmd = Command::new(linker);
     if ctx.kind == "sharedlib" {
         if cfg!(target_os = "macos") {
@@ -128,7 +132,11 @@ fn build_objects(
         }
         if needs_rebuild(source, &obj_path) {
             let mut cmd = Command::new(assembler);
-            cmd.arg("-f").arg(format).arg(source).arg("-o").arg(&obj_path);
+            cmd.arg("-f")
+                .arg(format)
+                .arg(source)
+                .arg("-o")
+                .arg(&obj_path);
             for flag in ctx.cflags {
                 cmd.arg(flag);
             }
@@ -163,15 +171,15 @@ fn nasm_format(platform: Option<&str>) -> &'static str {
     }
     #[cfg(target_os = "linux")]
     {
-        return "elf64";
+        "elf64"
     }
     #[cfg(target_os = "macos")]
     {
-        return "macho64";
+        "macho64"
     }
     #[cfg(target_os = "windows")]
     {
-        return "win64";
+        "win64"
     }
     #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
     {
