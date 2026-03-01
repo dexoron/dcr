@@ -11,3 +11,10 @@ pub fn lib_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
         None => format!("./target/{profile}/{name}.lib"),
     }
 }
+
+pub fn shared_lib_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
+    match target_dir {
+        Some(dir) => format!("{}/{}.dll", dir.trim_end_matches('/'), name),
+        None => format!("./target/{profile}/{name}.dll"),
+    }
+}

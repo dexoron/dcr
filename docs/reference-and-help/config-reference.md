@@ -8,11 +8,12 @@ name = "string"      # required
 version = "string"   # required
 
 [build]
-language = "c|c++|cpp|cxx"     # required
+language = "c|c++|cpp|cxx|asm"     # required
 standard = "string"            # required
 compiler = "string"            # required
-kind = "bin|staticlib"         # required
+kind = "bin|staticlib|sharedlib"         # required
 target = "string"              # optional
+platform = "string"            # optional
 cflags = ["string", "..."]     # optional
 ldflags = ["string", "..."]    # optional
 
@@ -29,7 +30,7 @@ name = {
 
 - `[package]`, `[build]`, `[dependencies]` must exist.
 - Required string fields must be non-empty.
-- `build.kind` must be `bin` or `staticlib`.
+- `build.kind` must be `bin`, `staticlib`, or `sharedlib`.
 - Dependency fields `include/lib/libs` must be string arrays when provided.
 
 ## Generated defaults (`dcr new` / `dcr init`)

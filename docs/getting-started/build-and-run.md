@@ -41,6 +41,6 @@ dcr clean --release
 
 ## Notes
 
-- `run` is unavailable for `build.kind = "staticlib"`.
+- `run` is unavailable for `build.kind = "staticlib"` and `build.kind = "sharedlib"`.
 - Build profile flag is parsed from the first command argument.
 - Unknown profile flags produce an error.

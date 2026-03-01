@@ -34,6 +34,13 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     }
 
     let mut cmd = Command::new(compiler);
+    if ctx.kind == "sharedlib" {
+        if cfg!(target_os = "macos") {
+            cmd.arg("-dynamiclib");
+        } else {
+            cmd.arg("-shared");
+        }
+    }
     for obj in &objects {
         cmd.arg(obj);
     }
@@ -52,11 +59,12 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     for flag in ctx.ldflags {
         cmd.arg(flag);
     }
-    cmd.arg("-o").arg(platform::bin_path(
-        ctx.profile,
-        ctx.project_name,
-        ctx.target_dir,
-    ));
+    let out_path = if ctx.kind == "sharedlib" {
+        platform::shared_lib_path(ctx.profile, ctx.project_name, ctx.target_dir)
+    } else {
+        platform::bin_path(ctx.profile, ctx.project_name, ctx.target_dir)
+    };
+    cmd.arg("-o").arg(out_path);
 
     match cmd.status() {
         Ok(status) if status.success() => {
@@ -99,7 +107,8 @@ fn collect_sources_rec(dir: &str, lang: &str, out: &mut Vec<String>) -> Result<(
         let file = path.to_string_lossy().to_string();
         let allowed = (lang == "c" && ext == "c")
             || ((lang == "c++" || lang == "cpp" || lang == "cxx")
-                && (ext == "cpp" || ext == "cxx" || ext == "cc"));
+                && (ext == "cpp" || ext == "cxx" || ext == "cc"))
+            || (lang == "asm" && (ext == "s" || ext == "asm"));
         if allowed {
             out.push(file);
         }
@@ -138,7 +147,15 @@ fn build_objects(
         if needs_rebuild(source, &obj_path) {
             let mut cmd = Command::new(compiler);
             cmd.arg("-c").arg(source).arg("-o").arg(&obj_path);
-            if !ctx.standard.is_empty() {
+            if ctx.kind == "sharedlib" {
+                cmd.arg("-fPIC");
+            }
+            if let Some(platform) = ctx.platform {
+                if !platform.trim().is_empty() {
+                    cmd.arg(format!("-march={}", platform));
+                }
+            }
+            if !ctx.standard.is_empty() && ctx.language.to_lowercase() != "asm" {
                 cmd.arg(format!("-std={}", ctx.standard));
             }
             for flag in default_flags(ctx.profile) {

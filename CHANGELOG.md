@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.6] - 2026-03-01
+Added:
+- `sharedlib` build kind (shared library output)
+- ASM projects (`build.language = "asm"`)
+- NASM and GAS backends
+- `build.platform` architecture hint for `-march` / `/arch`
+- Basic CLI integration tests
+
 ## [0.2.5] - 2026-02-26
 Added:
 - Incremental builds (object caching by mtime)

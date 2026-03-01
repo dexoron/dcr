@@ -1,6 +1,8 @@
 pub mod clang;
 pub mod gcc;
+pub mod gas;
 pub mod msvc;
+pub mod nasm;
 
 pub struct BuildContext<'a> {
     pub profile: &'a str,
@@ -10,6 +12,7 @@ pub struct BuildContext<'a> {
     pub standard: &'a str,
     pub target_dir: Option<&'a str>,
     pub kind: &'a str,
+    pub platform: Option<&'a str>,
     pub include_dirs: &'a [String],
     pub lib_dirs: &'a [String],
     pub libs: &'a [String],
@@ -21,6 +24,12 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     let compiler = ctx.compiler.to_lowercase();
     if compiler.contains("clang-cl") {
         return msvc::build(ctx);
+    }
+    if compiler == "as" || compiler.contains("gas") {
+        return gas::build(ctx);
+    }
+    if compiler.contains("nasm") {
+        return nasm::build(ctx);
     }
     if compiler.contains("gcc") || compiler.contains("g++") {
         return gcc::build(ctx);

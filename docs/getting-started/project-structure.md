@@ -35,5 +35,6 @@ project/
 - `target/<profile>/deps/`: synchronized copies of path dependencies.
 - `target/<profile>/<name>` (or `.exe` on Windows): output for `kind = "bin"`.
 - `target/<profile>/lib<name>.a` (or `<name>.lib` on Windows): output for `kind = "staticlib"`.
+- `target/<profile>/lib<name>.so` (or `.dylib` on macOS, `<name>.dll` on Windows): output for `kind = "sharedlib"`.
 
 If `build.target` is set, the final artifact is written to that custom directory, while object cache still stays in `target/<profile>/obj`.

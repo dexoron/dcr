@@ -30,6 +30,7 @@ Before PR, run:
 cargo fmt --all
 cargo clippy --all-targets --all-features -- -D warnings
 cargo check
+cargo test
 ```
 
 ## CI/CD and Releases

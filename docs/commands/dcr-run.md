@@ -19,7 +19,7 @@ dcr run --release
 
 ## Restrictions
 
-- If `build.kind = "staticlib"`, `run` exits with error.
+- If `build.kind = "staticlib"` or `build.kind = "sharedlib"`, `run` exits with error.
 - The profile is selected from the first argument.
 
 ## On build failure

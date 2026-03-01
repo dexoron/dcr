@@ -35,7 +35,7 @@ kind = "bin"
 - `build.compiler`
 - `build.kind`
 
-`build.kind` must be either `bin` or `staticlib`.
+`build.kind` must be either `bin`, `staticlib`, or `sharedlib`.
 
 ## Optional keys
 

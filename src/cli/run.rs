@@ -51,8 +51,9 @@ pub fn run(args: &[String]) -> i32 {
         }
     }
 
-    if build_kind.trim() == "staticlib" {
-        error("Cannot run static library");
+    let kind = build_kind.trim();
+    if kind == "staticlib" || kind == "sharedlib" {
+        error("Cannot run library build");
         return 1;
     }
     let build_status = build(args);

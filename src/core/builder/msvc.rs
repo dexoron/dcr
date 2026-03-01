@@ -11,6 +11,9 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     } else {
         ctx.compiler
     };
+    if ctx.language.to_lowercase() == "asm" {
+        return Err("MSVC backend does not support build.language = \"asm\"".to_string());
+    }
     let start_time = Instant::now();
     let sources = collect_sources(ctx.language)?;
     let obj_dir = Path::new("./target").join(ctx.profile).join("obj");
@@ -35,6 +38,9 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
 
     let mut cmd = Command::new(compiler);
     cmd.arg("/nologo");
+    if ctx.kind == "sharedlib" {
+        cmd.arg("/LD");
+    }
     match ctx.language.to_lowercase().as_str() {
         "c" => {
             cmd.arg("/TC");
@@ -77,10 +83,12 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
             cmd.arg(flag);
         }
     }
-    cmd.arg(format!(
-        "/Fe:{}",
+    let out_path = if ctx.kind == "sharedlib" {
+        platform::shared_lib_path(ctx.profile, ctx.project_name, ctx.target_dir)
+    } else {
         platform::bin_path(ctx.profile, ctx.project_name, ctx.target_dir)
-    ));
+    };
+    cmd.arg(format!("/Fe:{out_path}"));
 
     match cmd.status() {
         Ok(status) if status.success() => {
@@ -123,7 +131,8 @@ fn collect_sources_rec(dir: &str, lang: &str, out: &mut Vec<String>) -> Result<(
         let file = path.to_string_lossy().to_string();
         let allowed = (lang == "c" && ext == "c")
             || ((lang == "c++" || lang == "cpp" || lang == "cxx")
-                && (ext == "cpp" || ext == "cxx" || ext == "cc"));
+                && (ext == "cpp" || ext == "cxx" || ext == "cc"))
+            || (lang == "asm" && (ext == "s" || ext == "asm"));
         if allowed {
             out.push(file);
         }
@@ -152,6 +161,23 @@ fn msvc_standard_flag(language: &str, standard: &str) -> Result<String, String> 
         };
     }
     Err("Unsupported language".to_string())
+}
+
+fn msvc_arch_flag(platform: Option<&str>) -> Option<&'static str> {
+    let raw = platform?.trim();
+    if raw.is_empty() {
+        return None;
+    }
+    let p = raw.to_lowercase().replace('-', "_");
+    if p == "x86" || (p.starts_with('i') && p.ends_with("86") && p.len() == 4) {
+        return Some("/arch:IA32");
+    }
+    match p.as_str() {
+        "sse2" => Some("/arch:SSE2"),
+        "avx" => Some("/arch:AVX"),
+        "avx2" => Some("/arch:AVX2"),
+        _ => None,
+    }
 }
 
 fn default_flags(profile: &str) -> &'static [&'static str] {
@@ -189,9 +215,12 @@ fn build_objects(
                     return Err("Unsupported language".to_string());
                 }
             }
-            if !ctx.standard.is_empty() {
+            if !ctx.standard.is_empty() && ctx.language.to_lowercase() != "asm" {
                 let std_flag = msvc_standard_flag(ctx.language, ctx.standard)?;
                 cmd.arg(std_flag);
+            }
+            if let Some(flag) = msvc_arch_flag(ctx.platform) {
+                cmd.arg(flag);
             }
             for flag in default_flags(ctx.profile) {
                 cmd.arg(flag);

@@ -6,20 +6,23 @@ use std::process::Command;
 use std::time::Instant;
 
 pub fn build(ctx: &BuildContext) -> Result<f64, String> {
-    let compiler = if ctx.compiler.is_empty() {
-        "cc"
-    } else {
-        ctx.compiler
-    };
+    if ctx.language.to_lowercase().as_str() != "asm" {
+        return Err("GAS backend requires build.language = \"asm\"".to_string());
+    }
+    let assembler = if ctx.compiler.is_empty() { "as" } else { ctx.compiler };
     let start_time = Instant::now();
     let sources = collect_sources(ctx.language)?;
     let obj_dir = Path::new("./target").join(ctx.profile).join("obj");
-    let objects = build_objects(compiler, &sources, &obj_dir, ctx, "o")?;
+    let objects = build_objects(assembler, &sources, &obj_dir, ctx, "o")?;
 
     if ctx.kind == "staticlib" {
         let lib_path = platform::lib_path(ctx.profile, ctx.project_name, ctx.target_dir);
-        let mut cmd = Command::new("ar");
-        cmd.arg("rcs").arg(&lib_path);
+        let mut cmd = Command::new(if cfg!(target_os = "windows") { "lib" } else { "ar" });
+        if cfg!(target_os = "windows") {
+            cmd.arg("/nologo").arg(format!("/OUT:{lib_path}"));
+        } else {
+            cmd.arg("rcs").arg(&lib_path);
+        }
         for obj in &objects {
             cmd.arg(obj);
         }
@@ -33,7 +36,7 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
         }
     }
 
-    let mut cmd = Command::new(compiler);
+    let mut cmd = Command::new("cc");
     if ctx.kind == "sharedlib" {
         if cfg!(target_os = "macos") {
             cmd.arg("-dynamiclib");
@@ -43,12 +46,6 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     }
     for obj in &objects {
         cmd.arg(obj);
-    }
-    for flag in default_flags(ctx.profile) {
-        cmd.arg(flag);
-    }
-    for flag in ctx.cflags {
-        cmd.arg(flag);
     }
     for dir in ctx.lib_dirs {
         cmd.arg(format!("-L{dir}"));
@@ -99,16 +96,10 @@ fn collect_sources_rec(dir: &str, lang: &str, out: &mut Vec<String>) -> Result<(
         if !path.is_file() {
             continue;
         }
-        let ext = path
-            .extension()
-            .and_then(|v| v.to_str())
-            .unwrap_or("")
-            .to_lowercase();
+        let ext_raw = path.extension().and_then(|v| v.to_str()).unwrap_or("");
+        let ext = ext_raw.to_lowercase();
         let file = path.to_string_lossy().to_string();
-        let allowed = (lang == "c" && ext == "c")
-            || ((lang == "c++" || lang == "cpp" || lang == "cxx")
-                && (ext == "cpp" || ext == "cxx" || ext == "cc"))
-            || (lang == "asm" && (ext == "s" || ext == "asm"));
+        let allowed = lang == "asm" && ext == "s" && ext_raw == "s";
         if allowed {
             out.push(file);
         }
@@ -116,23 +107,8 @@ fn collect_sources_rec(dir: &str, lang: &str, out: &mut Vec<String>) -> Result<(
     Ok(())
 }
 
-fn default_flags(profile: &str) -> &'static [&'static str] {
-    match profile {
-        "release" => &["-O3", "-DNDEBUG", "-march=native"],
-        "debug" => &[
-            "-O0",
-            "-g",
-            "-Wall",
-            "-Wextra",
-            "-fno-omit-frame-pointer",
-            "-DDEBUG",
-        ],
-        _ => &[],
-    }
-}
-
 fn build_objects(
-    compiler: &str,
+    assembler: &str,
     sources: &[String],
     obj_dir: &Path,
     ctx: &BuildContext,
@@ -145,27 +121,10 @@ fn build_objects(
             fs::create_dir_all(parent).map_err(|err| format!("obj dir error: {err}"))?;
         }
         if needs_rebuild(source, &obj_path) {
-            let mut cmd = Command::new(compiler);
-            cmd.arg("-c").arg(source).arg("-o").arg(&obj_path);
-            if ctx.kind == "sharedlib" {
-                cmd.arg("-fPIC");
-            }
-            if let Some(platform) = ctx.platform {
-                if !platform.trim().is_empty() {
-                    cmd.arg(format!("-march={}", platform));
-                }
-            }
-            if !ctx.standard.is_empty() && ctx.language.to_lowercase() != "asm" {
-                cmd.arg(format!("-std={}", ctx.standard));
-            }
-            for flag in default_flags(ctx.profile) {
-                cmd.arg(flag);
-            }
+            let mut cmd = Command::new(assembler);
+            cmd.arg(source).arg("-o").arg(&obj_path);
             for flag in ctx.cflags {
                 cmd.arg(flag);
-            }
-            for dir in ctx.include_dirs {
-                cmd.arg(format!("-I{dir}"));
             }
             match cmd.status() {
                 Ok(status) if status.success() => {}

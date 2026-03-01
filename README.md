@@ -15,6 +15,8 @@ The current implementation is written in Rust.
 - Run the compiled binary
 - Clean build artifacts
 - Generate a minimal C project template
+- Build static and shared libraries
+- ASM projects with NASM/GAS or via GCC/Clang
 - Update the binary via `dcr --update` (GitHub Releases, not for pacman/AUR installs)
 
 ## Supported Platforms
@@ -119,8 +121,10 @@ Two profiles are supported:
 
 Custom flags can be added in `dcr.toml` via `build.cflags` and `build.ldflags`.
 You can also set `build.target` to override the output directory (profile-independent).
+You can set `build.platform` to pass `-march=<platform>` (GCC/Clang) or `/arch:*` (MSVC) where supported.
 Use `build.kind = "staticlib"` to build a static library instead of a binary.
-`dcr run` is only for `build.kind = "bin"` and will fail for `staticlib`.
+Use `build.kind = "sharedlib"` to build a shared library (`.so`/`.dylib`/`.dll`).
+`dcr run` is only for `build.kind = "bin"` and will fail for libraries.
 
 ## Configuration
 The main project file is `dcr.toml`.
@@ -136,6 +140,8 @@ version = "0.1.0"
 language = "c"
 standard = "c11"
 compiler = "clang"
+# Optional platform hint
+# platform = "x86_64"
 # Optional custom flags
 cflags = ["-Wall", "-Wextra"]
 ldflags = ["-lm"]

@@ -121,9 +121,14 @@ impl Config {
                 return Err(ConfigError::Invalid(format!("build.{key} is empty")));
             }
         }
+        if let Some(platform) = build.get("platform") {
+            if !platform.as_str().map(|v| !v.trim().is_empty()).unwrap_or(false) {
+                return Err(ConfigError::Invalid("build.platform is empty".into()));
+            }
+        }
         if let Some(kind) = build.get("kind").and_then(|v| v.as_str()) {
             let kind = kind.trim();
-            if kind != "bin" && kind != "staticlib" {
+            if kind != "bin" && kind != "staticlib" && kind != "sharedlib" {
                 return Err(ConfigError::Invalid("build.kind is invalid".into()));
             }
         }

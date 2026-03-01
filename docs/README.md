@@ -17,10 +17,13 @@ Current DCR focuses on a simple, predictable workflow:
   - C: `*.c`
   - C++: `*.cpp`, `*.cxx`, `*.cc`
 - Compiler selection from `dcr.toml` (`clang`, `gcc`, `cl`, `clang-cl`, etc.).
-- Two build kinds:
+- ASM support via `language = "asm"` (GCC/Clang, NASM, GAS).
+- Three build kinds:
   - `bin` (default)
   - `staticlib`
+  - `sharedlib`
 - Optional custom output directory via `build.target`.
+- Optional `build.platform` to pass architecture hints (`-march` / `/arch`).
 - Path dependencies with include/lib resolution and `dcr.lock` generation.
 
 ## Important behavior notes

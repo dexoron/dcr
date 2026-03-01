@@ -17,7 +17,7 @@ dcr build --release
 3. Resolves path dependencies from `[dependencies]`.
 4. Creates required output directories.
 5. Recursively compiles sources from `src/`.
-6. Links final artifact (binary or static library).
+6. Links final artifact (binary or library).
 
 ## Config values used
 
@@ -27,6 +27,7 @@ dcr build --release
 - `build.standard`
 - `build.kind`
 - `build.target`
+- `build.platform`
 - `build.cflags`
 - `build.ldflags`
 
@@ -34,9 +35,11 @@ dcr build --release
 
 - `language = "c"` -> `*.c`
 - `language = "c++" | "cpp" | "cxx"` -> `*.cpp`, `*.cxx`, `*.cc`
+- `language = "asm"` -> `*.s`, `*.S`, `*.asm`
 
 ## Notes
 
 - The profile is selected from the first argument only.
 - Unknown profile flags return an error.
 - Incremental rebuild is based on source/object mtime comparison.
+- For `language = "asm"` with `compiler = "as"`/`"gas"`, use `.s` files (no preprocessing). For `.S`, use `gcc` or `clang`.
