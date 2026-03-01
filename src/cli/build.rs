@@ -32,6 +32,7 @@ pub fn build(args: &[String]) -> i32 {
     let build_standard = get_config_str(&config, "build.standard");
     let build_target = get_config_str(&config, "build.target");
     let build_kind = get_config_str(&config, "build.kind");
+    let build_platform = get_config_str(&config, "build.platform");
     let build_cflags = match get_config_list(&config, "build.cflags") {
         Ok(v) => v,
         Err(msg) => {
@@ -78,6 +79,7 @@ pub fn build(args: &[String]) -> i32 {
         standard: &build_standard,
         target_dir: normalize_target(&build_target),
         kind: normalize_kind(&build_kind),
+        platform: normalize_platform(&build_platform),
         include_dirs: &resolved.include_dirs,
         lib_dirs: &resolved.lib_dirs,
         libs: &resolved.libs,
@@ -183,4 +185,13 @@ fn normalize_target(target: &str) -> Option<&str> {
 fn normalize_kind(kind: &str) -> &str {
     let trimmed = kind.trim();
     if trimmed.is_empty() { "bin" } else { trimmed }
+}
+
+fn normalize_platform(platform: &str) -> Option<&str> {
+    let trimmed = platform.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
+    }
 }
