@@ -26,6 +26,17 @@ kind = "bin"
 - `cflags` (string array, optional): extra compile flags.
 - `ldflags` (string array, optional): extra link flags.
 
+## Toolchain section
+
+```toml
+[toolchain]
+cc = "clang"
+cxx = "clang++"
+as = "as"
+ar = "ar"
+ld = "ld"
+```
+
 ## Behavior notes
 
 - Compiler backend is selected by compiler string (`gcc`, `clang`, `cl`, `clang-cl`).

@@ -13,6 +13,8 @@ pub struct BuildContext<'a> {
     pub target_dir: Option<&'a str>,
     pub kind: &'a str,
     pub platform: Option<&'a str>,
+    pub linker: Option<&'a str>,
+    pub archiver: Option<&'a str>,
     pub include_dirs: &'a [String],
     pub lib_dirs: &'a [String],
     pub libs: &'a [String],

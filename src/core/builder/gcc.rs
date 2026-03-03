@@ -18,7 +18,7 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
 
     if ctx.kind == "staticlib" {
         let lib_path = platform::lib_path(ctx.profile, ctx.project_name, ctx.target_dir);
-        let mut cmd = Command::new("ar");
+        let mut cmd = Command::new(ctx.archiver.unwrap_or("ar"));
         cmd.arg("rcs").arg(&lib_path);
         for obj in &objects {
             cmd.arg(obj);
@@ -33,7 +33,7 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
         }
     }
 
-    let mut cmd = Command::new(compiler);
+    let mut cmd = Command::new(ctx.linker.unwrap_or(compiler));
     if ctx.kind == "sharedlib" {
         if cfg!(target_os = "macos") {
             cmd.arg("-dynamiclib");
@@ -150,6 +150,9 @@ fn build_objects(
             if ctx.kind == "sharedlib" {
                 cmd.arg("-fPIC");
             }
+            if let Some(flag) = asm_lang_flag(source) {
+                cmd.arg("-x").arg(flag);
+            }
             if let Some(platform) = ctx.platform
                 && !platform.trim().is_empty()
             {
@@ -176,6 +179,15 @@ fn build_objects(
         objects.push(obj_path);
     }
     Ok(objects)
+}
+
+fn asm_lang_flag(source: &str) -> Option<&'static str> {
+    let ext = Path::new(source).extension().and_then(|v| v.to_str())?;
+    match ext {
+        "S" => Some("assembler-with-cpp"),
+        "s" | "asm" => Some("assembler"),
+        _ => None,
+    }
 }
 
 fn object_path(obj_dir: &Path, source: &str, obj_ext: &str) -> String {

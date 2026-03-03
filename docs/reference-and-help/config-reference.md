@@ -17,6 +17,13 @@ platform = "string"            # optional
 cflags = ["string", "..."]     # optional
 ldflags = ["string", "..."]    # optional
 
+[toolchain]
+cc = "string"   # optional
+cxx = "string"  # optional
+as = "string"   # optional
+ar = "string"   # optional
+ld = "string"   # optional
+
 [dependencies]
 name = {
   path = "string",              # required for each dependency

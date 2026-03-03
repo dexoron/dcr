@@ -21,7 +21,7 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
 
     if ctx.kind == "staticlib" {
         let lib_path = platform::lib_path(ctx.profile, ctx.project_name, ctx.target_dir);
-        let mut cmd = Command::new("lib");
+        let mut cmd = Command::new(ctx.archiver.unwrap_or("lib"));
         cmd.arg("/nologo").arg(format!("/OUT:{lib_path}"));
         for obj in &objects {
             cmd.arg(obj);

@@ -129,6 +129,15 @@ impl Config {
         {
             return Err(ConfigError::Invalid("build.platform is empty".into()));
         }
+        if let Some(toolchain) = self.get("toolchain").and_then(|v| v.as_table()) {
+            for key in ["cc", "cxx", "as", "ar", "ld"] {
+                if let Some(v) = toolchain.get(key)
+                    && !v.as_str().map(|s| !s.trim().is_empty()).unwrap_or(false)
+                {
+                    return Err(ConfigError::Invalid(format!("toolchain.{key} is invalid")));
+                }
+            }
+        }
         if let Some(kind) = build.get("kind").and_then(|v| v.as_str()) {
             let kind = kind.trim();
             if kind != "bin" && kind != "staticlib" && kind != "sharedlib" {
@@ -213,6 +222,7 @@ fn format_toml(value: &Value) -> Result<String, ConfigError> {
         .get("dependencies")
         .and_then(|v| v.as_table())
         .ok_or_else(|| ConfigError::Invalid("missing [dependencies]".into()))?;
+    let toolchain = root.get("toolchain").and_then(|v| v.as_table());
 
     let name = package.get("name").and_then(|v| v.as_str()).unwrap_or("");
     let version = package
@@ -250,6 +260,24 @@ fn format_toml(value: &Value) -> Result<String, ConfigError> {
         out.push_str(&format!("ldflags = {}\n", format_string_array(ldflags)));
     }
     out.push('\n');
+
+    if let Some(toolchain) = toolchain {
+        let mut lines = Vec::new();
+        for key in ["cc", "cxx", "as", "ar", "ld"] {
+            if let Some(value) = toolchain.get(key).and_then(|v| v.as_str())
+                && !value.trim().is_empty()
+            {
+                lines.push(format!("{key} = \"{value}\""));
+            }
+        }
+        if !lines.is_empty() {
+            out.push_str("[toolchain]\n");
+            for line in lines {
+                out.push_str(&format!("{line}\n"));
+            }
+            out.push('\n');
+        }
+    }
 
     out.push_str("[dependencies]\n");
     if !deps.is_empty() {

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.7] - 2026-03-03
+Added:
+- Toolchain overrides via `[toolchain]` and env (`DCR_*`)
+- ASM `.S` preprocessing via GCC/Clang (`-x assembler-with-cpp`)
+
 ## [0.2.6] - 2026-03-01
 Added:
 - `sharedlib` build kind (shared library output)

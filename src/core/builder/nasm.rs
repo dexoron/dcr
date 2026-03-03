@@ -21,12 +21,13 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
 
     if ctx.kind == "staticlib" {
         let lib_path = platform::lib_path(ctx.profile, ctx.project_name, ctx.target_dir);
-        let mut cmd = Command::new(if cfg!(target_os = "windows") {
+        let archiver = ctx.archiver.unwrap_or(if cfg!(target_os = "windows") {
             "lib"
         } else {
             "ar"
         });
-        if cfg!(target_os = "windows") {
+        let mut cmd = Command::new(archiver);
+        if cfg!(target_os = "windows") && archiver == "lib" {
             cmd.arg("/nologo").arg(format!("/OUT:{lib_path}"));
         } else {
             cmd.arg("rcs").arg(&lib_path);
@@ -44,8 +45,7 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
         }
     }
 
-    let linker = "cc";
-    let mut cmd = Command::new(linker);
+    let mut cmd = Command::new(ctx.linker.unwrap_or("cc"));
     if ctx.kind == "sharedlib" {
         if cfg!(target_os = "macos") {
             cmd.arg("-dynamiclib");

@@ -33,6 +33,11 @@ pub fn build(args: &[String]) -> i32 {
     let build_target = get_config_str(&config, "build.target");
     let build_kind = get_config_str(&config, "build.kind");
     let build_platform = get_config_str(&config, "build.platform");
+    let tc_cc = get_config_opt(&config, "toolchain.cc");
+    let tc_cxx = get_config_opt(&config, "toolchain.cxx");
+    let tc_as = get_config_opt(&config, "toolchain.as");
+    let tc_ar = get_config_opt(&config, "toolchain.ar");
+    let tc_ld = get_config_opt(&config, "toolchain.ld");
     let build_cflags = match get_config_list(&config, "build.cflags") {
         Ok(v) => v,
         Err(msg) => {
@@ -48,11 +53,21 @@ pub fn build(args: &[String]) -> i32 {
         }
     };
 
+    let resolved_compiler = resolve_compiler(
+        &build_language,
+        &project_compiler,
+        tc_cc.as_deref(),
+        tc_cxx.as_deref(),
+        tc_as.as_deref(),
+    );
+    let resolved_linker = resolve_tool("DCR_LD", tc_ld.as_deref());
+    let resolved_archiver = resolve_tool("DCR_AR", tc_ar.as_deref());
+
     println!(
         "    Building project `{}`\n    Profile: {}\n    Compiler: {}\n",
         colored(&project_name, BOLD_GREEN),
         colored(&active_profile, BOLD_GREEN),
-        colored(&project_compiler, BOLD_GREEN)
+        colored(&resolved_compiler, BOLD_GREEN)
     );
 
     ensure_target_dirs(&items, &active_profile, normalize_target(&build_target));
@@ -74,12 +89,14 @@ pub fn build(args: &[String]) -> i32 {
     let ctx = BuildContext {
         profile: &active_profile,
         project_name: &project_name,
-        compiler: &project_compiler,
+        compiler: &resolved_compiler,
         language: &build_language,
         standard: &build_standard,
         target_dir: normalize_target(&build_target),
         kind: normalize_kind(&build_kind),
         platform: normalize_platform(&build_platform),
+        linker: resolved_linker.as_deref(),
+        archiver: resolved_archiver.as_deref(),
         include_dirs: &resolved.include_dirs,
         lib_dirs: &resolved.lib_dirs,
         libs: &resolved.libs,
@@ -124,6 +141,16 @@ fn get_config_str(config: &Config, key: &str) -> String {
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string()
+}
+
+fn get_config_opt(config: &Config, key: &str) -> Option<String> {
+    let value = config.get(key)?.as_str()?;
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
 }
 
 fn get_config_list(config: &Config, key: &str) -> Result<Vec<String>, String> {
@@ -194,4 +221,77 @@ fn normalize_platform(platform: &str) -> Option<&str> {
     } else {
         Some(trimmed)
     }
+}
+
+fn resolve_compiler(
+    language: &str,
+    compiler: &str,
+    tc_cc: Option<&str>,
+    tc_cxx: Option<&str>,
+    tc_as: Option<&str>,
+) -> String {
+    let lang = language.to_lowercase();
+    env_override_compiler(&lang)
+        .or_else(|| toolchain_override_compiler(&lang, tc_cc, tc_cxx, tc_as))
+        .unwrap_or_else(|| compiler.to_string())
+}
+
+fn env_override_compiler(lang: &str) -> Option<String> {
+    if let Ok(value) = std::env::var("DCR_COMPILER") {
+        let trimmed = value.trim();
+        if !trimmed.is_empty() {
+            return Some(trimmed.to_string());
+        }
+    }
+    if lang == "asm" {
+        if let Ok(value) = std::env::var("DCR_AS") {
+            let trimmed = value.trim();
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
+            }
+        }
+        return None;
+    }
+    if (lang == "c++" || lang == "cpp" || lang == "cxx")
+        && let Ok(value) = std::env::var("DCR_CXX")
+    {
+        let trimmed = value.trim();
+        if !trimmed.is_empty() {
+            return Some(trimmed.to_string());
+        }
+    }
+    if let Ok(value) = std::env::var("DCR_CC") {
+        let trimmed = value.trim();
+        if !trimmed.is_empty() {
+            return Some(trimmed.to_string());
+        }
+    }
+    None
+}
+
+fn toolchain_override_compiler(
+    lang: &str,
+    tc_cc: Option<&str>,
+    tc_cxx: Option<&str>,
+    tc_as: Option<&str>,
+) -> Option<String> {
+    if lang == "asm" {
+        return tc_as.map(|v| v.to_string());
+    }
+    if (lang == "c++" || lang == "cpp" || lang == "cxx")
+        && let Some(v) = tc_cxx
+    {
+        return Some(v.to_string());
+    }
+    tc_cc.map(|v| v.to_string())
+}
+
+fn resolve_tool(env_key: &str, fallback: Option<&str>) -> Option<String> {
+    if let Ok(value) = std::env::var(env_key) {
+        let trimmed = value.trim();
+        if !trimmed.is_empty() {
+            return Some(trimmed.to_string());
+        }
+    }
+    fallback.map(|v| v.to_string())
 }

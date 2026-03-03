@@ -146,6 +146,14 @@ compiler = "clang"
 cflags = ["-Wall", "-Wextra"]
 ldflags = ["-lm"]
 
+[toolchain]
+# Optional tool overrides:
+# cc = "clang"
+# cxx = "clang++"
+# as = "as"
+# ar = "ar"
+# ld = "ld"
+
 [dependencies]
 ```
 

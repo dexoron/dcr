@@ -39,6 +39,18 @@ If `build.platform` is set, DCR passes it as an architecture hint:
 - GCC/Clang: `-march=<platform>`
 - MSVC: maps to `/arch:*` for known values (`x86`, `i386`, `i486`, `i586`, `i686`, `sse2`, `avx`, `avx2`)
 
+## Toolchain overrides
+
+If `[toolchain]` is set, DCR uses its values to override compiler/linker tools:
+
+- `cc`, `cxx`, `as` override compilers for C/C++/ASM
+- `ar` overrides the archiver (used for `staticlib`)
+- `ld` overrides the linker (used by GCC/Clang/NASM/GAS backends)
+
+Environment overrides (highest priority):
+- `DCR_COMPILER` (all languages)
+- `DCR_CC`, `DCR_CXX`, `DCR_AS`, `DCR_AR`, `DCR_LD`
+
 ## Linking
 
 For `kind = "bin"`:
