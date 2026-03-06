@@ -26,6 +26,9 @@ kind = "bin"
 - `[build]`
 - `[dependencies]`
 
+Workspace-only root:
+- `[workspace]` may be used instead of `[package]`/`[build]` for a workspace root.
+
 ## Required keys
 
 - `package.name`
@@ -43,3 +46,5 @@ kind = "bin"
 - `build.cflags`
 - `build.ldflags`
 - dependency fields (`include`, `lib`, `libs`, `system`)
+- `[toolchain]` overrides (`cc`, `cxx`, `as`, `ar`, `ld`)
+- `[workspace]` members

@@ -1,7 +1,7 @@
 use crate::core::builder::BuildContext;
 use crate::platform;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Instant;
 
@@ -15,7 +15,7 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
         return Err("MSVC backend does not support build.language = \"asm\"".to_string());
     }
     let start_time = Instant::now();
-    let sources = collect_sources(ctx.language)?;
+    let sources = collect_sources(ctx.language, ctx.exclude_dirs)?;
     let obj_dir = Path::new("./target").join(ctx.profile).join("obj");
     let objects = build_objects(compiler, &sources, &obj_dir, ctx, "obj")?;
 
@@ -100,10 +100,13 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     }
 }
 
-fn collect_sources(language: &str) -> Result<Vec<String>, String> {
+pub(crate) fn collect_sources(
+    language: &str,
+    exclude_dirs: &[PathBuf],
+) -> Result<Vec<String>, String> {
     let lang = language.to_lowercase();
     let mut sources = Vec::new();
-    collect_sources_rec("./src", &lang, &mut sources)?;
+    collect_sources_rec("./src", &lang, &mut sources, exclude_dirs)?;
     sources.sort();
     if sources.is_empty() {
         return Err("No source files found in ./src".to_string());
@@ -111,13 +114,32 @@ fn collect_sources(language: &str) -> Result<Vec<String>, String> {
     Ok(sources)
 }
 
-fn collect_sources_rec(dir: &str, lang: &str, out: &mut Vec<String>) -> Result<(), String> {
-    let entries = fs::read_dir(dir).map_err(|err| format!("src dir error: {err}"))?;
+fn collect_sources_rec(
+    dir: &str,
+    lang: &str,
+    out: &mut Vec<String>,
+    exclude_dirs: &[PathBuf],
+) -> Result<(), String> {
+    let dir_path = Path::new(dir);
+    let full_dir = if dir_path.is_absolute() {
+        dir_path.to_path_buf()
+    } else {
+        std::env::current_dir()
+            .map_err(|err| format!("src dir error: {err}"))?
+            .join(dir_path)
+    };
+    if is_excluded(&full_dir, exclude_dirs) {
+        return Ok(());
+    }
+    let entries = fs::read_dir(&full_dir).map_err(|err| format!("src dir error: {err}"))?;
     for entry in entries {
         let entry = entry.map_err(|err| format!("src dir error: {err}"))?;
         let path = entry.path();
         if path.is_dir() {
-            collect_sources_rec(&path.to_string_lossy(), lang, out)?;
+            if is_excluded(&path, exclude_dirs) {
+                continue;
+            }
+            collect_sources_rec(&path.to_string_lossy(), lang, out, exclude_dirs)?;
             continue;
         }
         if !path.is_file() {
@@ -128,7 +150,7 @@ fn collect_sources_rec(dir: &str, lang: &str, out: &mut Vec<String>) -> Result<(
             .and_then(|v| v.to_str())
             .unwrap_or("")
             .to_lowercase();
-        let file = path.to_string_lossy().to_string();
+        let file = normalize_source_path(&path);
         let allowed = (lang == "c" && ext == "c")
             || ((lang == "c++" || lang == "cpp" || lang == "cxx")
                 && (ext == "cpp" || ext == "cxx" || ext == "cc"))
@@ -138,6 +160,22 @@ fn collect_sources_rec(dir: &str, lang: &str, out: &mut Vec<String>) -> Result<(
         }
     }
     Ok(())
+}
+
+fn is_excluded(path: &Path, exclude_dirs: &[PathBuf]) -> bool {
+    exclude_dirs.iter().any(|dir| path.starts_with(dir))
+}
+
+fn normalize_source_path(path: &Path) -> String {
+    if !path.is_absolute() {
+        return path.to_string_lossy().to_string();
+    }
+    if let Ok(base) = std::env::current_dir()
+        && let Ok(rel) = path.strip_prefix(&base)
+    {
+        return format!("./{}", rel.to_string_lossy());
+    }
+    path.to_string_lossy().to_string()
 }
 
 fn msvc_standard_flag(language: &str, standard: &str) -> Result<String, String> {

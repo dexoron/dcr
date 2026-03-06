@@ -24,6 +24,9 @@ as = "string"   # optional
 ar = "string"   # optional
 ld = "string"   # optional
 
+[workspace]
+name = { path = "string", deps = ["string", "..."] }
+
 [dependencies]
 name = {
   path = "string",              # required for each dependency

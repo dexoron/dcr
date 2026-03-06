@@ -15,6 +15,7 @@ pub struct BuildContext<'a> {
     pub platform: Option<&'a str>,
     pub linker: Option<&'a str>,
     pub archiver: Option<&'a str>,
+    pub exclude_dirs: &'a [std::path::PathBuf],
     pub include_dirs: &'a [String],
     pub lib_dirs: &'a [String],
     pub libs: &'a [String],
@@ -43,4 +44,27 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
         return msvc::build(ctx);
     }
     clang::build(ctx)
+}
+
+pub fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String> {
+    let compiler = ctx.compiler.to_lowercase();
+    if compiler.contains("clang-cl") {
+        return msvc::collect_sources(ctx.language, ctx.exclude_dirs);
+    }
+    if compiler == "as" || compiler.contains("gas") {
+        return gas::collect_sources(ctx.language, ctx.exclude_dirs);
+    }
+    if compiler.contains("nasm") {
+        return nasm::collect_sources(ctx.language, ctx.exclude_dirs);
+    }
+    if compiler.contains("gcc") || compiler.contains("g++") {
+        return gcc::collect_sources(ctx.language, ctx.exclude_dirs);
+    }
+    if compiler.contains("clang") || compiler.contains("clang++") {
+        return clang::collect_sources(ctx.language, ctx.exclude_dirs);
+    }
+    if compiler == "cl" || compiler.contains("msvc") {
+        return msvc::collect_sources(ctx.language, ctx.exclude_dirs);
+    }
+    clang::collect_sources(ctx.language, ctx.exclude_dirs)
 }

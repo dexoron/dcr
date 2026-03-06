@@ -43,3 +43,4 @@ dcr build --release
 - Unknown profile flags return an error.
 - Incremental rebuild is based on source/object mtime comparison.
 - For `language = "asm"` with `compiler = "as"`/`"gas"`, use `.s` files (no preprocessing). For `.S`, use `gcc` or `clang`.
+- In workspace root, `dcr build` builds all members in dependency order.

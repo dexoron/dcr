@@ -24,6 +24,7 @@ Current DCR focuses on a simple, predictable workflow:
   - `sharedlib`
 - Optional custom output directory via `build.target`.
 - Optional `build.platform` to pass architecture hints (`-march` / `/arch`).
+- Workspace builds via `[workspace]` with per-project `dcr.toml`.
 - Path dependencies with include/lib resolution and `dcr.lock` generation.
 
 ## Important behavior notes

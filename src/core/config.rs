@@ -115,7 +115,7 @@ impl Config {
             .and_then(|v| v.as_table())
             .ok_or_else(|| ConfigError::Invalid("missing [build]".into()))?;
 
-        for key in ["language", "standard", "compiler", "kind"] {
+        for key in ["language", "standard", "compiler"] {
             let value = build.get(key).and_then(|v| v.as_str()).unwrap_or("");
             if value.trim().is_empty() {
                 return Err(ConfigError::Invalid(format!("build.{key} is empty")));
@@ -140,10 +140,11 @@ impl Config {
         }
         if let Some(kind) = build.get("kind").and_then(|v| v.as_str()) {
             let kind = kind.trim();
-            if kind != "bin" && kind != "staticlib" && kind != "sharedlib" {
+            if !kind.is_empty() && kind != "bin" && kind != "staticlib" && kind != "sharedlib" {
                 return Err(ConfigError::Invalid("build.kind is invalid".into()));
             }
         }
+        self.validate_workspace()?;
         Ok(())
     }
 
@@ -155,6 +156,39 @@ impl Config {
         let parts: Vec<&str> = key.split('.').collect();
         set_path(&mut self.data, &parts, value)?;
         self.save()?;
+        Ok(())
+    }
+}
+
+impl Config {
+    fn validate_workspace(&self) -> Result<(), ConfigError> {
+        let Some(workspace) = self.get("workspace").and_then(|v| v.as_table()) else {
+            return Ok(());
+        };
+        for (name, value) in workspace {
+            let tbl = value
+                .as_table()
+                .ok_or_else(|| ConfigError::Invalid(format!("workspace.{name} must be a table")))?;
+            let path = tbl.get("path").and_then(|v| v.as_str()).unwrap_or("");
+            if path.trim().is_empty() {
+                return Err(ConfigError::Invalid(format!(
+                    "workspace.{name}.path is empty"
+                )));
+            }
+            if let Some(deps) = tbl.get("deps") {
+                let arr = deps.as_array().ok_or_else(|| {
+                    ConfigError::Invalid(format!("workspace.{name}.deps must be array"))
+                })?;
+                for item in arr {
+                    let s = item.as_str().unwrap_or("");
+                    if s.trim().is_empty() {
+                        return Err(ConfigError::Invalid(format!(
+                            "workspace.{name}.deps contains empty value"
+                        )));
+                    }
+                }
+            }
+        }
         Ok(())
     }
 }

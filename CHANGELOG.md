@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.8] - 2026-03-06
+Added:
+- Workspace support (`[workspace]` with deps ordering)
+- `clean --all` for workspace members
+Changed:
+- Project root discovery for `build/run/clean` (searches parent dirs)
+- Workspace paths are excluded from root source scan
+- Build output now uses a Cargo-style `Compiling <name> v<version>` line
+- Build time now reports total time for the whole build stage (workspace included)
+- Cache hits are silent (no compile line when nothing is rebuilt)
+- Safer build cache: fingerprints include headers and resolved library files
+
 ## [0.2.7] - 2026-03-03
 Added:
 - Toolchain overrides via `[toolchain]` and env (`DCR_*`)

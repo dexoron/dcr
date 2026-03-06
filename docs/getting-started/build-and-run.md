@@ -37,6 +37,8 @@ Profile-only cleanup:
 ```sh
 dcr clean --debug
 dcr clean --release
+dcr clean --all
+dcr clean --release --all
 ```
 
 ## Notes
@@ -44,3 +46,4 @@ dcr clean --release
 - `run` is unavailable for `build.kind = "staticlib"` and `build.kind = "sharedlib"`.
 - Build profile flag is parsed from the first command argument.
 - Unknown profile flags produce an error.
+- In workspace root, `clean --all` cleans all member projects.

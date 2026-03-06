@@ -1,5 +1,5 @@
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[allow(dead_code)]
 pub fn check_dir(dir: Option<&str>) -> io::Result<Vec<String>> {
@@ -15,4 +15,17 @@ pub fn check_dir(dir: Option<&str>) -> io::Result<Vec<String>> {
     }
 
     Ok(items)
+}
+
+pub fn find_project_root(start: &Path) -> io::Result<Option<PathBuf>> {
+    let mut current = start.to_path_buf();
+    loop {
+        if current.join("dcr.toml").is_file() {
+            return Ok(Some(current));
+        }
+        if !current.pop() {
+            break;
+        }
+    }
+    Ok(None)
 }

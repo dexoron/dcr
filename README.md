@@ -113,6 +113,7 @@ Run manually:
 
 ### `dcr clean`
 Removes the `target` directory in the project root.
+Use `dcr clean --all` in a workspace root to clean all member projects.
 
 ## Build Profiles
 Two profiles are supported:
@@ -155,6 +156,15 @@ ldflags = ["-lm"]
 # ld = "ld"
 
 [dependencies]
+```
+
+Workspace example:
+
+```toml
+[workspace]
+kernel = { path = "src/kernel", deps = ["core", "userspace"] }
+core = { path = "src/core", deps = ["userspace"] }
+userspace = { path = "src/userspace" }
 ```
 
 Path dependencies are supported. DCR will resolve them on build and generate `dcr.lock`.

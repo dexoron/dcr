@@ -2,23 +2,38 @@ use crate::cli::build::build;
 use crate::config::{PROFILE, flags};
 use crate::core::config::Config;
 use crate::core::runner::run_binary;
-use crate::utils::fs::check_dir;
+use crate::utils::fs::find_project_root;
 use crate::utils::log::{error, warn};
 use crate::utils::text::{BOLD_GREEN, colored};
+use std::path::Path;
 
 pub fn run(args: &[String]) -> i32 {
     let mut active_profile = PROFILE.to_string();
 
-    let items = check_dir(None).unwrap_or_default();
-    if !items.contains(&"dcr.toml".to_string()) {
-        error("dcr.toml file not found");
-        return 1;
-    }
-
-    let config = match Config::open("./dcr.toml") {
-        Ok(cfg) => cfg,
+    let start_dir = match std::env::current_dir() {
+        Ok(dir) => dir,
         Err(_) => {
+            error("Failed to determine current directory");
+            return 1;
+        }
+    };
+    let root = match find_project_root(&start_dir) {
+        Ok(Some(dir)) => dir,
+        Ok(None) => {
             error("dcr.toml file not found");
+            return 1;
+        }
+        Err(_) => {
+            error("Failed to find project root");
+            return 1;
+        }
+    };
+    let config = match with_dir(&root, || {
+        Config::open("./dcr.toml").map_err(|err| err.to_string())
+    }) {
+        Ok(cfg) => cfg,
+        Err(err) => {
+            error(&err);
             return 1;
         }
     };
@@ -71,4 +86,15 @@ pub fn run(args: &[String]) -> i32 {
 
     error("Fix errors in the code to run the project");
     1
+}
+
+fn with_dir<F, T>(dir: &Path, f: F) -> Result<T, String>
+where
+    F: FnOnce() -> Result<T, String>,
+{
+    let prev = std::env::current_dir().map_err(|_| "Failed to get current dir".to_string())?;
+    std::env::set_current_dir(dir).map_err(|_| "Failed to change directory".to_string())?;
+    let result = f();
+    let _ = std::env::set_current_dir(prev);
+    result
 }
