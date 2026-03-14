@@ -1,7 +1,8 @@
 use crate::core::builder::BuildContext;
+use crate::core::builder::common;
 use crate::platform;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 use std::time::Instant;
 
@@ -15,7 +16,7 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
         ctx.compiler
     };
     let start_time = Instant::now();
-    let sources = collect_sources(ctx.language, ctx.exclude_dirs)?;
+    let sources = collect_sources(ctx)?;
     let obj_dir = Path::new("./target").join(ctx.profile).join("obj");
     let objects = build_objects(assembler, &sources, &obj_dir, ctx, "o")?;
 
@@ -82,76 +83,9 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     }
 }
 
-pub(crate) fn collect_sources(
-    language: &str,
-    exclude_dirs: &[PathBuf],
-) -> Result<Vec<String>, String> {
-    let lang = language.to_lowercase();
-    let mut sources = Vec::new();
-    collect_sources_rec("./src", &lang, &mut sources, exclude_dirs)?;
-    sources.sort();
-    if sources.is_empty() {
-        return Err("No source files found in ./src".to_string());
-    }
-    Ok(sources)
-}
-
-fn collect_sources_rec(
-    dir: &str,
-    lang: &str,
-    out: &mut Vec<String>,
-    exclude_dirs: &[PathBuf],
-) -> Result<(), String> {
-    let dir_path = Path::new(dir);
-    let full_dir = if dir_path.is_absolute() {
-        dir_path.to_path_buf()
-    } else {
-        std::env::current_dir()
-            .map_err(|err| format!("src dir error: {err}"))?
-            .join(dir_path)
-    };
-    if is_excluded(&full_dir, exclude_dirs) {
-        return Ok(());
-    }
-    let entries = fs::read_dir(&full_dir).map_err(|err| format!("src dir error: {err}"))?;
-    for entry in entries {
-        let entry = entry.map_err(|err| format!("src dir error: {err}"))?;
-        let path = entry.path();
-        if path.is_dir() {
-            if is_excluded(&path, exclude_dirs) {
-                continue;
-            }
-            collect_sources_rec(&path.to_string_lossy(), lang, out, exclude_dirs)?;
-            continue;
-        }
-        if !path.is_file() {
-            continue;
-        }
-        let ext_raw = path.extension().and_then(|v| v.to_str()).unwrap_or("");
-        let ext = ext_raw.to_lowercase();
-        let file = normalize_source_path(&path);
-        let allowed = lang == "asm" && (ext == "asm" || (ext == "s" && ext_raw == "s"));
-        if allowed {
-            out.push(file);
-        }
-    }
-    Ok(())
-}
-
-fn is_excluded(path: &Path, exclude_dirs: &[PathBuf]) -> bool {
-    exclude_dirs.iter().any(|dir| path.starts_with(dir))
-}
-
-fn normalize_source_path(path: &Path) -> String {
-    if !path.is_absolute() {
-        return path.to_string_lossy().to_string();
-    }
-    if let Ok(base) = std::env::current_dir()
-        && let Ok(rel) = path.strip_prefix(&base)
-    {
-        return format!("./{}", rel.to_string_lossy());
-    }
-    path.to_string_lossy().to_string()
+pub(crate) fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String> {
+    // NASM handles lowercase .s and .asm only (not .S which is GCC preprocessed)
+    common::collect_sources(&["asm", "s"], ctx.exclude_dirs)
 }
 
 fn build_objects(
@@ -164,11 +98,11 @@ fn build_objects(
     let mut objects = Vec::new();
     let format = nasm_format(ctx.platform);
     for source in sources {
-        let obj_path = object_path(obj_dir, source, obj_ext);
+        let obj_path = common::object_path(obj_dir, source, obj_ext);
         if let Some(parent) = Path::new(&obj_path).parent() {
             fs::create_dir_all(parent).map_err(|err| format!("obj dir error: {err}"))?;
         }
-        if needs_rebuild(source, &obj_path) {
+        if common::needs_rebuild(source, &obj_path) {
             let mut cmd = Command::new(assembler);
             cmd.arg("-f")
                 .arg(format)
@@ -222,26 +156,5 @@ fn nasm_format(platform: Option<&str>) -> &'static str {
     #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
     {
         "elf64"
-    }
-}
-
-fn object_path(obj_dir: &Path, source: &str, obj_ext: &str) -> String {
-    let src_path = Path::new(source);
-    let rel = src_path
-        .strip_prefix("./src")
-        .or_else(|_| src_path.strip_prefix("src"))
-        .unwrap_or(src_path);
-    let mut out = obj_dir.join(rel);
-    out.set_extension(obj_ext.trim_start_matches('.'));
-    out.to_string_lossy().to_string()
-}
-
-fn needs_rebuild(source: &str, object: &str) -> bool {
-    let src_time = fs::metadata(source).and_then(|m| m.modified());
-    let obj_time = fs::metadata(object).and_then(|m| m.modified());
-    match (src_time, obj_time) {
-        (Ok(s), Ok(o)) => s > o,
-        (Ok(_), Err(_)) => true,
-        _ => true,
     }
 }

@@ -1,7 +1,8 @@
 use crate::core::builder::BuildContext;
+use crate::core::builder::common;
 use crate::platform;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 use std::time::Instant;
 
@@ -15,7 +16,7 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
         return Err("MSVC backend does not support build.language = \"asm\"".to_string());
     }
     let start_time = Instant::now();
-    let sources = collect_sources(ctx.language, ctx.exclude_dirs)?;
+    let sources = collect_sources(ctx)?;
     let obj_dir = Path::new("./target").join(ctx.profile).join("obj");
     let objects = build_objects(compiler, &sources, &obj_dir, ctx, "obj")?;
 
@@ -100,82 +101,18 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     }
 }
 
-pub(crate) fn collect_sources(
-    language: &str,
-    exclude_dirs: &[PathBuf],
-) -> Result<Vec<String>, String> {
+pub(crate) fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String> {
+    let extensions = source_extensions(ctx.language);
+    common::collect_sources(&extensions, ctx.exclude_dirs)
+}
+
+fn source_extensions(language: &str) -> Vec<&str> {
     let lang = language.to_lowercase();
-    let mut sources = Vec::new();
-    collect_sources_rec("./src", &lang, &mut sources, exclude_dirs)?;
-    sources.sort();
-    if sources.is_empty() {
-        return Err("No source files found in ./src".to_string());
+    match lang.as_str() {
+        "c" => vec!["c"],
+        "c++" | "cpp" | "cxx" => vec!["cpp", "cxx", "cc"],
+        _ => vec!["c"],
     }
-    Ok(sources)
-}
-
-fn collect_sources_rec(
-    dir: &str,
-    lang: &str,
-    out: &mut Vec<String>,
-    exclude_dirs: &[PathBuf],
-) -> Result<(), String> {
-    let dir_path = Path::new(dir);
-    let full_dir = if dir_path.is_absolute() {
-        dir_path.to_path_buf()
-    } else {
-        std::env::current_dir()
-            .map_err(|err| format!("src dir error: {err}"))?
-            .join(dir_path)
-    };
-    if is_excluded(&full_dir, exclude_dirs) {
-        return Ok(());
-    }
-    let entries = fs::read_dir(&full_dir).map_err(|err| format!("src dir error: {err}"))?;
-    for entry in entries {
-        let entry = entry.map_err(|err| format!("src dir error: {err}"))?;
-        let path = entry.path();
-        if path.is_dir() {
-            if is_excluded(&path, exclude_dirs) {
-                continue;
-            }
-            collect_sources_rec(&path.to_string_lossy(), lang, out, exclude_dirs)?;
-            continue;
-        }
-        if !path.is_file() {
-            continue;
-        }
-        let ext = path
-            .extension()
-            .and_then(|v| v.to_str())
-            .unwrap_or("")
-            .to_lowercase();
-        let file = normalize_source_path(&path);
-        let allowed = (lang == "c" && ext == "c")
-            || ((lang == "c++" || lang == "cpp" || lang == "cxx")
-                && (ext == "cpp" || ext == "cxx" || ext == "cc"))
-            || (lang == "asm" && (ext == "s" || ext == "asm"));
-        if allowed {
-            out.push(file);
-        }
-    }
-    Ok(())
-}
-
-fn is_excluded(path: &Path, exclude_dirs: &[PathBuf]) -> bool {
-    exclude_dirs.iter().any(|dir| path.starts_with(dir))
-}
-
-fn normalize_source_path(path: &Path) -> String {
-    if !path.is_absolute() {
-        return path.to_string_lossy().to_string();
-    }
-    if let Ok(base) = std::env::current_dir()
-        && let Ok(rel) = path.strip_prefix(&base)
-    {
-        return format!("./{}", rel.to_string_lossy());
-    }
-    path.to_string_lossy().to_string()
 }
 
 fn msvc_standard_flag(language: &str, standard: &str) -> Result<String, String> {
@@ -235,11 +172,11 @@ fn build_objects(
 ) -> Result<Vec<String>, String> {
     let mut objects = Vec::new();
     for source in sources {
-        let obj_path = object_path(obj_dir, source, obj_ext);
+        let obj_path = common::object_path(obj_dir, source, obj_ext);
         if let Some(parent) = Path::new(&obj_path).parent() {
             fs::create_dir_all(parent).map_err(|err| format!("obj dir error: {err}"))?;
         }
-        if needs_rebuild(source, &obj_path) {
+        if common::needs_rebuild(source, &obj_path) {
             let mut cmd = Command::new(compiler);
             cmd.arg("/nologo");
             match ctx.language.to_lowercase().as_str() {
@@ -270,34 +207,50 @@ fn build_objects(
                 cmd.arg(format!("/I{dir}"));
             }
             cmd.arg("/c").arg(source).arg(format!("/Fo:{}", obj_path));
-            match cmd.status() {
-                Ok(status) if status.success() => {}
-                Ok(_) => return Err("Build failed".to_string()),
-                Err(err) => return Err(format!("Build failed: {err}")),
+            cmd.arg("/showIncludes");
+
+            let output = cmd.output().map_err(|err| format!("Build failed: {err}"))?;
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            
+            let mut headers = Vec::new();
+            let mut clean_stdout = String::new();
+            for line in stdout.lines() {
+                if let Some(stripped) = line.strip_prefix("Note: including file:") {
+                    headers.push(stripped.trim().to_string());
+                } else if let Some(stripped) = line.strip_prefix("Примечание: включение файла:") {
+                    headers.push(stripped.trim().to_string());
+                } else {
+                    clean_stdout.push_str(line);
+                    clean_stdout.push('\n');
+                }
             }
+            
+            if !output.status.success() {
+                eprint!("{}", clean_stdout);
+                eprint!("{}", stderr);
+                return Err("Build failed".to_string());
+            } else {
+                let trimmed_out = clean_stdout.trim();
+                let trimmed_err = stderr.trim();
+                let src_filename = Path::new(source).file_name().and_then(|v| v.to_str()).unwrap_or("");
+                if !trimmed_out.is_empty() && trimmed_out != src_filename {
+                    print!("{}", clean_stdout);
+                }
+                if !trimmed_err.is_empty() {
+                    eprintln!("{}", trimmed_err);
+                }
+            }
+            
+            let d_path = Path::new(&obj_path).with_extension("d");
+            let mut d_content = format!("{}: \\\n", obj_path.replace('\\', "/"));
+            for h in headers {
+                let escaped = h.replace('\\', "/").replace(" ", "\\ ");
+                d_content.push_str(&format!("  {} \\\n", escaped));
+            }
+            std::fs::write(&d_path, d_content).map_err(|err| format!("d file error: {err}"))?;
         }
         objects.push(obj_path);
     }
     Ok(objects)
-}
-
-fn object_path(obj_dir: &Path, source: &str, obj_ext: &str) -> String {
-    let src_path = Path::new(source);
-    let rel = src_path
-        .strip_prefix("./src")
-        .or_else(|_| src_path.strip_prefix("src"))
-        .unwrap_or(src_path);
-    let mut out = obj_dir.join(rel);
-    out.set_extension(obj_ext.trim_start_matches('.'));
-    out.to_string_lossy().to_string()
-}
-
-fn needs_rebuild(source: &str, object: &str) -> bool {
-    let src_time = fs::metadata(source).and_then(|m| m.modified());
-    let obj_time = fs::metadata(object).and_then(|m| m.modified());
-    match (src_time, obj_time) {
-        (Ok(s), Ok(o)) => s > o,
-        (Ok(_), Err(_)) => true,
-        _ => true,
-    }
 }

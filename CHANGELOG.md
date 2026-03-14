@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.9] - 2026-03-14
+Added:
+- Header dependency tracking for fine-grained incremental builds (rebuilds when `#include` files change)
+- Complete internal rewrite of the builder module: merged duplicate compilation backends
+
+Changed:
+- `cflags` and `default_flags` no longer incorrectly leak to the linker stage in GCC/Clang
+- Reduced builder codebase size by over 20% while increasing reliability
+- Greatly expanded test suite with 34 new tests covering configuration, CLI errors, and path operations
+
 ## [0.2.8] - 2026-03-06
 Added:
 - Workspace support (`[workspace]` with deps ordering)

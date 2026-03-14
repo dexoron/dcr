@@ -1,8 +1,8 @@
-pub mod clang;
+pub mod common;
 pub mod gas;
-pub mod gcc;
 pub mod msvc;
 pub mod nasm;
+pub mod unix_cc;
 
 pub struct BuildContext<'a> {
     pub profile: &'a str,
@@ -34,37 +34,22 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     if compiler.contains("nasm") {
         return nasm::build(ctx);
     }
-    if compiler.contains("gcc") || compiler.contains("g++") {
-        return gcc::build(ctx);
-    }
-    if compiler.contains("clang") || compiler.contains("clang++") {
-        return clang::build(ctx);
-    }
     if compiler == "cl" || compiler.contains("msvc") {
         return msvc::build(ctx);
     }
-    clang::build(ctx)
+    unix_cc::build(ctx)
 }
 
 pub fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String> {
     let compiler = ctx.compiler.to_lowercase();
-    if compiler.contains("clang-cl") {
-        return msvc::collect_sources(ctx.language, ctx.exclude_dirs);
+    if compiler.contains("clang-cl") || compiler == "cl" || compiler.contains("msvc") {
+        return msvc::collect_sources(ctx);
     }
     if compiler == "as" || compiler.contains("gas") {
-        return gas::collect_sources(ctx.language, ctx.exclude_dirs);
+        return gas::collect_sources(ctx);
     }
     if compiler.contains("nasm") {
-        return nasm::collect_sources(ctx.language, ctx.exclude_dirs);
+        return nasm::collect_sources(ctx);
     }
-    if compiler.contains("gcc") || compiler.contains("g++") {
-        return gcc::collect_sources(ctx.language, ctx.exclude_dirs);
-    }
-    if compiler.contains("clang") || compiler.contains("clang++") {
-        return clang::collect_sources(ctx.language, ctx.exclude_dirs);
-    }
-    if compiler == "cl" || compiler.contains("msvc") {
-        return msvc::collect_sources(ctx.language, ctx.exclude_dirs);
-    }
-    clang::collect_sources(ctx.language, ctx.exclude_dirs)
+    unix_cc::collect_sources(ctx)
 }

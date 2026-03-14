@@ -393,3 +393,199 @@ fn set_path(value: &mut Value, path: &[&str], new_value: Value) -> Result<(), Co
         Err(ConfigError::Invalid("empty key".into()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static TEST_COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+    fn temp_dir(prefix: &str) -> PathBuf {
+        let n = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
+        let dir = std::env::temp_dir().join(format!("dcr_cfg_test_{prefix}_{n}"));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn write_toml_file(dir: &Path, content: &str) -> PathBuf {
+        let path = dir.join("dcr.toml");
+        fs::write(&path, content).unwrap();
+        path
+    }
+
+    fn minimal_valid_toml() -> &'static str {
+        "[package]\nname = \"test\"\nversion = \"0.1.0\"\n\n[build]\nlanguage = \"c\"\nstandard = \"c11\"\ncompiler = \"clang\"\nkind = \"bin\"\n\n[dependencies]\n"
+    }
+
+    #[test]
+    fn open_valid_toml() {
+        let dir = temp_dir("open_valid");
+        let path = write_toml_file(&dir, minimal_valid_toml());
+        let config = Config::open(&path.to_string_lossy());
+        assert!(config.is_ok(), "should open valid toml");
+    }
+
+    #[test]
+    fn open_invalid_toml_syntax() {
+        let dir = temp_dir("open_invalid");
+        let path = write_toml_file(&dir, "this is not [valid toml !!!");
+        let config = Config::open(&path.to_string_lossy());
+        assert!(config.is_err(), "should fail on invalid TOML syntax");
+    }
+
+    #[test]
+    fn open_nonexistent_fails() {
+        let result = Config::open("/tmp/dcr_nonexistent_file_12345.toml");
+        assert!(result.is_err(), "should fail on nonexistent file");
+    }
+
+    #[test]
+    fn validate_missing_package_fails() {
+        let dir = temp_dir("no_package");
+        let path = write_toml_file(
+            &dir,
+            "[build]\nlanguage = \"c\"\nstandard = \"c11\"\ncompiler = \"clang\"\n\n[dependencies]\n",
+        );
+        let result = Config::open(&path.to_string_lossy());
+        assert!(result.is_err(), "missing [package] should fail validation");
+    }
+
+    #[test]
+    fn validate_missing_build_fails() {
+        let dir = temp_dir("no_build");
+        let path = write_toml_file(
+            &dir,
+            "[package]\nname = \"test\"\nversion = \"0.1.0\"\n\n[dependencies]\n",
+        );
+        let result = Config::open(&path.to_string_lossy());
+        assert!(result.is_err(), "missing [build] should fail validation");
+    }
+
+    #[test]
+    fn validate_empty_language_fails() {
+        let dir = temp_dir("empty_lang");
+        let path = write_toml_file(
+            &dir,
+            "[package]\nname = \"test\"\nversion = \"0.1.0\"\n\n[build]\nlanguage = \"\"\nstandard = \"c11\"\ncompiler = \"clang\"\n\n[dependencies]\n",
+        );
+        let result = Config::open(&path.to_string_lossy());
+        assert!(result.is_err(), "empty language should fail validation");
+    }
+
+    #[test]
+    fn validate_unknown_kind_fails() {
+        let dir = temp_dir("bad_kind");
+        let path = write_toml_file(
+            &dir,
+            "[package]\nname = \"test\"\nversion = \"0.1.0\"\n\n[build]\nlanguage = \"c\"\nstandard = \"c11\"\ncompiler = \"clang\"\nkind = \"exe\"\n\n[dependencies]\n",
+        );
+        let result = Config::open(&path.to_string_lossy());
+        assert!(result.is_err(), "unknown kind 'exe' should fail validation");
+    }
+
+    #[test]
+    fn validate_valid_kinds() {
+        for kind in ["bin", "staticlib", "sharedlib"] {
+            let dir = temp_dir(&format!("kind_{kind}"));
+            let content = format!(
+                "[package]\nname = \"test\"\nversion = \"0.1.0\"\n\n[build]\nlanguage = \"c\"\nstandard = \"c11\"\ncompiler = \"clang\"\nkind = \"{kind}\"\n\n[dependencies]\n"
+            );
+            let path = write_toml_file(&dir, &content);
+            let result = Config::open(&path.to_string_lossy());
+            assert!(result.is_ok(), "kind '{kind}' should be valid");
+        }
+    }
+
+    #[test]
+    fn get_values() {
+        let dir = temp_dir("get_values");
+        let path = write_toml_file(&dir, minimal_valid_toml());
+        let config = Config::open(&path.to_string_lossy()).unwrap();
+
+        assert_eq!(
+            config.get("package.name").and_then(|v| v.as_str()),
+            Some("test")
+        );
+        assert_eq!(
+            config.get("build.language").and_then(|v| v.as_str()),
+            Some("c")
+        );
+        assert_eq!(
+            config.get("build.kind").and_then(|v| v.as_str()),
+            Some("bin")
+        );
+        assert!(config.get("nonexistent.key").is_none());
+    }
+
+    #[test]
+    fn set_and_read_back() {
+        let dir = temp_dir("set_value");
+        let path = write_toml_file(&dir, minimal_valid_toml());
+        let mut config = Config::open(&path.to_string_lossy()).unwrap();
+
+        config
+            .set("package.name", Value::String("newname".to_string()))
+            .unwrap();
+        assert_eq!(
+            config.get("package.name").and_then(|v| v.as_str()),
+            Some("newname")
+        );
+
+        // Verify persisted to disk
+        let config2 = Config::open(&path.to_string_lossy()).unwrap();
+        assert_eq!(
+            config2.get("package.name").and_then(|v| v.as_str()),
+            Some("newname")
+        );
+    }
+
+    #[test]
+    fn new_creates_default_config() {
+        let dir = temp_dir("new_default");
+        let path = dir.join("dcr.toml");
+        let config = Config::new(&path.to_string_lossy()).unwrap();
+
+        assert!(path.exists(), "dcr.toml should be created");
+        assert_eq!(
+            config.get("build.language").and_then(|v| v.as_str()),
+            Some("c")
+        );
+        assert_eq!(
+            config.get("build.standard").and_then(|v| v.as_str()),
+            Some("c11")
+        );
+        assert_eq!(
+            config.get("build.compiler").and_then(|v| v.as_str()),
+            Some("clang")
+        );
+        assert_eq!(
+            config.get("build.kind").and_then(|v| v.as_str()),
+            Some("bin")
+        );
+    }
+
+    #[test]
+    fn validate_workspace_empty_path_fails() {
+        let dir = temp_dir("ws_empty_path");
+        let path = write_toml_file(
+            &dir,
+            "[package]\nname = \"test\"\nversion = \"0.1.0\"\n\n[build]\nlanguage = \"c\"\nstandard = \"c11\"\ncompiler = \"clang\"\n\n[workspace]\n[workspace.member1]\npath = \"\"\n\n[dependencies]\n",
+        );
+        let result = Config::open(&path.to_string_lossy());
+        assert!(
+            result.is_err(),
+            "workspace member with empty path should fail"
+        );
+    }
+
+    #[test]
+    fn check_returns_bool() {
+        let dir = temp_dir("check_bool");
+        let path = write_toml_file(&dir, minimal_valid_toml());
+        let config = Config::open(&path.to_string_lossy()).unwrap();
+        assert!(config.check(), "valid config should return true");
+    }
+}
+
