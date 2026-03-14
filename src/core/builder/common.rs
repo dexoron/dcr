@@ -126,19 +126,27 @@ fn parse_d_file(content: &str) -> Vec<String> {
     let chars: Vec<char> = text.chars().collect();
     for i in 0..chars.len() {
         if chars[i] == ':' {
-            if i == 1 && chars[0].is_ascii_alphabetic() && i + 1 < chars.len() && (chars[i+1] == '\\' || chars[i+1] == '/') {
+            if i == 1
+                && chars[0].is_ascii_alphabetic()
+                && i + 1 < chars.len()
+                && (chars[i + 1] == '\\' || chars[i + 1] == '/')
+            {
                 continue; // Windows drive letter
             }
             target_end = i + 1;
             break;
         }
     }
-    
-    let deps_str = if target_end > 0 { &text[target_end..] } else { &text };
-    
+
+    let deps_str = if target_end > 0 {
+        &text[target_end..]
+    } else {
+        &text
+    };
+
     let mut current_path = String::new();
     let mut in_escape = false;
-    
+
     for c in deps_str.chars() {
         if in_escape {
             if c != '\n' && c != '\r' {
@@ -161,7 +169,6 @@ fn parse_d_file(content: &str) -> Vec<String> {
     }
     deps
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -214,7 +221,10 @@ mod tests {
         let src = dir.join("test.c");
         fs::write(&src, "int main() {}").unwrap();
         let obj = dir.join("test.o");
-        assert!(needs_rebuild(&src.to_string_lossy(), &obj.to_string_lossy()));
+        assert!(needs_rebuild(
+            &src.to_string_lossy(),
+            &obj.to_string_lossy()
+        ));
     }
 
     #[test]
@@ -226,7 +236,10 @@ mod tests {
         // Sleep briefly to ensure mtime difference
         std::thread::sleep(std::time::Duration::from_millis(50));
         fs::write(&obj, "").unwrap();
-        assert!(!needs_rebuild(&src.to_string_lossy(), &obj.to_string_lossy()));
+        assert!(!needs_rebuild(
+            &src.to_string_lossy(),
+            &obj.to_string_lossy()
+        ));
     }
 
     #[test]
@@ -237,7 +250,10 @@ mod tests {
         fs::write(&obj, "").unwrap();
         std::thread::sleep(std::time::Duration::from_millis(50));
         fs::write(&src, "int main() { return 1; }").unwrap();
-        assert!(needs_rebuild(&src.to_string_lossy(), &obj.to_string_lossy()));
+        assert!(needs_rebuild(
+            &src.to_string_lossy(),
+            &obj.to_string_lossy()
+        ));
     }
 
     #[test]
@@ -380,16 +396,26 @@ mod tests {
         fs::write(&header, "#define A 1").unwrap();
         std::thread::sleep(std::time::Duration::from_millis(50));
         fs::write(&obj, "").unwrap();
-        
-        let d_content = format!("{}: {} {}", obj.to_string_lossy(), src.to_string_lossy(), header.to_string_lossy());
+
+        let d_content = format!(
+            "{}: {} {}",
+            obj.to_string_lossy(),
+            src.to_string_lossy(),
+            header.to_string_lossy()
+        );
         fs::write(&d_file, d_content).unwrap();
 
-        assert!(!needs_rebuild(&src.to_string_lossy(), &obj.to_string_lossy()), "should be fresh");
+        assert!(
+            !needs_rebuild(&src.to_string_lossy(), &obj.to_string_lossy()),
+            "should be fresh"
+        );
 
         std::thread::sleep(std::time::Duration::from_millis(50));
         fs::write(&header, "#define A 2").unwrap(); // modify header
 
-        assert!(needs_rebuild(&src.to_string_lossy(), &obj.to_string_lossy()), "changed header should trigger rebuild");
+        assert!(
+            needs_rebuild(&src.to_string_lossy(), &obj.to_string_lossy()),
+            "changed header should trigger rebuild"
+        );
     }
 }
-

@@ -122,10 +122,7 @@ fn run_without_toml_fails() {
 fn clean_without_toml_fails() {
     let dir = unique_sandbox_dir("clean_no_toml");
     let out = run_dcr(&["clean"], &dir);
-    assert!(
-        !out.status.success(),
-        "clean without dcr.toml should fail"
-    );
+    assert!(!out.status.success(), "clean without dcr.toml should fail");
 }
 
 #[test]
@@ -148,7 +145,10 @@ fn init_nonempty_dir_fails() {
     // Put a file in the dir so it's not empty
     std::fs::write(dir.join("dummy.txt"), "x").expect("failed to write");
     let out = run_dcr(&["init"], &dir);
-    assert!(!out.status.success(), "dcr init in non-empty dir should fail");
+    assert!(
+        !out.status.success(),
+        "dcr init in non-empty dir should fail"
+    );
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
         stdout.contains("not empty") || stdout.contains("error"),
@@ -163,10 +163,7 @@ fn build_unknown_flag_fails() {
     let out = run_dcr(&["init"], &dir);
     assert!(out.status.success(), "init should succeed");
     let out = run_dcr(&["build", "--foobar"], &dir);
-    assert!(
-        !out.status.success(),
-        "build with unknown flag should fail"
-    );
+    assert!(!out.status.success(), "build with unknown flag should fail");
 }
 
 #[test]
@@ -183,18 +180,12 @@ fn run_library_project_fails() {
     // Edit dcr.toml to set kind = "staticlib"
     let toml_path = dir.join("dcr.toml");
     let toml = std::fs::read_to_string(&toml_path).expect("failed to read dcr.toml");
-    let updated = toml.replace(
-        "kind = \"bin\"",
-        "kind = \"staticlib\"",
-    );
+    let updated = toml.replace("kind = \"bin\"", "kind = \"staticlib\"");
     std::fs::write(&toml_path, updated).expect("failed to write dcr.toml");
 
     let envs = [("DCR_COMPILER", compiler)];
     let out = run_dcr_env(&["run"], &dir, &envs);
-    assert!(
-        !out.status.success(),
-        "dcr run on staticlib should fail"
-    );
+    assert!(!out.status.success(), "dcr run on staticlib should fail");
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
         stdout.contains("library") || stdout.contains("Cannot run"),
@@ -231,10 +222,7 @@ fn clean_specific_profile() {
 fn new_no_name_fails() {
     let dir = unique_sandbox_dir("new_noname");
     let out = run_dcr(&["new"], &dir);
-    assert!(
-        !out.status.success(),
-        "dcr new without name should fail"
-    );
+    assert!(!out.status.success(), "dcr new without name should fail");
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
         stdout.contains("not specified") || stdout.contains("error"),
@@ -266,11 +254,7 @@ fn staticlib_build() {
         .map(|entries| {
             entries
                 .filter_map(|e| e.ok())
-                .any(|e| {
-                    e.file_name()
-                        .to_string_lossy()
-                        .ends_with(".a")
-                })
+                .any(|e| e.file_name().to_string_lossy().ends_with(".a"))
         })
         .unwrap_or(false);
     assert!(has_lib, "staticlib should produce a .a file");
@@ -302,6 +286,12 @@ fn version_contains_version_string() {
     assert!(out.status.success());
     let stdout = String::from_utf8_lossy(&out.stdout);
     // Should contain version like "dcr 0.2.8 (target)"
-    assert!(stdout.contains("dcr "), "version output should start with 'dcr '");
-    assert!(stdout.contains('.'), "version output should contain a version number");
+    assert!(
+        stdout.contains("dcr "),
+        "version output should start with 'dcr '"
+    );
+    assert!(
+        stdout.contains('.'),
+        "version output should contain a version number"
+    );
 }

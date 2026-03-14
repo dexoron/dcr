@@ -30,10 +30,7 @@ mod tests {
 
     #[test]
     fn bin_path_release() {
-        assert_eq!(
-            bin_path("release", "hello", None),
-            "./target/release/hello"
-        );
+        assert_eq!(bin_path("release", "hello", None), "./target/release/hello");
     }
 
     #[test]
@@ -75,4 +72,3 @@ mod tests {
         );
     }
 }
-

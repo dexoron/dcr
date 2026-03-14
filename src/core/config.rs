@@ -588,4 +588,3 @@ mod tests {
         assert!(config.check(), "valid config should return true");
     }
 }
-

@@ -212,20 +212,21 @@ fn build_objects(
             let output = cmd.output().map_err(|err| format!("Build failed: {err}"))?;
             let stdout = String::from_utf8_lossy(&output.stdout);
             let stderr = String::from_utf8_lossy(&output.stderr);
-            
+
             let mut headers = Vec::new();
             let mut clean_stdout = String::new();
             for line in stdout.lines() {
                 if let Some(stripped) = line.strip_prefix("Note: including file:") {
                     headers.push(stripped.trim().to_string());
-                } else if let Some(stripped) = line.strip_prefix("Примечание: включение файла:") {
+                } else if let Some(stripped) = line.strip_prefix("Примечание: включение файла:")
+                {
                     headers.push(stripped.trim().to_string());
                 } else {
                     clean_stdout.push_str(line);
                     clean_stdout.push('\n');
                 }
             }
-            
+
             if !output.status.success() {
                 eprint!("{}", clean_stdout);
                 eprint!("{}", stderr);
@@ -233,7 +234,10 @@ fn build_objects(
             } else {
                 let trimmed_out = clean_stdout.trim();
                 let trimmed_err = stderr.trim();
-                let src_filename = Path::new(source).file_name().and_then(|v| v.to_str()).unwrap_or("");
+                let src_filename = Path::new(source)
+                    .file_name()
+                    .and_then(|v| v.to_str())
+                    .unwrap_or("");
                 if !trimmed_out.is_empty() && trimmed_out != src_filename {
                     print!("{}", clean_stdout);
                 }
@@ -241,7 +245,7 @@ fn build_objects(
                     eprintln!("{}", trimmed_err);
                 }
             }
-            
+
             let d_path = Path::new(&obj_path).with_extension("d");
             let mut d_content = format!("{}: \\\n", obj_path.replace('\\', "/"));
             for h in headers {
