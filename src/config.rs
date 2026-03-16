@@ -16,7 +16,7 @@ pub fn flags(profile: &str) -> Option<&'static [&'static str]> {
             "-Wall",
             "-Wextra",
             "-fno-omit-frame-pointer",
-            "-DDEBUG",
+            "-DDCR_DEBUG",
         ]),
         _ => None,
     }

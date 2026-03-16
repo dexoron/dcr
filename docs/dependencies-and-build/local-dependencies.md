@@ -11,6 +11,11 @@ For each dependency in `[dependencies]`, DCR:
 5. Synchronizes dependency files to `target/<profile>/deps/<dep-name>/`.
 6. Adds include/lib/link options to compile/link commands.
 
+### Profile placeholders
+
+`path`, `include`, and `lib` entries may use `{profile}` which expands to the active profile
+(`debug` or `release`).
+
 ## Failure cases
 
 - Dependency path is missing or not a directory.

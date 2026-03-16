@@ -24,12 +24,12 @@ These flags are applied automatically based on profile and compiler backend.
 
 GCC/Clang:
 
-- `debug`: `-O0 -g -Wall -Wextra -fno-omit-frame-pointer -DDEBUG`
+- `debug`: `-O0 -g -Wall -Wextra -fno-omit-frame-pointer -DDCR_DEBUG`
 - `release`: `-O3 -DNDEBUG -march=native`
 
 MSVC:
 
-- `debug`: `/Od /Zi /W4 /DDEBUG /Oy-`
+- `debug`: `/Od /Zi /W4 /DDCR_DEBUG /Oy-`
 - `release`: `/O2 /DNDEBUG`
 
 ## Platform hint

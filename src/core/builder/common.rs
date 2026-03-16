@@ -175,9 +175,11 @@ mod tests {
     use super::*;
     use std::fs;
     use std::path::PathBuf;
+    use std::sync::Mutex;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     static TEST_COUNTER: AtomicUsize = AtomicUsize::new(0);
+    static CWD_LOCK: Mutex<()> = Mutex::new(());
 
     fn temp_dir(prefix: &str) -> PathBuf {
         let n = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
@@ -282,6 +284,7 @@ mod tests {
         fs::write(src.join("utils.c"), "").unwrap();
         fs::write(src.join("README.md"), "").unwrap(); // should be ignored
 
+        let _guard = CWD_LOCK.lock().unwrap();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
         let result = collect_sources(&["c"], &[]);
@@ -303,6 +306,7 @@ mod tests {
         fs::write(src.join("other.cc"), "").unwrap();
         fs::write(src.join("skip.c"), "").unwrap(); // should be ignored
 
+        let _guard = CWD_LOCK.lock().unwrap();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
         let result = collect_sources(&["cpp", "cxx", "cc"], &[]);
@@ -318,6 +322,7 @@ mod tests {
         let src = dir.join("src");
         fs::create_dir_all(&src).unwrap();
 
+        let _guard = CWD_LOCK.lock().unwrap();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
         let result = collect_sources(&["c"], &[]);
@@ -336,6 +341,7 @@ mod tests {
         fs::write(vendor.join("lib.c"), "").unwrap(); // should be excluded
 
         let exclude = vec![vendor.clone()];
+        let _guard = CWD_LOCK.lock().unwrap();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
         let result = collect_sources(&["c"], &exclude);
@@ -355,6 +361,7 @@ mod tests {
         fs::write(src.join("main.c"), "").unwrap();
         fs::write(sub.join("nested.c"), "").unwrap();
 
+        let _guard = CWD_LOCK.lock().unwrap();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
         let result = collect_sources(&["c"], &[]);

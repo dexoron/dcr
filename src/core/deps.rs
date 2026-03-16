@@ -50,7 +50,8 @@ pub fn resolve_deps(
     let mut lock_packages = Vec::new();
 
     for dep in deps {
-        let dep_path = resolve_path(project_root, &dep.path_raw)?;
+        let dep_path_raw = expand_profile(&dep.path_raw, profile);
+        let dep_path = resolve_path(project_root, &dep_path_raw)?;
         if !dep_path.is_dir() {
             return Err(format!(
                 "Dependency '{}' path is not a directory: {}",
@@ -59,8 +60,13 @@ pub fn resolve_deps(
             ));
         }
 
-        let include = resolve_paths(&dep_path, dep.include_raw.as_deref(), &["include"])?;
-        let lib = resolve_paths(&dep_path, dep.lib_raw.as_deref(), &["lib", "lib64"])?;
+        let include = resolve_paths(&dep_path, dep.include_raw.as_deref(), &["include"], profile)?;
+        let lib = resolve_paths(
+            &dep_path,
+            dep.lib_raw.as_deref(),
+            &["lib", "lib64"],
+            profile,
+        )?;
         let libs_list = dep
             .libs_raw
             .clone()
@@ -200,11 +206,13 @@ fn resolve_paths(
     base: &Path,
     raw: Option<&[String]>,
     defaults: &[&str],
+    profile: &str,
 ) -> Result<Vec<PathBuf>, String> {
     let mut out = Vec::new();
     if let Some(raw) = raw {
         for r in raw {
-            let p = Path::new(r);
+            let expanded = expand_profile(r, profile);
+            let p = Path::new(&expanded);
             let full = if p.is_absolute() {
                 p.to_path_buf()
             } else {
@@ -225,6 +233,10 @@ fn resolve_paths(
         }
     }
     Ok(out)
+}
+
+fn expand_profile(raw: &str, profile: &str) -> String {
+    raw.replace("{profile}", profile)
 }
 
 fn sync_dep_dir(src: &Path, dst: &Path) -> std::io::Result<()> {

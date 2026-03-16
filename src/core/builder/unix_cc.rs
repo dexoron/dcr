@@ -25,6 +25,9 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
         for obj in &objects {
             cmd.arg(obj);
         }
+        if std::env::var("DCR_DEBUG").is_ok() {
+            eprintln!("[dcr] {:?}", cmd);
+        }
         match cmd.status() {
             Ok(status) if status.success() => {
                 let elapsed = ((start_time.elapsed().as_secs_f64() * 100.0).trunc()) / 100.0;
@@ -62,6 +65,9 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     };
     cmd.arg("-o").arg(out_path);
 
+    if std::env::var("DCR_DEBUG").is_ok() {
+        eprintln!("[dcr] {:?}", cmd);
+    }
     match cmd.status() {
         Ok(status) if status.success() => {
             let elapsed = ((start_time.elapsed().as_secs_f64() * 100.0).trunc()) / 100.0;
@@ -96,7 +102,7 @@ fn default_flags(profile: &str) -> &'static [&'static str] {
             "-Wall",
             "-Wextra",
             "-fno-omit-frame-pointer",
-            "-DDEBUG",
+            "-DDCR_DEBUG",
         ],
         _ => &[],
     }
@@ -143,6 +149,9 @@ fn build_objects(
             }
             let d_path = Path::new(&obj_path).with_extension("d");
             cmd.arg("-MMD").arg("-MF").arg(&d_path);
+            if std::env::var("DCR_DEBUG").is_ok() {
+                eprintln!("[dcr] {:?}", cmd);
+            }
             match cmd.status() {
                 Ok(status) if status.success() => {}
                 Ok(_) => return Err("Build failed".to_string()),

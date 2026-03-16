@@ -18,12 +18,12 @@ dcr clean --debug
 
 ### GCC/Clang-like toolchains
 
-- `debug`: `-O0 -g -Wall -Wextra -fno-omit-frame-pointer -DDEBUG`
+- `debug`: `-O0 -g -Wall -Wextra -fno-omit-frame-pointer -DDCR_DEBUG`
 - `release`: `-O3 -DNDEBUG -march=native`
 
 ### MSVC toolchain
 
-- `debug`: `/Od /Zi /W4 /DDEBUG /Oy-`
+- `debug`: `/Od /Zi /W4 /DDCR_DEBUG /Oy-`
 - `release`: `/O2 /DNDEBUG`
 
 ## Artifacts
@@ -37,12 +37,12 @@ Default compiler flags:
 
 GCC/Clang:
 
-- `debug`: `-O0 -g -Wall -Wextra -fno-omit-frame-pointer -DDEBUG`
+- `debug`: `-O0 -g -Wall -Wextra -fno-omit-frame-pointer -DDCR_DEBUG`
 - `release`: `-O3 -DNDEBUG -march=native`
 
 MSVC:
 
-- `debug`: `/Od /Zi /W4 /DDEBUG /Oy-`
+- `debug`: `/Od /Zi /W4 /DDCR_DEBUG /Oy-`
 - `release`: `/O2 /DNDEBUG`
 
 Static library mode (`kind = "staticlib"`):

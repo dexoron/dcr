@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.10] - 2026-03-16
+Added:
+- `build.steps` for pre-build generators (e.g., `moc`/`uic`/`rcc`)
+- `build.pkg_config` for `pkg-config`-driven cflags/ldflags resolution
+- `[toolchain]` support for `uic`, `moc`, `rcc`
+- Step command variables (`{uic}`, `{moc}`, `{rcc}`, `{cflags}`, `{stem}`, `{in}`, `{out}`)
+- `{profile}` placeholder support for dependency paths
+
 ## [0.2.9] - 2026-03-14
 Added:
 - Header dependency tracking for fine-grained incremental builds (rebuilds when `#include` files change)

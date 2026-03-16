@@ -27,6 +27,9 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
         for obj in &objects {
             cmd.arg(obj);
         }
+        if std::env::var("DCR_DEBUG").is_ok() {
+            eprintln!("[dcr] {:?}", cmd);
+        }
         match cmd.status() {
             Ok(status) if status.success() => {
                 let elapsed = ((start_time.elapsed().as_secs_f64() * 100.0).trunc()) / 100.0;
@@ -91,6 +94,9 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     };
     cmd.arg(format!("/Fe:{out_path}"));
 
+    if std::env::var("DCR_DEBUG").is_ok() {
+        eprintln!("[dcr] {:?}", cmd);
+    }
     match cmd.status() {
         Ok(status) if status.success() => {
             let elapsed = ((start_time.elapsed().as_secs_f64() * 100.0).trunc()) / 100.0;
@@ -158,7 +164,7 @@ fn msvc_arch_flag(platform: Option<&str>) -> Option<&'static str> {
 fn default_flags(profile: &str) -> &'static [&'static str] {
     match profile {
         "release" => &["/O2", "/DNDEBUG"],
-        "debug" => &["/Od", "/Zi", "/W4", "/DDEBUG", "/Oy-"],
+        "debug" => &["/Od", "/Zi", "/W4", "/DDCR_DEBUG", "/Oy-"],
         _ => &[],
     }
 }
@@ -209,6 +215,9 @@ fn build_objects(
             cmd.arg("/c").arg(source).arg(format!("/Fo:{}", obj_path));
             cmd.arg("/showIncludes");
 
+            if std::env::var("DCR_DEBUG").is_ok() {
+                eprintln!("[dcr] {:?}", cmd);
+            }
             let output = cmd.output().map_err(|err| format!("Build failed: {err}"))?;
             let stdout = String::from_utf8_lossy(&output.stdout);
             let stderr = String::from_utf8_lossy(&output.stderr);
