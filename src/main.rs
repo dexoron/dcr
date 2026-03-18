@@ -21,6 +21,7 @@ fn main() {
         "build" => cli::build::build(rest),
         "run" => cli::run::run(rest),
         "clean" => cli::clean::clean(rest),
+        "gen" => cli::r#gen::r#gen(rest),
         "--version" => {
             println!("dcr {} ({})", env!("CARGO_PKG_VERSION"), env!("DCR_TARGET"));
             0

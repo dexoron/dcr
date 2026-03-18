@@ -8,6 +8,7 @@ Debug (default):
 dcr build
 # or
 dcr build --debug
+dcr build --debug --clean
 ```
 
 Release:
@@ -22,6 +23,7 @@ dcr build --release
 dcr run
 # or
 dcr run --release
+dcr run --release --force
 ```
 
 `dcr run` first builds, then launches the produced binary.
@@ -47,3 +49,4 @@ dcr clean --release --all
 - Build profile flag is parsed from the first command argument.
 - Unknown profile flags produce an error.
 - In workspace root, `clean --all` cleans all member projects.
+- `--clean` for `build`/`run` removes `target/<profile>` and paths from `build.clean`.

@@ -14,6 +14,8 @@ dcr run --release
 dcr clean --debug
 ```
 
+You can also add `--force` or `--clean` to `build`/`run`.
+
 ## Default profile flags
 
 ### GCC/Clang-like toolchains
@@ -55,3 +57,18 @@ Shared library mode (`kind = "sharedlib"`):
 - Linux: `lib<name>.so`
 - macOS: `lib<name>.dylib`
 - Windows: `<name>.dll`
+
+## Profile overrides
+
+Use `[build.debug]` and `[build.release]` to override build settings per profile.
+All values inherit from `[build]`. If a field is present in the profile table, it replaces the base value.
+For arrays (like `cflags`/`ldflags`), the profile value is appended to the base array.
+
+```toml
+[build.debug]
+cflags = ["-g3"]
+
+[build.release]
+cflags = ["-O3"]
+ldflags = ["-s"]
+```

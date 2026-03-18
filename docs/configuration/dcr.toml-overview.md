@@ -45,6 +45,19 @@ Workspace-only root:
 - `build.target`
 - `build.cflags`
 - `build.ldflags`
+- `build.exclude`
+- `build.include`
+- `build.roots`
+- `build.src_disable`
+- `build.pkg_config`
+- `build.steps`
+- `build.post_steps`
+- `build.generated`
+- `build.expect`
+- `build.clean`
+- `build.debug`
+- `build.release`
 - dependency fields (`include`, `lib`, `libs`, `system`)
-- `[toolchain]` overrides (`cc`, `cxx`, `as`, `ar`, `ld`)
+- `[toolchain]` overrides (`cc`, `cxx`, `as`, `ar`, `ld`, `uic`, `moc`, `rcc`)
 - `[workspace]` members
+- `[run]` overrides (`cmd`)

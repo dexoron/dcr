@@ -1,7 +1,20 @@
 # Changelog
 
-## [0.2.10] - 2026-03-16
+## [0.3.0] - 2026-03-18
+
 Added:
+
+- `dcr gen` command for IDE integration and build tool support
+    - `dcr gen project-info`: Output project metadata as JSON
+    - `dcr gen compile-commands`: Generate `compile_commands.json` for clangd and clang-tidy
+    - `dcr gen vscode`: Generate VS Code `.vscode/` integration (launch.json, tasks.json, settings.json)
+    - `dcr gen clion`: Generate JetBrains CLion `.idea/` integration (run configurations, build targets)
+- Full workspace support for all `gen` subcommands
+
+## [0.2.10] - 2026-03-16
+
+Added:
+
 - `build.steps` for pre-build generators (e.g., `moc`/`uic`/`rcc`)
 - `build.pkg_config` for `pkg-config`-driven cflags/ldflags resolution
 - `[toolchain]` support for `uic`, `moc`, `rcc`
@@ -9,20 +22,25 @@ Added:
 - `{profile}` placeholder support for dependency paths
 
 ## [0.2.9] - 2026-03-14
+
 Added:
+
 - Header dependency tracking for fine-grained incremental builds (rebuilds when `#include` files change)
 - Complete internal rewrite of the builder module: merged duplicate compilation backends
 
 Changed:
+
 - `cflags` and `default_flags` no longer incorrectly leak to the linker stage in GCC/Clang
 - Reduced builder codebase size by over 20% while increasing reliability
 - Greatly expanded test suite with 34 new tests covering configuration, CLI errors, and path operations
 
 ## [0.2.8] - 2026-03-06
+
 Added:
+
 - Workspace support (`[workspace]` with deps ordering)
 - `clean --all` for workspace members
-Changed:
+  Changed:
 - Project root discovery for `build/run/clean` (searches parent dirs)
 - Workspace paths are excluded from root source scan
 - Build output now uses a Cargo-style `Compiling <name> v<version>` line
@@ -31,12 +49,16 @@ Changed:
 - Safer build cache: fingerprints include headers and resolved library files
 
 ## [0.2.7] - 2026-03-03
+
 Added:
+
 - Toolchain overrides via `[toolchain]` and env (`DCR_*`)
 - ASM `.S` preprocessing via GCC/Clang (`-x assembler-with-cpp`)
 
 ## [0.2.6] - 2026-03-01
+
 Added:
+
 - `sharedlib` build kind (shared library output)
 - ASM projects (`build.language = "asm"`)
 - NASM and GAS backends
@@ -44,24 +66,31 @@ Added:
 - Basic CLI integration tests
 
 ## [0.2.5] - 2026-02-26
+
 Added:
+
 - Incremental builds (object caching by mtime)
 - `build.kind` with `staticlib` support
 - Custom output directory via `build.target`
 
 ## [0.2.4] - 2026-02-22
+
 Added:
+
 - Custom build flags: `build.cflags` and `build.ldflags`
 - Recursive source discovery inside `src/`
 - Path dependencies with auto include/lib resolution and `dcr.lock` generation (experimental)
 - Add docs/index.md and docs/dcr-toml.md
 
 ## [0.2.3] - 2026-02-21
+
 Added:
+
 - Modular builders for `gcc`, `clang`, `msvc`
 - Platform-specific binary path generation (Linux/macOS/Windows)
 
 Changed:
+
 - Build configuration moved to `[build]` (`language`, `standard`, `compiler`)
 - `dcr.toml` formatting now includes the `[build]` section
 - Build uses built-in `debug/release` flags per compiler
@@ -69,20 +98,26 @@ Changed:
 - Updated `dcr.toml` examples in documentation
 
 ## [0.2.2] - 2026-02-20
+
 Changed:
+
 - Reworked `dcr.toml` handling: added read, validation, and edit through `core::config`
 - `new` and `init` use the new config creation logic
 - `build` and `run` now require `dcr.toml` and read `compiler` and `name` from it
 
 ## [0.2.1] - 2026-02-18
+
 Changed:
+
 - Translated user-facing CLI messages to English
 - Unified error and warning output via `utils::log::{error, warn}`
 - Updated `--help` output: translated headers and examples to English, used `printc`, and applied `BOLD_*` styles
 - Translated installer script messages in `install.sh` and `install.ps1` to English
 
 ## [0.2.0] - 2026-02-17
+
 Changed:
+
 - Project migrated from Python to Rust
 - CLI and commands (`new`, `init`, `build`, `run`, `clean`, `--help`, `--version`, `--update`) ported to Rust
 - Updated `--update` flag: added support for GNU/Linux, Windows, macOS
@@ -91,31 +126,40 @@ Changed:
 - Updated `install.sh` for GNU/Linux and macOS
 
 Added:
+
 - Added `install.ps1` for Windows
 - Support for GNU/Linux, Windows, macOS (x86_64/arm)
 
 Important:
+
 - Code was ported with neural networks; future versions will include bug fixes and logic changes
 
 ## [0.1.2] - 2026-02-12
+
 Added:
+
 - Update command
 - `install.sh` install script and README instructions
 - `--version` flag
 
 Changed:
+
 - Improved CLI output, added colors, and updated `--help`
 - Updated project run/build handling in `run.py`/`build.py`
 
 ## [0.1.1] - 2026-02-11
+
 Changed:
+
 - Updated `--help`
 - `main.py` now runs correctly when executed directly
 
 ## [0.1.0] - 2026-02-11
+
 First public release.
 
 Added:
+
 - Base commands `new`, `init`, `build`, `run`, `clean`
 - Build profiles `debug` and `release`
 - `dcr.toml` and `src/main.c` templates

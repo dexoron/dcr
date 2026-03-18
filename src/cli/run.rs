@@ -1,15 +1,14 @@
 use crate::cli::build::build;
-use crate::config::{PROFILE, flags};
+use crate::cli::flags::parse_build_run_flags;
 use crate::core::config::Config;
 use crate::core::runner::run_binary;
 use crate::utils::fs::find_project_root;
-use crate::utils::log::{error, warn};
+use crate::utils::log::error;
 use crate::utils::text::{BOLD_GREEN, colored};
 use std::path::Path;
+use std::process::Command;
 
 pub fn run(args: &[String]) -> i32 {
-    let mut active_profile = PROFILE.to_string();
-
     let start_dir = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(_) => {
@@ -51,35 +50,45 @@ pub fn run(args: &[String]) -> i32 {
         .map(|s| s.trim())
         .filter(|s| !s.is_empty());
 
-    if let Some(first_arg) = args.first() {
-        if first_arg.starts_with("--") {
-            let candidate = first_arg.trim_start_matches("--");
-            if flags(candidate).is_some() {
-                active_profile = candidate.to_string();
-            } else {
-                warn("Unknown build flag");
-                return 1;
-            }
-        } else {
-            warn("Unknown argument");
-            return 1;
-        }
-    }
+    let flags = match parse_build_run_flags(args) {
+        Ok(v) => v,
+        Err(_) => return 1,
+    };
+
+    let version = config
+        .get("package.version")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let run_cmd = config
+        .get("run.cmd")
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .map(|cmd| substitute_run_vars(&cmd, &flags.profile, version));
 
     let kind = build_kind.trim();
-    if kind == "staticlib" || kind == "sharedlib" {
+    if run_cmd.is_none() && (kind == "staticlib" || kind == "sharedlib") {
         error("Cannot run library build");
         return 1;
     }
     let build_status = build(args);
-    let bin_path = crate::platform::bin_path(&active_profile, project_name, target_dir);
+    let bin_path = crate::platform::bin_path(&flags.profile, project_name, target_dir);
     if build_status == 0 {
+        if let Some(cmd) = run_cmd {
+            println!("\n    {} {}", colored("Running", BOLD_GREEN), cmd);
+            println!("--------------------------------");
+            return run_shell(&cmd);
+        }
         println!("\n    {} {}", colored("Running", BOLD_GREEN), bin_path);
         println!("--------------------------------");
-        return run_binary(project_name, &active_profile, target_dir);
+        return run_binary(project_name, &flags.profile, target_dir);
     }
 
-    let fallback_code = run_binary(project_name, &active_profile, target_dir);
+    let fallback_code = if let Some(cmd) = run_cmd {
+        run_shell(&cmd)
+    } else {
+        run_binary(project_name, &flags.profile, target_dir)
+    };
     if fallback_code != 1 {
         return fallback_code;
     }
@@ -97,4 +106,66 @@ where
     let result = f();
     let _ = std::env::set_current_dir(prev);
     result
+}
+
+fn run_shell(cmd: &str) -> i32 {
+    let status = if cfg!(target_os = "windows") {
+        Command::new("cmd").arg("/C").arg(cmd).status()
+    } else {
+        Command::new("sh").arg("-c").arg(cmd).status()
+    };
+    match status {
+        Ok(s) if s.success() => 0,
+        Ok(s) => s.code().unwrap_or(1),
+        Err(_) => 1,
+    }
+}
+
+fn substitute_run_vars(cmd: &str, profile: &str, version: &str) -> String {
+    let info = parse_version_info(version);
+    cmd.replace("{profile}", profile)
+        .replace("{version}", &info.full)
+        .replace("{version_major}", &info.major)
+        .replace("{version_minor}", &info.minor)
+        .replace("{version_patch}", &info.patch)
+        .replace("{version_suffix}", &info.suffix)
+        .replace("{version_suffix_dash}", &info.suffix_dash)
+}
+
+struct VersionInfo {
+    full: String,
+    major: String,
+    minor: String,
+    patch: String,
+    suffix: String,
+    suffix_dash: String,
+}
+
+fn parse_version_info(version: &str) -> VersionInfo {
+    let mut full = version.trim().to_string();
+    if full.is_empty() {
+        full = "0.0.0".to_string();
+    }
+    let full_clone = full.clone();
+    let (base, suffix) = match full_clone.split_once('-') {
+        Some((head, tail)) => (head, tail),
+        None => (full_clone.as_str(), ""),
+    };
+    let mut parts = base.split('.');
+    let major = parts.next().unwrap_or("0").to_string();
+    let minor = parts.next().unwrap_or("0").to_string();
+    let patch = parts.next().unwrap_or("0").to_string();
+    let suffix_dash = if suffix.is_empty() {
+        "".to_string()
+    } else {
+        format!("-{suffix}")
+    };
+    VersionInfo {
+        full,
+        major,
+        minor,
+        patch,
+        suffix: suffix.to_string(),
+        suffix_dash,
+    }
 }

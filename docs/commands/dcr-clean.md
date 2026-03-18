@@ -17,6 +17,8 @@ dcr clean --release --all
 - Without arguments: removes entire `target/`.
 - With profile: removes only `target/<profile>/`.
 - With `--all`: also cleans all workspace members.
+- Additionally removes paths from `build.clean` if configured.
+- `build.clean` supports `{profile}` and version placeholders.
 
 ## Validation
 

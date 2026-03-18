@@ -7,7 +7,8 @@ use std::process::Command;
 use std::time::Instant;
 
 pub fn build(ctx: &BuildContext) -> Result<f64, String> {
-    if ctx.language.to_lowercase().as_str() != "asm" {
+    let lang = ctx.language.to_lowercase();
+    if lang.split('+').any(|p| p.trim() != "asm") {
         return Err("GAS backend requires build.language = \"asm\"".to_string());
     }
     let assembler = if ctx.compiler.is_empty() {
@@ -91,7 +92,12 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
 
 pub(crate) fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String> {
     // GAS handles only lowercase .s files
-    common::collect_sources(&["s"], ctx.exclude_dirs)
+    common::collect_sources(
+        ctx.source_roots,
+        &["s"],
+        ctx.exclude_dirs,
+        ctx.include_paths,
+    )
 }
 
 fn build_objects(

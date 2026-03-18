@@ -115,7 +115,12 @@ impl Config {
             .and_then(|v| v.as_table())
             .ok_or_else(|| ConfigError::Invalid("missing [build]".into()))?;
 
-        for key in ["language", "standard", "compiler"] {
+        if let Some(language) = build.get("language") {
+            self.validate_language(language)?;
+        } else {
+            return Err(ConfigError::Invalid("build.language is empty".into()));
+        }
+        for key in ["standard", "compiler"] {
             let value = build.get(key).and_then(|v| v.as_str()).unwrap_or("");
             if value.trim().is_empty() {
                 return Err(ConfigError::Invalid(format!("build.{key} is empty")));
@@ -144,6 +149,73 @@ impl Config {
                 return Err(ConfigError::Invalid("build.kind is invalid".into()));
             }
         }
+        if let Some(exclude) = build.get("exclude") {
+            let arr = exclude.as_array().ok_or_else(|| {
+                ConfigError::Invalid("build.exclude must be an array of strings".into())
+            })?;
+            for item in arr {
+                let s = item.as_str().unwrap_or("");
+                if s.trim().is_empty() {
+                    return Err(ConfigError::Invalid(
+                        "build.exclude contains empty value".into(),
+                    ));
+                }
+            }
+        }
+        if let Some(include) = build.get("include") {
+            let arr = include.as_array().ok_or_else(|| {
+                ConfigError::Invalid("build.include must be an array of strings".into())
+            })?;
+            for item in arr {
+                let s = item.as_str().unwrap_or("");
+                if s.trim().is_empty() {
+                    return Err(ConfigError::Invalid(
+                        "build.include contains empty value".into(),
+                    ));
+                }
+            }
+        }
+        if let Some(roots) = build.get("roots") {
+            let arr = roots.as_array().ok_or_else(|| {
+                ConfigError::Invalid("build.roots must be an array of strings".into())
+            })?;
+            for item in arr {
+                let s = item.as_str().unwrap_or("");
+                if s.trim().is_empty() {
+                    return Err(ConfigError::Invalid(
+                        "build.roots contains empty value".into(),
+                    ));
+                }
+            }
+        }
+        if let Some(src_disable) = build.get("src_disable")
+            && !src_disable.is_bool()
+        {
+            return Err(ConfigError::Invalid(
+                "build.src_disable must be a boolean".into(),
+            ));
+        }
+        if let Some(clean) = build.get("clean") {
+            let arr = clean.as_array().ok_or_else(|| {
+                ConfigError::Invalid("build.clean must be an array of strings".into())
+            })?;
+            for item in arr {
+                let s = item.as_str().unwrap_or("");
+                if s.trim().is_empty() {
+                    return Err(ConfigError::Invalid(
+                        "build.clean contains empty value".into(),
+                    ));
+                }
+            }
+        }
+        for profile in ["release", "debug"] {
+            if let Some(section) = build.get(profile) {
+                let table = section.as_table().ok_or_else(|| {
+                    ConfigError::Invalid(format!("build.{profile} must be a table"))
+                })?;
+                self.validate_profile_section(profile, table)?;
+            }
+        }
         self.validate_workspace()?;
         Ok(())
     }
@@ -161,6 +233,115 @@ impl Config {
 }
 
 impl Config {
+    fn validate_language(&self, value: &Value) -> Result<(), ConfigError> {
+        if let Some(s) = value.as_str() {
+            if s.trim().is_empty() {
+                return Err(ConfigError::Invalid("build.language is empty".into()));
+            }
+            return Ok(());
+        }
+        let arr = value
+            .as_array()
+            .ok_or_else(|| ConfigError::Invalid("build.language must be string or array".into()))?;
+        if arr.is_empty() {
+            return Err(ConfigError::Invalid("build.language is empty".into()));
+        }
+        for item in arr {
+            let s = item.as_str().unwrap_or("");
+            if s.trim().is_empty() {
+                return Err(ConfigError::Invalid(
+                    "build.language contains empty value".into(),
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn validate_profile_section(
+        &self,
+        profile: &str,
+        table: &toml::value::Table,
+    ) -> Result<(), ConfigError> {
+        if let Some(lang) = table.get("language") {
+            self.validate_language(lang)?;
+        }
+        for key in ["standard", "compiler", "kind", "target", "platform"] {
+            if let Some(value) = table.get(key) {
+                let s = value.as_str().unwrap_or("");
+                if s.trim().is_empty() {
+                    return Err(ConfigError::Invalid(format!(
+                        "build.{profile}.{key} is empty"
+                    )));
+                }
+            }
+        }
+        if let Some(kind) = table.get("kind").and_then(|v| v.as_str()) {
+            let kind = kind.trim();
+            if !kind.is_empty() && kind != "bin" && kind != "staticlib" && kind != "sharedlib" {
+                return Err(ConfigError::Invalid(format!(
+                    "build.{profile}.kind is invalid"
+                )));
+            }
+        }
+        if let Some(src_disable) = table.get("src_disable")
+            && !src_disable.is_bool()
+        {
+            return Err(ConfigError::Invalid(format!(
+                "build.{profile}.src_disable must be boolean"
+            )));
+        }
+        for key in [
+            "cflags",
+            "ldflags",
+            "exclude",
+            "include",
+            "roots",
+            "pkg_config",
+            "generated",
+            "expect",
+            "clean",
+        ] {
+            if let Some(val) = table.get(key) {
+                let arr = val.as_array().ok_or_else(|| {
+                    ConfigError::Invalid(format!(
+                        "build.{profile}.{key} must be an array of strings"
+                    ))
+                })?;
+                for item in arr {
+                    let s = item.as_str().unwrap_or("");
+                    if s.trim().is_empty() {
+                        return Err(ConfigError::Invalid(format!(
+                            "build.{profile}.{key} contains empty value"
+                        )));
+                    }
+                }
+            }
+        }
+        for key in ["steps", "post_steps"] {
+            if let Some(val) = table.get(key) {
+                let arr = val.as_array().ok_or_else(|| {
+                    ConfigError::Invalid(format!("build.{profile}.{key} must be an array"))
+                })?;
+                for item in arr {
+                    let tbl = item.as_table().ok_or_else(|| {
+                        ConfigError::Invalid(format!(
+                            "build.{profile}.{key} entries must be tables"
+                        ))
+                    })?;
+                    for req in ["name", "in", "out", "cmd"] {
+                        let s = tbl.get(req).and_then(|v| v.as_str()).unwrap_or("");
+                        if s.trim().is_empty() {
+                            return Err(ConfigError::Invalid(format!(
+                                "build.{profile}.{key} missing {req}"
+                            )));
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn validate_workspace(&self) -> Result<(), ConfigError> {
         let Some(workspace) = self.get("workspace").and_then(|v| v.as_table()) else {
             return Ok(());
@@ -264,7 +445,12 @@ fn format_toml(value: &Value) -> Result<String, ConfigError> {
         .and_then(|v| v.as_str())
         .unwrap_or("");
 
-    let language = build.get("language").and_then(|v| v.as_str()).unwrap_or("");
+    let language_value = build.get("language");
+    let language = match language_value {
+        Some(Value::String(s)) => s.to_string(),
+        Some(Value::Array(arr)) => format_string_array(&Value::Array(arr.clone())),
+        _ => "".to_string(),
+    };
     let standard = build.get("standard").and_then(|v| v.as_str()).unwrap_or("");
     let compiler = build.get("compiler").and_then(|v| v.as_str()).unwrap_or("");
 
@@ -274,7 +460,11 @@ fn format_toml(value: &Value) -> Result<String, ConfigError> {
     out.push_str(&format!("version = \"{version}\"\n\n"));
 
     out.push_str("[build]\n");
-    out.push_str(&format!("language = \"{language}\"\n"));
+    if language.starts_with('[') {
+        out.push_str(&format!("language = {language}\n"));
+    } else {
+        out.push_str(&format!("language = \"{language}\"\n"));
+    }
     out.push_str(&format!("standard = \"{standard}\"\n"));
     out.push_str(&format!("compiler = \"{compiler}\"\n"));
     let kind = build
@@ -472,6 +662,28 @@ mod tests {
         );
         let result = Config::open(&path.to_string_lossy());
         assert!(result.is_err(), "empty language should fail validation");
+    }
+
+    #[test]
+    fn validate_language_array() {
+        let dir = temp_dir("lang_array");
+        let path = write_toml_file(
+            &dir,
+            "[package]\nname = \"test\"\nversion = \"0.1.0\"\n\n[build]\nlanguage = [\"c\", \"c++\", \"asm\"]\nstandard = \"c11\"\ncompiler = \"clang\"\n\n[dependencies]\n",
+        );
+        let result = Config::open(&path.to_string_lossy());
+        assert!(result.is_ok(), "language array should be valid");
+    }
+
+    #[test]
+    fn validate_language_array_empty_fails() {
+        let dir = temp_dir("lang_array_empty");
+        let path = write_toml_file(
+            &dir,
+            "[package]\nname = \"test\"\nversion = \"0.1.0\"\n\n[build]\nlanguage = []\nstandard = \"c11\"\ncompiler = \"clang\"\n\n[dependencies]\n",
+        );
+        let result = Config::open(&path.to_string_lossy());
+        assert!(result.is_err(), "empty language array should fail");
     }
 
     #[test]

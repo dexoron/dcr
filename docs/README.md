@@ -18,12 +18,19 @@ Current DCR focuses on a simple, predictable workflow:
   - C++: `*.cpp`, `*.cxx`, `*.cc`
 - Compiler selection from `dcr.toml` (`clang`, `gcc`, `cl`, `clang-cl`, etc.).
 - ASM support via `language = "asm"` (GCC/Clang, NASM, GAS).
+- Mixed language builds via `language = ["c", "asm"]` and similar combinations.
 - Three build kinds:
   - `bin` (default)
   - `staticlib`
   - `sharedlib`
 - Optional custom output directory via `build.target`.
 - Optional `build.platform` to pass architecture hints (`-march` / `/arch`).
+- Optional `build.exclude`/`build.include` for source/header selection.
+- Optional `build.roots`/`build.src_disable` to replace the default `src/` root.
+- Optional build steps with `build.steps` and `build.post_steps`.
+- Optional `build.pkg_config` integration.
+- Optional `build.clean` and `build.expect`.
+- Optional `[run].cmd` to override run command.
 - Workspace builds via `[workspace]` with per-project `dcr.toml`.
 - Path dependencies with include/lib resolution and `dcr.lock` generation.
 
@@ -31,7 +38,7 @@ Current DCR focuses on a simple, predictable workflow:
 
 - `dcr.toml` is required for `build`, `run`, and `clean`.
 - `run` works only with `build.kind = "bin"`.
-- Incremental rebuild currently tracks source file timestamps (not header dependency graphs).
+- Incremental rebuild tracks source file timestamps and header dependencies (rebuilds when either source or included headers change).
 - Object files are always created under `target/<profile>/obj/`.
 
 ## Repository

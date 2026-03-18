@@ -12,8 +12,9 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     } else {
         ctx.compiler
     };
-    if ctx.language.to_lowercase() == "asm" {
-        return Err("MSVC backend does not support build.language = \"asm\"".to_string());
+    let lang = ctx.language.to_lowercase();
+    if lang.contains("asm") {
+        return Err("MSVC backend does not support build.language with asm".to_string());
     }
     let start_time = Instant::now();
     let sources = collect_sources(ctx)?;
@@ -109,16 +110,29 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
 
 pub(crate) fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String> {
     let extensions = source_extensions(ctx.language);
-    common::collect_sources(&extensions, ctx.exclude_dirs)
+    common::collect_sources(
+        ctx.source_roots,
+        &extensions,
+        ctx.exclude_dirs,
+        ctx.include_paths,
+    )
 }
 
 fn source_extensions(language: &str) -> Vec<&str> {
-    let lang = language.to_lowercase();
-    match lang.as_str() {
-        "c" => vec!["c"],
-        "c++" | "cpp" | "cxx" => vec!["cpp", "cxx", "cc"],
-        _ => vec!["c"],
+    let mut out = Vec::new();
+    for part in language.split('+') {
+        let lang = part.trim().to_lowercase();
+        match lang.as_str() {
+            "c" => out.extend(["c"]),
+            "c++" | "cpp" | "cxx" => out.extend(["cpp", "cxx", "cc"]),
+            "asm" => {}
+            _ => {}
+        }
     }
+    if out.is_empty() {
+        out.extend(["c"]);
+    }
+    out
 }
 
 fn msvc_standard_flag(language: &str, standard: &str) -> Result<String, String> {

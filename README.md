@@ -14,9 +14,11 @@ The current implementation is written in Rust.
 - Build a project with `debug` and `release` profiles
 - Run the compiled binary
 - Clean build artifacts
+- Generate IDE integration files (VS Code, CLion) and compilation databases
 - Generate a minimal C project template
 - Build static and shared libraries
 - ASM projects with NASM/GAS or via GCC/Clang
+- Mixed language projects (`language = ["c", "asm"]` and similar)
 - Update the binary via `dcr --update` (GitHub Releases, not for pacman/AUR installs)
 
 ## Supported Platforms
@@ -104,9 +106,11 @@ Creates a project in the current directory. The project name is taken from the d
 
 ### `dcr build [profile]`
 Builds the project. If no profile is specified, `--debug` is used.
+Use `--force` to rebuild without cache, `--clean` to clean before build.
 
 ### `dcr run [profile]`
 Builds the project and runs the binary. If no profile is specified, `--debug` is used.
+Use `--force` to rebuild without cache, `--clean` to clean before build.
 
 Run manually:
 `./target/<profile>/<name>`
@@ -121,11 +125,16 @@ Two profiles are supported:
 - `--release` - built-in flags per compiler
 
 Custom flags can be added in `dcr.toml` via `build.cflags` and `build.ldflags`.
+Profile-specific flags can be added via `[build.debug]` and `[build.release]`.
 You can also set `build.target` to override the output directory (profile-independent).
 You can set `build.platform` to pass `-march=<platform>` (GCC/Clang) or `/arch:*` (MSVC) where supported.
 Use `build.kind = "staticlib"` to build a static library instead of a binary.
 Use `build.kind = "sharedlib"` to build a shared library (`.so`/`.dylib`/`.dll`).
 `dcr run` is only for `build.kind = "bin"` and will fail for libraries.
+Use `build.exclude`/`build.include` to control source/header collection.
+Use `build.roots` and `build.src_disable` to replace the default `src/` root.
+Use `build.steps` and `build.post_steps` to run custom commands.
+Use `build.clean` for extra cleanup paths and `[run].cmd` to override run command.
 
 ## Configuration
 The main project file is `dcr.toml`.
@@ -146,6 +155,10 @@ compiler = "clang"
 # Optional custom flags
 cflags = ["-Wall", "-Wextra"]
 ldflags = ["-lm"]
+#
+# Optional include/exclude:
+# exclude = ["src/vendor", "src/legacy/**"]
+# include = ["src/boot/arch/**"]
 
 [toolchain]
 # Optional tool overrides:
@@ -154,6 +167,9 @@ ldflags = ["-lm"]
 # as = "as"
 # ar = "ar"
 # ld = "ld"
+# uic = "uic"
+# moc = "moc"
+# rcc = "rcc"
 
 [dependencies]
 ```

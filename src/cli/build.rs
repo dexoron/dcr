@@ -1,10 +1,12 @@
-use crate::config::{PROFILE, flags};
+use crate::cli::clean::clean;
+use crate::cli::flags::parse_build_run_flags;
+use crate::core::builder::common;
 use crate::core::builder::{BuildContext, build as build_project, collect_sources};
 use crate::core::config::Config;
 use crate::core::deps::resolve_deps;
 use crate::core::workspace::parse_workspace;
 use crate::utils::fs::{check_dir, find_project_root};
-use crate::utils::log::{error, warn};
+use crate::utils::log::error;
 use crate::utils::text::{BOLD_GREEN, colored};
 use glob::glob;
 use sha2::{Digest, Sha256};
@@ -31,11 +33,18 @@ pub fn build(args: &[String]) -> i32 {
             return 1;
         }
     };
-    let active_profile = match parse_profile(args) {
-        Ok(profile) => profile,
+    let flags = match parse_build_run_flags(args) {
+        Ok(v) => v,
         Err(code) => return code,
     };
-    match with_dir(&root, || build_from_root(&root, &active_profile)) {
+    if flags.clean {
+        let mut clean_args = Vec::new();
+        clean_args.push(format!("--{}", flags.profile));
+        let _ = clean(&clean_args);
+    }
+    match with_dir(&root, || {
+        build_from_root(&root, &flags.profile, flags.force)
+    }) {
         Ok(()) => 0,
         Err(msg) => {
             error(&msg);
@@ -44,28 +53,138 @@ pub fn build(args: &[String]) -> i32 {
     }
 }
 
-fn parse_profile(args: &[String]) -> Result<String, i32> {
-    if let Some(first_arg) = args.first() {
-        if first_arg.starts_with("--") {
-            let candidate = first_arg.trim_start_matches("--");
-            if flags(candidate).is_some() {
-                return Ok(candidate.to_string());
-            }
-            warn("Unknown build flag");
-            return Err(1);
-        }
-        warn("Unknown argument");
-        return Err(1);
-    }
-    Ok(PROFILE.to_string())
-}
-
 fn get_config_str(config: &Config, key: &str) -> String {
     config
         .get(key)
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string()
+}
+
+fn get_config_language(config: &Config, key: &str) -> Result<String, String> {
+    let value = config.get(key).ok_or_else(|| format!("{key} is missing"))?;
+    if let Some(s) = value.as_str() {
+        let trimmed = s.trim();
+        if trimmed.is_empty() {
+            return Err(format!("{key} is empty"));
+        }
+        return Ok(trimmed.to_string());
+    }
+    let arr = value
+        .as_array()
+        .ok_or_else(|| format!("{key} must be string or array of strings"))?;
+    let mut parts = Vec::new();
+    for item in arr {
+        let s = item
+            .as_str()
+            .ok_or_else(|| format!("{key} must be string or array of strings"))?;
+        let trimmed = s.trim();
+        if trimmed.is_empty() {
+            return Err(format!("{key} contains empty value"));
+        }
+        parts.push(trimmed.to_string());
+    }
+    if parts.is_empty() {
+        return Err(format!("{key} is empty"));
+    }
+    Ok(parts.join("+"))
+}
+
+fn parse_language_value(value: &toml::Value, key: &str) -> Result<String, String> {
+    if let Some(s) = value.as_str() {
+        let trimmed = s.trim();
+        if trimmed.is_empty() {
+            return Err(format!("{key} is empty"));
+        }
+        return Ok(trimmed.to_string());
+    }
+    let arr = value
+        .as_array()
+        .ok_or_else(|| format!("{key} must be string or array of strings"))?;
+    let mut parts = Vec::new();
+    for item in arr {
+        let s = item
+            .as_str()
+            .ok_or_else(|| format!("{key} must be string or array of strings"))?;
+        let trimmed = s.trim();
+        if trimmed.is_empty() {
+            return Err(format!("{key} contains empty value"));
+        }
+        parts.push(trimmed.to_string());
+    }
+    if parts.is_empty() {
+        return Err(format!("{key} is empty"));
+    }
+    Ok(parts.join("+"))
+}
+
+fn profile_table<'a>(config: &'a Config, profile: &str) -> Option<&'a toml::value::Table> {
+    config
+        .get("build")
+        .and_then(|v| v.as_table())
+        .and_then(|b| b.get(profile))
+        .and_then(|v| v.as_table())
+}
+
+fn get_string_with_profile(config: &Config, field: &str, profile: &str) -> String {
+    let base = get_config_str(config, &format!("build.{field}"));
+    let Some(table) = profile_table(config, profile) else {
+        return base;
+    };
+    let value = table.get(field).and_then(|v| v.as_str()).unwrap_or("");
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        base
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn parse_string_array(value: &toml::Value, key: &str) -> Result<Vec<String>, String> {
+    let arr = value
+        .as_array()
+        .ok_or_else(|| format!("{key} must be an array of strings"))?;
+    let mut out = Vec::new();
+    for item in arr {
+        let s = item
+            .as_str()
+            .ok_or_else(|| format!("{key} must be an array of strings"))?;
+        out.push(s.to_string());
+    }
+    Ok(out)
+}
+
+fn get_list_with_profile(
+    config: &Config,
+    field: &str,
+    profile: &str,
+) -> Result<Vec<String>, String> {
+    let mut out = get_config_list(config, &format!("build.{field}"))?;
+    if let Some(table) = profile_table(config, profile)
+        && let Some(value) = table.get(field)
+    {
+        let mut extra = parse_string_array(value, &format!("build.{profile}.{field}"))?;
+        out.append(&mut extra);
+    }
+    Ok(out)
+}
+
+fn get_bool_with_profile(config: &Config, field: &str, profile: &str, default: bool) -> bool {
+    let base = config
+        .get(&format!("build.{field}"))
+        .and_then(|v| v.as_bool());
+    let profile_val = profile_table(config, profile)
+        .and_then(|table| table.get(field).and_then(|value| value.as_bool()));
+    profile_val.or(base).unwrap_or(default)
+}
+
+fn get_language_with_profile(config: &Config, profile: &str) -> Result<String, String> {
+    if let Some(table) = profile_table(config, profile)
+        && let Some(value) = table.get("language")
+    {
+        return parse_language_value(value, &format!("build.{profile}.language"));
+    }
+    get_config_language(config, "build.language")
 }
 
 fn get_config_opt(config: &Config, key: &str) -> Option<String> {
@@ -96,10 +215,68 @@ fn get_config_list(config: &Config, key: &str) -> Result<Vec<String>, String> {
     Ok(out)
 }
 
+fn get_build_steps_from_value(value: &toml::Value, key: &str) -> Result<Vec<BuildStep>, String> {
+    let arr = value
+        .as_array()
+        .ok_or_else(|| format!("{key} must be an array"))?;
+    let mut out = Vec::new();
+    for item in arr {
+        let tbl = item
+            .as_table()
+            .ok_or_else(|| format!("{key} entries must be tables"))?;
+        let name = tbl
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        let input = tbl
+            .get("in")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        let output = tbl
+            .get("out")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        let cmd = tbl
+            .get("cmd")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        if name.is_empty() || input.is_empty() || output.is_empty() || cmd.is_empty() {
+            return Err(format!("{key} entries must include name, in, out, cmd"));
+        }
+        out.push(BuildStep {
+            name,
+            input,
+            output,
+            cmd,
+        });
+    }
+    Ok(out)
+}
+
+fn get_build_steps_with_profile(
+    config: &Config,
+    field: &str,
+    profile: &str,
+) -> Result<Vec<BuildStep>, String> {
+    if let Some(table) = profile_table(config, profile)
+        && let Some(value) = table.get(field)
+    {
+        return get_build_steps_from_value(value, &format!("build.{profile}.{field}"));
+    }
+    get_build_steps(config, &format!("build.{field}"))
+}
+
 fn ensure_target_dirs(items: &[String], profile: &str, target_dir: Option<&str>) {
     if let Some(dir) = target_dir {
         let _ = fs::create_dir_all(dir);
-        return;
     }
     if !items.contains(&"target".to_string()) {
         let _ = fs::create_dir("./target");
@@ -125,7 +302,7 @@ fn run_build(ctx: &BuildContext) -> Result<f64, String> {
     }
 }
 
-fn build_from_root(root: &Path, profile: &str) -> Result<(), String> {
+fn build_from_root(root: &Path, profile: &str, force: bool) -> Result<(), String> {
     let config = Config::open("./dcr.toml").map_err(|err| err.to_string())?;
     let project_name = get_config_str(&config, "package.name");
     let start_time = Instant::now();
@@ -135,10 +312,10 @@ fn build_from_root(root: &Path, profile: &str) -> Result<(), String> {
         colored(profile, BOLD_GREEN)
     );
     if let Some(workspace) = parse_workspace(&config, root)? {
-        build_workspace(&workspace, profile)?;
+        build_workspace(&workspace, profile, force)?;
         let excludes: Vec<std::path::PathBuf> =
             workspace.members.iter().map(|m| m.path.clone()).collect();
-        build_project_at(root, profile, &excludes)?;
+        build_project_at(root, profile, &excludes, force)?;
         let elapsed = ((start_time.elapsed().as_secs_f64() * 100.0).trunc()) / 100.0;
         println!(
             "    {} Build completed successfully in {} seconds",
@@ -147,7 +324,7 @@ fn build_from_root(root: &Path, profile: &str) -> Result<(), String> {
         );
         return Ok(());
     }
-    build_project_at(root, profile, &[])?;
+    build_project_at(root, profile, &[], force)?;
     let elapsed = ((start_time.elapsed().as_secs_f64() * 100.0).trunc()) / 100.0;
     println!(
         "    {} Build completed successfully in {} seconds",
@@ -160,9 +337,10 @@ fn build_from_root(root: &Path, profile: &str) -> Result<(), String> {
 fn build_workspace(
     workspace: &crate::core::workspace::Workspace,
     profile: &str,
+    force: bool,
 ) -> Result<(), String> {
     for member in &workspace.members {
-        build_project_at(&member.path, profile, &[])?;
+        build_project_at(&member.path, profile, &[], force)?;
     }
     Ok(())
 }
@@ -171,6 +349,7 @@ fn build_project_at(
     project_root: &Path,
     profile: &str,
     exclude_dirs: &[std::path::PathBuf],
+    force: bool,
 ) -> Result<(), String> {
     with_dir(project_root, || {
         let items = check_dir(None).map_err(|_| "Failed to read project directory".to_string())?;
@@ -180,12 +359,12 @@ fn build_project_at(
         let config = Config::open("./dcr.toml").map_err(|err| err.to_string())?;
         let project_name = get_config_str(&config, "package.name");
         let project_version = get_config_str(&config, "package.version");
-        let project_compiler = get_config_str(&config, "build.compiler");
-        let build_language = get_config_str(&config, "build.language");
-        let build_standard = get_config_str(&config, "build.standard");
-        let build_target = get_config_str(&config, "build.target");
-        let build_kind = get_config_str(&config, "build.kind");
-        let build_platform = get_config_str(&config, "build.platform");
+        let project_compiler = get_string_with_profile(&config, "compiler", profile);
+        let build_language = get_language_with_profile(&config, profile)?;
+        let build_standard = get_string_with_profile(&config, "standard", profile);
+        let build_target = get_string_with_profile(&config, "target", profile);
+        let build_kind = get_string_with_profile(&config, "kind", profile);
+        let build_platform = get_string_with_profile(&config, "platform", profile);
         let tc_cc = get_config_opt(&config, "toolchain.cc");
         let tc_cxx = get_config_opt(&config, "toolchain.cxx");
         let tc_as = get_config_opt(&config, "toolchain.as");
@@ -194,11 +373,17 @@ fn build_project_at(
         let tc_uic = get_config_opt(&config, "toolchain.uic");
         let tc_moc = get_config_opt(&config, "toolchain.moc");
         let tc_rcc = get_config_opt(&config, "toolchain.rcc");
-        let build_cflags = get_config_list(&config, "build.cflags")?;
-        let build_ldflags = get_config_list(&config, "build.ldflags")?;
-        let pkg_configs = get_config_list(&config, "build.pkg_config")?;
-        let build_generated = get_config_list(&config, "build.generated")?;
-        let build_steps = get_build_steps(&config)?;
+        let build_cflags = get_list_with_profile(&config, "cflags", profile)?;
+        let build_ldflags = get_list_with_profile(&config, "ldflags", profile)?;
+        let build_excludes = get_list_with_profile(&config, "exclude", profile)?;
+        let build_includes = get_list_with_profile(&config, "include", profile)?;
+        let build_roots = get_list_with_profile(&config, "roots", profile)?;
+        let src_disable = get_bool_with_profile(&config, "src_disable", profile, false);
+        let build_expects = get_list_with_profile(&config, "expect", profile)?;
+        let pkg_configs = get_list_with_profile(&config, "pkg_config", profile)?;
+        let build_generated = get_list_with_profile(&config, "generated", profile)?;
+        let build_steps = get_build_steps_with_profile(&config, "steps", profile)?;
+        let build_post_steps = get_build_steps_with_profile(&config, "post_steps", profile)?;
 
         let resolved_compiler = resolve_compiler(
             &build_language,
@@ -215,6 +400,72 @@ fn build_project_at(
         let resolved = resolve_deps(&config, profile, project_root)?;
         let (resolved_cflags, resolved_ldflags) =
             resolve_pkg_config_flags(&pkg_configs, &build_cflags, &build_ldflags)?;
+        let mut combined_excludes = Vec::new();
+        for dir in exclude_dirs {
+            combined_excludes.push(dir.clone());
+        }
+        let mut exclude_patterns = Vec::new();
+        for raw in build_excludes {
+            let trimmed = raw.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            let normalized = trimmed.replace('\\', "/");
+            if common::has_glob_magic(&normalized) {
+                exclude_patterns.push(normalized);
+                continue;
+            }
+            let p = Path::new(trimmed);
+            if p.is_absolute() {
+                combined_excludes.push(p.to_path_buf());
+                exclude_patterns.push(normalized);
+            } else {
+                combined_excludes.push(project_root.join(p));
+                exclude_patterns.push(normalized);
+            }
+        }
+        let mut combined_includes: Vec<String> = Vec::new();
+        combined_includes.extend(exclude_patterns.iter().map(|v| format!("!{v}")));
+        combined_includes.extend(build_includes.iter().map(|v| v.replace('\\', "/")));
+
+        let mut source_roots: Vec<PathBuf> = Vec::new();
+        for raw in &build_roots {
+            let trimmed = raw.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            let p = Path::new(trimmed);
+            if p.is_absolute() {
+                source_roots.push(p.to_path_buf());
+            } else {
+                source_roots.push(project_root.join(p));
+            }
+        }
+        if !src_disable && source_roots.is_empty() {
+            source_roots.push(project_root.join("src"));
+        }
+
+        let mut merged_include_dirs = resolved.include_dirs.clone();
+        for raw in &build_includes {
+            let trimmed = raw.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            let normalized = trimmed.replace('\\', "/");
+            if common::has_glob_magic(&normalized) {
+                continue;
+            }
+            let p = Path::new(trimmed);
+            let dir = if p.is_absolute() {
+                p.to_path_buf()
+            } else {
+                project_root.join(p)
+            };
+            if dir.is_dir() {
+                merged_include_dirs.push(dir.to_string_lossy().to_string());
+            }
+        }
+
         let ctx = BuildContext {
             profile,
             project_name: &project_name,
@@ -226,8 +477,10 @@ fn build_project_at(
             platform: normalize_platform(&build_platform),
             linker: resolved_linker.as_deref(),
             archiver: resolved_archiver.as_deref(),
-            exclude_dirs,
-            include_dirs: &resolved.include_dirs,
+            source_roots: &source_roots,
+            exclude_dirs: &combined_excludes,
+            include_paths: &combined_includes,
+            include_dirs: &merged_include_dirs,
             lib_dirs: &resolved.lib_dirs,
             libs: &resolved.libs,
             cflags: &resolved_cflags,
@@ -243,10 +496,20 @@ fn build_project_at(
         let tool_execs = resolve_toolchain_execs(&tc_uic, &tc_moc, &tc_rcc, &pkg_configs);
         let step_flags =
             build_step_flags(&resolved_cflags, &resolved.include_dirs, &resolved_compiler);
-        let steps_dirty = build_steps_need_run(&build_steps)?;
+        let version_info = parse_version_info(&project_version);
+        let step_vars = StepVars {
+            profile,
+            version: &version_info.full,
+            version_major: &version_info.major,
+            version_minor: &version_info.minor,
+            version_patch: &version_info.patch,
+            version_suffix: &version_info.suffix,
+            version_suffix_dash: &version_info.suffix_dash,
+        };
+        let steps_dirty = build_steps_need_run(&build_steps, &step_vars)?;
         if steps_dirty {
             clean_generated_files(&build_generated)?;
-            run_build_steps(&build_steps, &tool_execs, &step_flags)?;
+            run_build_steps(&build_steps, &tool_execs, &step_flags, &step_vars)?;
         }
         let sources = collect_sources(&ctx)?;
         let headers = collect_header_files(&ctx, project_root)?;
@@ -257,6 +520,9 @@ fn build_project_at(
             skip = false;
         }
         let debug_enabled = std::env::var("DCR_DEBUG").is_ok();
+        if force {
+            skip = false;
+        }
         if skip && !debug_enabled {
             return Ok(());
         }
@@ -270,6 +536,11 @@ fn build_project_at(
             run_build(&ctx)?;
             write_build_fingerprint(&ctx, &fingerprint)?;
         }
+        let post_steps_dirty = build_steps_need_run(&build_post_steps, &step_vars)?;
+        if post_steps_dirty {
+            run_build_steps(&build_post_steps, &tool_execs, &step_flags, &step_vars)?;
+        }
+        verify_expectations(&build_expects, &step_vars)?;
         Ok(())
     })
 }
@@ -315,7 +586,7 @@ fn resolve_compiler(
     tc_cxx: Option<&str>,
     tc_as: Option<&str>,
 ) -> String {
-    let lang = language.to_lowercase();
+    let lang = primary_language(language);
     env_override_compiler(&lang)
         .or_else(|| toolchain_override_compiler(&lang, tc_cc, tc_cxx, tc_as))
         .unwrap_or_else(|| compiler.to_string())
@@ -369,6 +640,26 @@ fn toolchain_override_compiler(
         return Some(v.to_string());
     }
     tc_cc.map(|v| v.to_string())
+}
+
+fn primary_language(language: &str) -> String {
+    let parts: Vec<String> = language
+        .split('+')
+        .map(|p| p.trim().to_lowercase())
+        .filter(|p| !p.is_empty())
+        .collect();
+    for p in &parts {
+        if p == "c++" || p == "cpp" || p == "cxx" {
+            return p.clone();
+        }
+    }
+    if parts.iter().any(|p| p == "c") {
+        return "c".to_string();
+    }
+    if parts.iter().any(|p| p == "asm") {
+        return "asm".to_string();
+    }
+    language.to_lowercase()
 }
 
 fn resolve_tool(env_key: &str, fallback: Option<&str>) -> Option<String> {
@@ -588,63 +879,22 @@ struct BuildStep {
     cmd: String,
 }
 
-fn get_build_steps(config: &Config) -> Result<Vec<BuildStep>, String> {
-    let value = match config.get("build.steps") {
+fn get_build_steps(config: &Config, key: &str) -> Result<Vec<BuildStep>, String> {
+    let value = match config.get(key) {
         Some(v) => v,
         None => return Ok(Vec::new()),
     };
-    let arr = value
-        .as_array()
-        .ok_or_else(|| "build.steps must be an array".to_string())?;
-    let mut out = Vec::new();
-    for item in arr {
-        let tbl = item
-            .as_table()
-            .ok_or_else(|| "build.steps entries must be tables".to_string())?;
-        let name = tbl
-            .get("name")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        let input = tbl
-            .get("in")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        let output = tbl
-            .get("out")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        let cmd = tbl
-            .get("cmd")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        if name.is_empty() || input.is_empty() || output.is_empty() || cmd.is_empty() {
-            return Err("build.steps entries must include name, in, out, cmd".to_string());
-        }
-        out.push(BuildStep {
-            name,
-            input,
-            output,
-            cmd,
-        });
-    }
-    Ok(out)
+    get_build_steps_from_value(value, key)
 }
 
 fn run_build_steps(
     steps: &[BuildStep],
     tools: &ToolchainExecs,
     step_flags: &str,
+    vars: &StepVars,
 ) -> Result<(), String> {
     for step in steps {
-        run_build_step(step, tools, step_flags)?;
+        run_build_step(step, tools, step_flags, vars)?;
     }
     Ok(())
 }
@@ -653,8 +903,10 @@ fn run_build_step(
     step: &BuildStep,
     tools: &ToolchainExecs,
     step_flags: &str,
+    vars: &StepVars,
 ) -> Result<(), String> {
-    let inputs = expand_glob(&step.input)?;
+    let input_pattern = expand_step_value(&step.input, "", vars);
+    let inputs = expand_glob(&input_pattern)?;
     if inputs.is_empty() {
         return Ok(());
     }
@@ -666,8 +918,11 @@ fn run_build_step(
         ));
     }
     for input in inputs {
+        if !input.is_file() {
+            continue;
+        }
         let stem = input.file_stem().and_then(|v| v.to_str()).unwrap_or("");
-        let out_path = PathBuf::from(step.output.replace("{stem}", stem));
+        let out_path = PathBuf::from(expand_step_value(&step.output, stem, vars));
         if !should_run_step(&input, &out_path) {
             continue;
         }
@@ -675,7 +930,7 @@ fn run_build_step(
             fs::create_dir_all(parent)
                 .map_err(|err| format!("Failed to create step output dir: {err}"))?;
         }
-        let cmd = substitute_step_cmd(&step.cmd, &input, &out_path, tools, step_flags, stem);
+        let cmd = substitute_step_cmd(&step.cmd, &input, &out_path, tools, step_flags, stem, vars);
         let status = run_shell_command(&cmd)
             .map_err(|err| format!("Failed to run step '{}': {err}", step.name))?;
         if !status.success() {
@@ -706,6 +961,17 @@ fn expand_glob(pattern: &str) -> Result<Vec<PathBuf>, String> {
     Ok(out)
 }
 
+fn verify_expectations(patterns: &[String], vars: &StepVars) -> Result<(), String> {
+    for pattern in patterns {
+        let expanded = expand_step_value(pattern, "", vars);
+        let matches = expand_glob(&expanded)?;
+        if matches.is_empty() {
+            return Err(format!("Expected artifact not found: {expanded}"));
+        }
+    }
+    Ok(())
+}
+
 fn should_run_step(input: &Path, output: &Path) -> bool {
     let in_time = fs::metadata(input).and_then(|m| m.modified());
     let out_time = fs::metadata(output).and_then(|m| m.modified());
@@ -723,6 +989,7 @@ fn substitute_step_cmd(
     tools: &ToolchainExecs,
     step_flags: &str,
     stem: &str,
+    vars: &StepVars,
 ) -> String {
     template
         .replace("{in}", &input.to_string_lossy())
@@ -732,6 +999,13 @@ fn substitute_step_cmd(
         .replace("{rcc}", &tools.rcc)
         .replace("{cflags}", step_flags)
         .replace("{stem}", stem)
+        .replace("{profile}", vars.profile)
+        .replace("{version}", vars.version)
+        .replace("{version_major}", vars.version_major)
+        .replace("{version_minor}", vars.version_minor)
+        .replace("{version_patch}", vars.version_patch)
+        .replace("{version_suffix}", vars.version_suffix)
+        .replace("{version_suffix_dash}", vars.version_suffix_dash)
 }
 
 fn build_step_flags(cflags: &[String], include_dirs: &[String], compiler: &str) -> String {
@@ -794,9 +1068,10 @@ fn run_shell_command(cmd: &str) -> Result<std::process::ExitStatus, std::io::Err
     }
 }
 
-fn build_steps_need_run(steps: &[BuildStep]) -> Result<bool, String> {
+fn build_steps_need_run(steps: &[BuildStep], vars: &StepVars) -> Result<bool, String> {
     for step in steps {
-        let inputs = expand_glob(&step.input)?;
+        let input_pattern = expand_step_value(&step.input, "", vars);
+        let inputs = expand_glob(&input_pattern)?;
         if inputs.is_empty() {
             continue;
         }
@@ -808,14 +1083,77 @@ fn build_steps_need_run(steps: &[BuildStep]) -> Result<bool, String> {
             ));
         }
         for input in inputs {
+            if !input.is_file() {
+                continue;
+            }
             let stem = input.file_stem().and_then(|v| v.to_str()).unwrap_or("");
-            let out_path = PathBuf::from(step.output.replace("{stem}", stem));
+            let out_path = PathBuf::from(expand_step_value(&step.output, stem, vars));
             if should_run_step(&input, &out_path) {
                 return Ok(true);
             }
         }
     }
     Ok(false)
+}
+
+fn expand_step_value(template: &str, stem: &str, vars: &StepVars) -> String {
+    template
+        .replace("{stem}", stem)
+        .replace("{profile}", vars.profile)
+        .replace("{version}", vars.version)
+        .replace("{version_major}", vars.version_major)
+        .replace("{version_minor}", vars.version_minor)
+        .replace("{version_patch}", vars.version_patch)
+        .replace("{version_suffix}", vars.version_suffix)
+        .replace("{version_suffix_dash}", vars.version_suffix_dash)
+}
+
+struct VersionInfo {
+    full: String,
+    major: String,
+    minor: String,
+    patch: String,
+    suffix: String,
+    suffix_dash: String,
+}
+
+fn parse_version_info(version: &str) -> VersionInfo {
+    let mut full = version.trim().to_string();
+    if full.is_empty() {
+        full = "0.0.0".to_string();
+    }
+    let full_clone = full.clone();
+    let (base, suffix) = match full_clone.split_once('-') {
+        Some((head, tail)) => (head, tail),
+        None => (full_clone.as_str(), ""),
+    };
+    let mut parts = base.split('.');
+    let major = parts.next().unwrap_or("0").to_string();
+    let minor = parts.next().unwrap_or("0").to_string();
+    let patch = parts.next().unwrap_or("0").to_string();
+    let suffix_dash = if suffix.is_empty() {
+        "".to_string()
+    } else {
+        format!("-{suffix}")
+    };
+    VersionInfo {
+        full,
+        major,
+        minor,
+        patch,
+        suffix: suffix.to_string(),
+        suffix_dash,
+    }
+}
+
+struct StepVars<'a> {
+    profile: &'a str,
+    version: &'a str,
+    version_major: &'a str,
+    version_minor: &'a str,
+    version_patch: &'a str,
+    version_suffix: &'a str,
+    version_suffix_dash: &'a str,
 }
 
 fn compute_build_fingerprint(
@@ -897,10 +1235,8 @@ fn write_build_fingerprint(ctx: &BuildContext, fingerprint: &str) -> Result<(), 
 }
 
 fn build_cache_path(profile: &str, target_dir: Option<&str>) -> std::path::PathBuf {
-    match target_dir {
-        Some(dir) => Path::new(dir).join(format!(".dcr-build.{profile}.hash")),
-        None => Path::new("./target").join(profile).join(".dcr-build.hash"),
-    }
+    let _ = target_dir;
+    Path::new("./target").join(profile).join(".dcr-build.hash")
 }
 
 fn build_output_path(ctx: &BuildContext) -> String {
@@ -919,7 +1255,11 @@ fn collect_header_files(
 ) -> Result<Vec<std::path::PathBuf>, String> {
     let mut out = Vec::new();
     let mut roots = Vec::new();
-    roots.push(project_root.join("src"));
+    if ctx.source_roots.is_empty() {
+        roots.push(project_root.join("src"));
+    } else {
+        roots.extend(ctx.source_roots.iter().cloned());
+    }
     for dir in ctx.include_dirs {
         roots.push(Path::new(dir).to_path_buf());
     }
@@ -927,7 +1267,7 @@ fn collect_header_files(
         if !root.exists() {
             continue;
         }
-        collect_header_files_rec(&root, &mut out, ctx.exclude_dirs)?;
+        collect_header_files_rec(&root, &mut out, ctx.exclude_dirs, ctx.include_paths)?;
     }
     out.sort();
     out.dedup();
@@ -938,21 +1278,25 @@ fn collect_header_files_rec(
     dir: &Path,
     out: &mut Vec<std::path::PathBuf>,
     exclude_dirs: &[std::path::PathBuf],
+    include_paths: &[String],
 ) -> Result<(), String> {
-    if is_excluded(dir, exclude_dirs) {
+    if common::is_excluded(dir, exclude_dirs, include_paths) && include_paths.is_empty() {
         return Ok(());
     }
     for entry in fs::read_dir(dir).map_err(|err| format!("read_dir error: {err}"))? {
         let entry = entry.map_err(|err| format!("read_dir error: {err}"))?;
         let path = entry.path();
         if path.is_dir() {
-            if is_excluded(&path, exclude_dirs) {
+            if common::is_excluded(&path, exclude_dirs, include_paths) && include_paths.is_empty() {
                 continue;
             }
-            collect_header_files_rec(&path, out, exclude_dirs)?;
+            collect_header_files_rec(&path, out, exclude_dirs, include_paths)?;
             continue;
         }
         if !path.is_file() {
+            continue;
+        }
+        if common::is_excluded(&path, exclude_dirs, include_paths) {
             continue;
         }
         if is_header_file(&path) {
@@ -1011,10 +1355,6 @@ fn update_hasher_with_file(hasher: &mut Sha256, path: &Path) -> Result<(), Strin
         hasher.update(duration.as_nanos().to_le_bytes());
     }
     Ok(())
-}
-
-fn is_excluded(path: &Path, exclude_dirs: &[std::path::PathBuf]) -> bool {
-    exclude_dirs.iter().any(|dir| path.starts_with(dir))
 }
 
 fn to_hex(bytes: &[u8]) -> String {

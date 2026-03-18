@@ -14,7 +14,12 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     };
     let start_time = Instant::now();
     let extensions = source_extensions(ctx.language);
-    let sources = common::collect_sources(&extensions, ctx.exclude_dirs)?;
+    let sources = common::collect_sources(
+        ctx.source_roots,
+        &extensions,
+        ctx.exclude_dirs,
+        ctx.include_paths,
+    )?;
     let obj_dir = Path::new("./target").join(ctx.profile).join("obj");
     let objects = build_objects(compiler, &sources, &obj_dir, ctx, "o")?;
 
@@ -80,17 +85,29 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
 
 pub(crate) fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String> {
     let extensions = source_extensions(ctx.language);
-    common::collect_sources(&extensions, ctx.exclude_dirs)
+    common::collect_sources(
+        ctx.source_roots,
+        &extensions,
+        ctx.exclude_dirs,
+        ctx.include_paths,
+    )
 }
 
 fn source_extensions(language: &str) -> Vec<&str> {
-    let lang = language.to_lowercase();
-    match lang.as_str() {
-        "c" => vec!["c"],
-        "c++" | "cpp" | "cxx" => vec!["cpp", "cxx", "cc"],
-        "asm" => vec!["s", "S", "asm"],
-        _ => vec!["c"],
+    let mut out = Vec::new();
+    for part in language.split('+') {
+        let lang = part.trim().to_lowercase();
+        match lang.as_str() {
+            "c" => out.extend(["c"]),
+            "c++" | "cpp" | "cxx" => out.extend(["cpp", "cxx", "cc"]),
+            "asm" => out.extend(["s", "S", "asm"]),
+            _ => {}
+        }
     }
+    if out.is_empty() {
+        out.extend(["c"]);
+    }
+    out
 }
 
 fn default_flags(profile: &str) -> &'static [&'static str] {
@@ -139,6 +156,9 @@ fn build_objects(
                 cmd.arg(format!("-std={}", ctx.standard));
             }
             for flag in default_flags(ctx.profile) {
+                if ctx.platform.is_some() && *flag == "-march=native" {
+                    continue;
+                }
                 cmd.arg(flag);
             }
             for flag in ctx.cflags {

@@ -8,6 +8,8 @@ Builds the project in `debug` or `release` profile.
 dcr build
 dcr build --debug
 dcr build --release
+dcr build --release --force
+dcr build --debug --clean
 ```
 
 ## What `build` does
@@ -30,17 +32,33 @@ dcr build --release
 - `build.platform`
 - `build.cflags`
 - `build.ldflags`
+- `build.debug` / `build.release`
+- `build.exclude`
+- `build.include`
+- `build.pkg_config`
+- `build.steps`
+- `build.post_steps`
+- `build.generated`
+- `build.expect`
+- `build.clean`
 
 ## Source selection
 
 - `language = "c"` -> `*.c`
 - `language = "c++" | "cpp" | "cxx"` -> `*.cpp`, `*.cxx`, `*.cc`
 - `language = "asm"` -> `*.s`, `*.S`, `*.asm`
+- Mixed languages are supported with arrays, for example `language = ["c", "asm"]`.
+- By default sources are searched in `src/`; use `build.roots` and `build.src_disable` to override.
 
 ## Notes
 
 - The profile is selected from the first argument only.
 - Unknown profile flags return an error.
 - Incremental rebuild is based on source/object mtime comparison.
+- `--force` skips build cache checks and recompiles.
+- `--clean` removes `target/<profile>` and `build.clean` paths before building.
 - For `language = "asm"` with `compiler = "as"`/`"gas"`, use `.s` files (no preprocessing). For `.S`, use `gcc` or `clang`.
 - In workspace root, `dcr build` builds all members in dependency order.
+- `build.exclude` removes paths from source/header collection; `build.include` re-allows matching paths and has priority over `exclude`.
+- `build.steps` run before compilation; `build.post_steps` run after linking.
+- `build.generated` is cleaned when `build.steps` need to rerun; `build.expect` is verified after post-steps.

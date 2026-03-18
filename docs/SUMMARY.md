@@ -24,6 +24,7 @@
 * [dcr build](commands/dcr-build.md)
 * [dcr run](commands/dcr-run.md)
 * [dcr clean](commands/dcr-clean.md)
+* [dcr gen](commands/dcr-gen.md)
 
 ## Dependencies & Build
 

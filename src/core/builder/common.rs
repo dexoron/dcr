@@ -2,33 +2,37 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub fn collect_sources(
+    roots: &[PathBuf],
     extensions: &[&str],
     exclude_dirs: &[PathBuf],
+    include_paths: &[String],
 ) -> Result<Vec<String>, String> {
     let mut sources = Vec::new();
-    collect_sources_rec("./src", extensions, &mut sources, exclude_dirs)?;
+    for root in roots {
+        collect_sources_rec(root, extensions, &mut sources, exclude_dirs, include_paths)?;
+    }
     sources.sort();
     if sources.is_empty() {
-        return Err("No source files found in ./src".to_string());
+        return Err(format!("No source files found in {}", format_roots(roots)));
     }
     Ok(sources)
 }
 
 fn collect_sources_rec(
-    dir: &str,
+    dir: &Path,
     extensions: &[&str],
     out: &mut Vec<String>,
     exclude_dirs: &[PathBuf],
+    include_paths: &[String],
 ) -> Result<(), String> {
-    let dir_path = Path::new(dir);
-    let full_dir = if dir_path.is_absolute() {
-        dir_path.to_path_buf()
+    let full_dir = if dir.is_absolute() {
+        dir.to_path_buf()
     } else {
         std::env::current_dir()
             .map_err(|err| format!("src dir error: {err}"))?
-            .join(dir_path)
+            .join(dir)
     };
-    if is_excluded(&full_dir, exclude_dirs) {
+    if is_excluded(&full_dir, exclude_dirs, include_paths) && include_paths.is_empty() {
         return Ok(());
     }
     let entries = fs::read_dir(&full_dir).map_err(|err| format!("src dir error: {err}"))?;
@@ -36,13 +40,16 @@ fn collect_sources_rec(
         let entry = entry.map_err(|err| format!("src dir error: {err}"))?;
         let path = entry.path();
         if path.is_dir() {
-            if is_excluded(&path, exclude_dirs) {
+            if is_excluded(&path, exclude_dirs, include_paths) && include_paths.is_empty() {
                 continue;
             }
-            collect_sources_rec(&path.to_string_lossy(), extensions, out, exclude_dirs)?;
+            collect_sources_rec(&path, extensions, out, exclude_dirs, include_paths)?;
             continue;
         }
         if !path.is_file() {
+            continue;
+        }
+        if is_excluded(&path, exclude_dirs, include_paths) {
             continue;
         }
         let ext_raw = path.extension().and_then(|v| v.to_str()).unwrap_or("");
@@ -57,8 +64,93 @@ fn collect_sources_rec(
     Ok(())
 }
 
-pub fn is_excluded(path: &Path, exclude_dirs: &[PathBuf]) -> bool {
+fn format_roots(roots: &[PathBuf]) -> String {
+    if roots.is_empty() {
+        return "<none>".to_string();
+    }
+    let mut out = Vec::new();
+    for root in roots {
+        out.push(root.to_string_lossy().to_string());
+    }
+    out.join(", ")
+}
+
+pub fn is_excluded(path: &Path, exclude_dirs: &[PathBuf], include_paths: &[String]) -> bool {
+    if matches_patterns(path, include_paths, true) {
+        return false;
+    }
+    if matches_patterns(path, include_paths, false) {
+        return true;
+    }
     exclude_dirs.iter().any(|dir| path.starts_with(dir))
+}
+
+fn matches_patterns(path: &Path, patterns: &[String], positive: bool) -> bool {
+    if patterns.is_empty() {
+        return false;
+    }
+    let cwd = std::env::current_dir().ok();
+    let abs_path = if path.is_absolute() {
+        path.to_path_buf()
+    } else if let Some(base) = cwd.as_ref() {
+        base.join(path)
+    } else {
+        path.to_path_buf()
+    };
+    let abs = abs_path.to_string_lossy().replace('\\', "/");
+    let rel = cwd
+        .as_ref()
+        .and_then(|base| abs_path.strip_prefix(base).ok())
+        .map(|p| p.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_default();
+    let rel_dot = if rel.is_empty() {
+        String::new()
+    } else {
+        format!("./{rel}")
+    };
+    for raw in patterns {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let is_neg = trimmed.starts_with('!');
+        if is_neg == positive {
+            continue;
+        }
+        let normalized = trimmed.trim_start_matches('!').replace('\\', "/");
+        if normalized.is_empty() {
+            continue;
+        }
+        if has_glob_magic(&normalized) {
+            let pat = match glob::Pattern::new(&normalized) {
+                Ok(p) => p,
+                Err(_) => continue,
+            };
+            if pat.matches(&abs)
+                || (!rel.is_empty() && (pat.matches(&rel) || pat.matches(&rel_dot)))
+            {
+                return true;
+            }
+            continue;
+        }
+        let norm = normalized.trim_end_matches('/');
+        let candidate = Path::new(norm);
+        let full = if candidate.is_absolute() {
+            candidate.to_path_buf()
+        } else if let Some(base) = cwd.as_ref() {
+            base.join(candidate)
+        } else {
+            candidate.to_path_buf()
+        };
+        if abs_path.starts_with(&full) {
+            return true;
+        }
+    }
+    false
+}
+
+pub fn has_glob_magic(value: &str) -> bool {
+    value.chars().any(|c| matches!(c, '*' | '?' | '['))
 }
 
 pub fn normalize_source_path(path: &Path) -> String {
@@ -189,6 +281,10 @@ mod tests {
         dir
     }
 
+    fn default_roots() -> Vec<PathBuf> {
+        vec![PathBuf::from("src")]
+    }
+
     #[test]
     fn object_path_basic() {
         let obj_dir = Path::new("target/debug/obj");
@@ -260,19 +356,34 @@ mod tests {
 
     #[test]
     fn is_excluded_match() {
+        let include: Vec<String> = Vec::new();
         let excluded = vec![PathBuf::from("/project/src/vendor")];
-        assert!(is_excluded(Path::new("/project/src/vendor"), &excluded));
+        assert!(is_excluded(
+            Path::new("/project/src/vendor"),
+            &excluded,
+            &include
+        ));
         assert!(is_excluded(
             Path::new("/project/src/vendor/lib.c"),
-            &excluded
+            &excluded,
+            &include
         ));
     }
 
     #[test]
     fn is_excluded_no_match() {
+        let include: Vec<String> = Vec::new();
         let excluded = vec![PathBuf::from("/project/src/vendor")];
-        assert!(!is_excluded(Path::new("/project/src/main.c"), &excluded));
-        assert!(!is_excluded(Path::new("/other/vendor"), &excluded));
+        assert!(!is_excluded(
+            Path::new("/project/src/main.c"),
+            &excluded,
+            &include
+        ));
+        assert!(!is_excluded(
+            Path::new("/other/vendor"),
+            &excluded,
+            &include
+        ));
     }
 
     #[test]
@@ -287,7 +398,9 @@ mod tests {
         let _guard = CWD_LOCK.lock().unwrap();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
-        let result = collect_sources(&["c"], &[]);
+        let include: Vec<String> = Vec::new();
+        let roots = default_roots();
+        let result = collect_sources(&roots, &["c"], &[], &include);
         std::env::set_current_dir(prev).unwrap();
 
         let sources = result.expect("should find sources");
@@ -309,7 +422,9 @@ mod tests {
         let _guard = CWD_LOCK.lock().unwrap();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
-        let result = collect_sources(&["cpp", "cxx", "cc"], &[]);
+        let include: Vec<String> = Vec::new();
+        let roots = default_roots();
+        let result = collect_sources(&roots, &["cpp", "cxx", "cc"], &[], &include);
         std::env::set_current_dir(prev).unwrap();
 
         let sources = result.expect("should find sources");
@@ -325,7 +440,9 @@ mod tests {
         let _guard = CWD_LOCK.lock().unwrap();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
-        let result = collect_sources(&["c"], &[]);
+        let include: Vec<String> = Vec::new();
+        let roots = default_roots();
+        let result = collect_sources(&roots, &["c"], &[], &include);
         std::env::set_current_dir(prev).unwrap();
 
         assert!(result.is_err(), "empty src should return error");
@@ -344,7 +461,9 @@ mod tests {
         let _guard = CWD_LOCK.lock().unwrap();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
-        let result = collect_sources(&["c"], &exclude);
+        let include: Vec<String> = Vec::new();
+        let roots = default_roots();
+        let result = collect_sources(&roots, &["c"], &exclude, &include);
         std::env::set_current_dir(prev).unwrap();
 
         let sources = result.expect("should find sources");
@@ -364,11 +483,87 @@ mod tests {
         let _guard = CWD_LOCK.lock().unwrap();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
-        let result = collect_sources(&["c"], &[]);
+        let include: Vec<String> = Vec::new();
+        let roots = default_roots();
+        let result = collect_sources(&roots, &["c"], &[], &include);
         std::env::set_current_dir(prev).unwrap();
 
         let sources = result.expect("should find sources");
         assert_eq!(sources.len(), 2);
+    }
+
+    #[test]
+    fn include_overrides_exclude() {
+        let dir = temp_dir("include_override");
+        let src = dir.join("src");
+        let boot = src.join("boot");
+        let arch = boot.join("arch");
+        fs::create_dir_all(&arch).unwrap();
+        fs::write(arch.join("start.s"), "").unwrap();
+        fs::write(boot.join("skip.c"), "").unwrap();
+
+        let exclude = vec![boot.clone()];
+        let include = vec!["src/boot/arch/**".to_string()];
+        let _guard = CWD_LOCK.lock().unwrap();
+        let prev = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&dir).unwrap();
+        let roots = default_roots();
+        let result = collect_sources(&roots, &["s", "c"], &exclude, &include);
+        std::env::set_current_dir(prev).unwrap();
+
+        let sources = result.expect("should find sources");
+        assert_eq!(sources.len(), 1);
+        assert!(sources[0].ends_with("start.s"));
+    }
+
+    #[test]
+    fn exclude_glob_with_include_override() {
+        let dir = temp_dir("exclude_glob");
+        let src = dir.join("src");
+        let legacy = src.join("legacy");
+        let allow = legacy.join("allow");
+        fs::create_dir_all(&allow).unwrap();
+        fs::write(legacy.join("skip.c"), "").unwrap();
+        fs::write(allow.join("keep.c"), "").unwrap();
+
+        let exclude = vec![dir.join("src"), dir.join(".")];
+        let include = vec![
+            "!src/legacy/**".to_string(),
+            "src/legacy/allow/**".to_string(),
+        ];
+        let _guard = CWD_LOCK.lock().unwrap();
+        let prev = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&dir).unwrap();
+        let roots = default_roots();
+        let result = collect_sources(&roots, &["c"], &exclude, &include);
+        std::env::set_current_dir(prev).unwrap();
+
+        let sources = result.expect("should find sources");
+        assert_eq!(sources.len(), 1);
+        assert!(sources[0].ends_with("keep.c"));
+    }
+
+    #[test]
+    fn exclude_glob_without_include_keeps_other_files() {
+        let dir = temp_dir("exclude_glob_only");
+        let src = dir.join("src");
+        let gen_dir = src.join("gen");
+        fs::create_dir_all(&gen_dir).unwrap();
+        fs::write(src.join("main.c"), "").unwrap();
+        fs::write(gen_dir.join("skip.c"), "").unwrap();
+
+        let exclude: Vec<PathBuf> = Vec::new();
+        let include = vec!["!src/gen/**".to_string()];
+        let _guard = CWD_LOCK.lock().unwrap();
+        let prev = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&dir).unwrap();
+        let roots = default_roots();
+        let result = collect_sources(&roots, &["c"], &exclude, &include);
+        std::env::set_current_dir(prev).unwrap();
+
+        let sources = result.expect("should find sources");
+        assert_eq!(sources.len(), 1);
+        assert!(sources[0].ends_with("main.c"));
     }
 
     #[test]

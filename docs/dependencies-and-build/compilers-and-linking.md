@@ -15,8 +15,11 @@ DCR picks a backend from `build.compiler`:
 ## Compilation model
 
 - Source files are found recursively in `src/` based on `build.language`.
+- `build.roots` and `build.src_disable` can replace the default `src/` root.
+- Mixed language builds use arrays, for example `build.language = ["c", "asm"]`.
 - Each source is compiled to `target/<profile>/obj/<relative-path>.o` (`.obj` on MSVC).
 - Recompile happens when source mtime is newer than object mtime.
+- `build.exclude` removes paths from source/header collection; `build.include` re-allows matching paths and has priority over `exclude`.
 
 ## Default build flags
 
@@ -46,10 +49,12 @@ If `[toolchain]` is set, DCR uses its values to override compiler/linker tools:
 - `cc`, `cxx`, `as` override compilers for C/C++/ASM
 - `ar` overrides the archiver (used for `staticlib`)
 - `ld` overrides the linker (used by GCC/Clang/NASM/GAS backends)
+- `uic`, `moc`, `rcc` override Qt tools used in `build.steps`
 
 Environment overrides (highest priority):
 - `DCR_COMPILER` (all languages)
 - `DCR_CC`, `DCR_CXX`, `DCR_AS`, `DCR_AR`, `DCR_LD`
+- `DCR_DEBUG` enables verbose build logging
 
 ## Linking
 

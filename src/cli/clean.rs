@@ -4,6 +4,7 @@ use crate::core::workspace::parse_workspace;
 use crate::utils::fs::{check_dir, find_project_root};
 use crate::utils::log::{error, warn};
 use crate::utils::text::{BOLD_GREEN, colored};
+use glob::glob;
 use std::fs;
 use std::path::Path;
 
@@ -85,6 +86,7 @@ fn clean_from_root(root: &Path, flags: &CleanFlags) -> Result<(), String> {
 
 fn clean_project_at(project_root: &Path, profile: Option<&str>) -> Result<(), String> {
     with_dir(project_root, || {
+        let config = Config::open("./dcr.toml").map_err(|err| err.to_string())?;
         let project_name = std::env::current_dir()
             .ok()
             .and_then(|p| p.file_name().map(|v| v.to_string_lossy().to_string()))
@@ -97,31 +99,33 @@ fn clean_project_at(project_root: &Path, profile: Option<&str>) -> Result<(), St
             "    Cleaning project `{}`",
             colored(&project_name, BOLD_GREEN)
         );
-        if !items.contains(&"target".to_string()) {
-            warn("Directory target not found");
-            return Ok(());
-        }
-
         if let Some(profile) = profile {
             let target_items = check_dir(Some("target")).unwrap_or_default();
             if !target_items.contains(&profile.to_string()) {
                 warn(&format!("Directory target/{profile} not found"));
-                return Ok(());
+            } else {
+                println!("    Profile: {}", colored(profile, BOLD_GREEN));
+                let _ = fs::remove_dir_all(format!("target/{profile}"));
+                println!(
+                    "{} Removed directory target/{profile}",
+                    colored("\n    ✔", BOLD_GREEN)
+                );
             }
-            println!("    Profile: {}", colored(profile, BOLD_GREEN));
-            let _ = fs::remove_dir_all(format!("target/{profile}"));
-            println!(
-                "{} Removed directory target/{profile}",
-                colored("\n    ✔", BOLD_GREEN)
-            );
+            clean_custom_paths(&config, profile)?;
             return Ok(());
         }
 
-        let _ = fs::remove_dir_all("target");
-        println!(
-            "{} Removed directory target",
-            colored("\n    ✔", BOLD_GREEN)
-        );
+        if items.contains(&"target".to_string()) {
+            let _ = fs::remove_dir_all("target");
+            println!(
+                "{} Removed directory target",
+                colored("\n    ✔", BOLD_GREEN)
+            );
+        } else {
+            warn("Directory target not found");
+        }
+        clean_custom_paths(&config, "debug")?;
+        clean_custom_paths(&config, "release")?;
         Ok(())
     })
 }
@@ -135,4 +139,87 @@ where
     let result = f();
     let _ = std::env::set_current_dir(prev);
     result
+}
+
+fn clean_custom_paths(config: &Config, profile: &str) -> Result<(), String> {
+    let patterns = match config.get("build.clean") {
+        Some(v) => v
+            .as_array()
+            .ok_or_else(|| "build.clean must be an array of strings".to_string())?
+            .iter()
+            .filter_map(|item| item.as_str())
+            .map(|s| {
+                let value = s.replace("{profile}", profile);
+                substitute_version_vars(&value, config)
+            })
+            .collect::<Vec<String>>(),
+        None => Vec::new(),
+    };
+    if patterns.is_empty() {
+        return Ok(());
+    }
+    for pattern in patterns {
+        for entry in glob(&pattern).map_err(|err| format!("glob error: {err}"))? {
+            let path = entry.map_err(|err| format!("glob error: {err}"))?;
+            if path.is_dir() {
+                let _ = fs::remove_dir_all(&path);
+            } else if path.is_file() {
+                let _ = fs::remove_file(&path);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn substitute_version_vars(value: &str, config: &Config) -> String {
+    let version = config
+        .get("package.version")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let info = parse_version_info(version);
+    value
+        .replace("{version}", &info.full)
+        .replace("{version_major}", &info.major)
+        .replace("{version_minor}", &info.minor)
+        .replace("{version_patch}", &info.patch)
+        .replace("{version_suffix}", &info.suffix)
+        .replace("{version_suffix_dash}", &info.suffix_dash)
+}
+
+struct VersionInfo {
+    full: String,
+    major: String,
+    minor: String,
+    patch: String,
+    suffix: String,
+    suffix_dash: String,
+}
+
+fn parse_version_info(version: &str) -> VersionInfo {
+    let mut full = version.trim().to_string();
+    if full.is_empty() {
+        full = "0.0.0".to_string();
+    }
+    let full_clone = full.clone();
+    let (base, suffix) = match full_clone.split_once('-') {
+        Some((head, tail)) => (head, tail),
+        None => (full_clone.as_str(), ""),
+    };
+    let mut parts = base.split('.');
+    let major = parts.next().unwrap_or("0").to_string();
+    let minor = parts.next().unwrap_or("0").to_string();
+    let patch = parts.next().unwrap_or("0").to_string();
+    let suffix_dash = if suffix.is_empty() {
+        "".to_string()
+    } else {
+        format!("-{suffix}")
+    };
+    VersionInfo {
+        full,
+        major,
+        minor,
+        patch,
+        suffix: suffix.to_string(),
+        suffix_dash,
+    }
 }
