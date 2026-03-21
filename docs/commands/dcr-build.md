@@ -52,9 +52,9 @@ dcr build --debug --clean
 
 ## Notes
 
-- The profile is selected from the first argument only.
+- Profile flag (`--debug` / `--release`) can appear in any argument position (duplicates are rejected).
 - Unknown profile flags return an error.
-- Incremental rebuild is based on source/object mtime comparison.
+- Incremental rebuild checks source/object mtime and tracked header dependencies.
 - `--force` skips build cache checks and recompiles.
 - `--clean` removes `target/<profile>` and `build.clean` paths before building.
 - For `language = "asm"` with `compiler = "as"`/`"gas"`, use `.s` files (no preprocessing). For `.S`, use `gcc` or `clang`.

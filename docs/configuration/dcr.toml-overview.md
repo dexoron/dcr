@@ -27,7 +27,8 @@ kind = "bin"
 - `[dependencies]`
 
 Workspace-only root:
-- `[workspace]` may be used instead of `[package]`/`[build]` for a workspace root.
+- `[workspace]` can be added to a normal root config to define members and dependency order.
+- Root config still requires `[package]`, `[build]`, and `[dependencies]`.
 
 ## Required keys
 

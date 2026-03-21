@@ -38,5 +38,8 @@
 
 * [CLI reference](reference-and-help/cli-reference.md)
 * [Config reference](reference-and-help/config-reference.md)
+* [Workspace guide](reference-and-help/workspace-guide.md)
+* [Flags & environment](reference-and-help/flags-and-environment.md)
+* [Troubleshooting map](reference-and-help/troubleshooting-map.md)
 * [FAQ](reference-and-help/faq.md)
 * [Contributing & Bug reports](reference-and-help/contributing-and-bug-reports.md)

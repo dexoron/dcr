@@ -2,7 +2,7 @@
 
 ## What commands are available?
 
-`new`, `init`, `build`, `run`, `clean`, `--help`, `--version`, `--update`.
+`new`, `init`, `build`, `run`, `clean`, `gen`, `--help`, `--version`, `--update`.
 
 ## Is `dcr.toml` mandatory?
 
@@ -21,7 +21,8 @@ Yes. Set `build.compiler` in `dcr.toml` (for example `gcc`, `clang`, `cl`, `clan
 
 ## How does incremental rebuild work?
 
-It compares source file mtime with object file mtime. Header dependency tracking is not implemented yet.
+It compares source file mtime with object file mtime.
+Header dependencies are tracked too: if an included header changes (or disappears), rebuild is triggered.
 
 ## What does `dcr run` do if build fails?
 
