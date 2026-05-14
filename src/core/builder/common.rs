@@ -153,6 +153,49 @@ pub fn has_glob_magic(value: &str) -> bool {
     value.chars().any(|c| matches!(c, '*' | '?' | '['))
 }
 
+pub fn parallel_build<F>(total_tasks: usize, task_fn: F) -> Result<(), String>
+where
+    F: Fn(usize) -> Result<(), String> + Sync + Send,
+{
+    let num_threads = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1);
+
+    let counter = std::sync::atomic::AtomicUsize::new(0);
+    let err_msg = std::sync::Mutex::new(None);
+
+    std::thread::scope(|s| {
+        for _ in 0..num_threads {
+            s.spawn(|| {
+                loop {
+                    if err_msg.lock().unwrap().is_some() {
+                        break;
+                    }
+
+                    let i = counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    if i >= total_tasks {
+                        break;
+                    }
+
+                    if let Err(e) = task_fn(i) {
+                        let mut err = err_msg.lock().unwrap();
+                        if err.is_none() {
+                            *err = Some(e);
+                        }
+                        break;
+                    }
+                }
+            });
+        }
+    });
+
+    if let Some(err) = err_msg.into_inner().unwrap() {
+        return Err(err);
+    }
+
+    Ok(())
+}
+
 pub fn normalize_source_path(path: &Path) -> String {
     if !path.is_absolute() {
         return path.to_string_lossy().to_string();

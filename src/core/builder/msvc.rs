@@ -185,6 +185,8 @@ fn default_flags(profile: &str) -> &'static [&'static str] {
     }
 }
 
+static OUTPUT_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 fn build_objects(
     compiler: &str,
     sources: &[String],
@@ -197,44 +199,9 @@ fn build_objects(
         .map(|s| common::object_path(obj_dir, s, obj_ext))
         .collect();
 
-    let num_threads = std::thread::available_parallelism()
-        .map(|n| n.get())
-        .unwrap_or(1);
-
-    let counter = std::sync::atomic::AtomicUsize::new(0);
-    let err_msg = std::sync::Mutex::new(None);
-
-    std::thread::scope(|s| {
-        for _ in 0..num_threads {
-            s.spawn(|| {
-                loop {
-                    if err_msg.lock().unwrap().is_some() {
-                        break;
-                    }
-
-                    let i = counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                    if i >= sources.len() {
-                        break;
-                    }
-
-                    let source = &sources[i];
-                    let obj_path = &objects[i];
-
-                    if let Err(e) = build_object(compiler, source, obj_path, ctx) {
-                        let mut err = err_msg.lock().unwrap();
-                        if err.is_none() {
-                            *err = Some(e);
-                        }
-                        break;
-                    }
-                }
-            });
-        }
-    });
-
-    if let Some(err) = err_msg.into_inner().unwrap() {
-        return Err(err);
-    }
+    common::parallel_build(sources.len(), |i| {
+        build_object(compiler, &sources[i], &objects[i], ctx)
+    })?;
 
     Ok(objects)
 }
@@ -314,6 +281,8 @@ fn build_object(
             clean_stdout.push('\n');
         }
     }
+
+    let _lock = OUTPUT_MUTEX.lock().unwrap();
 
     if !output.status.success() {
         eprint!("{}", clean_stdout);
