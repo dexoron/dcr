@@ -1,3 +1,5 @@
+use serde::Deserialize;
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use toml::Value;
@@ -51,6 +53,98 @@ impl From<toml::ser::Error> for ConfigError {
 pub struct Config {
     path: PathBuf,
     data: Value,
+    typed: DcrConfig,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Deserialize)]
+pub struct DcrConfig {
+    pub package: PackageConfig,
+    pub build: BuildConfig,
+    #[serde(default)]
+    pub dependencies: BTreeMap<String, DependencyConfig>,
+    #[serde(default)]
+    pub toolchain: Option<ToolchainConfig>,
+    #[serde(default)]
+    pub workspace: BTreeMap<String, WorkspaceMemberConfig>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PackageConfig {
+    pub name: String,
+    pub version: String,
+    #[serde(default, rename = "type")]
+    pub pkg_type: Option<String>,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Deserialize)]
+pub struct BuildConfig {
+    pub language: LanguageConfig,
+    pub standard: String,
+    pub compiler: String,
+    #[serde(default)]
+    pub kind: Option<String>,
+    #[serde(default)]
+    pub target: Option<String>,
+    #[serde(default)]
+    pub platform: Option<String>,
+    #[serde(default)]
+    pub cflags: Vec<String>,
+    #[serde(default)]
+    pub ldflags: Vec<String>,
+    #[serde(default)]
+    pub exclude: Vec<String>,
+    #[serde(default)]
+    pub include: Vec<String>,
+    #[serde(default)]
+    pub roots: Vec<String>,
+    #[serde(default)]
+    pub clean: Vec<String>,
+    #[serde(default)]
+    pub src_disable: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum LanguageConfig {
+    One(String),
+    Many(Vec<String>),
+}
+
+impl LanguageConfig {
+    fn values(&self) -> Vec<&str> {
+        match self {
+            LanguageConfig::One(value) => vec![value.as_str()],
+            LanguageConfig::Many(values) => values.iter().map(String::as_str).collect(),
+        }
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum DependencyConfig {
+    Version(String),
+    Table(BTreeMap<String, Value>),
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct ToolchainConfig {
+    pub cc: Option<String>,
+    pub cxx: Option<String>,
+    #[serde(rename = "as")]
+    pub assembler: Option<String>,
+    pub ar: Option<String>,
+    pub ld: Option<String>,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Deserialize)]
+pub struct WorkspaceMemberConfig {
+    pub path: String,
+    #[serde(default)]
+    pub deps: Vec<String>,
 }
 
 impl Config {
@@ -63,7 +157,8 @@ impl Config {
             write_toml(&path, &default_value)?;
             default_value
         };
-        let cfg = Self { path, data };
+        let typed = parse_typed_config(&data)?;
+        let cfg = Self { path, data, typed };
         cfg.validate()?;
         Ok(cfg)
     }
@@ -74,9 +169,25 @@ impl Config {
             return Err(ConfigError::Invalid("dcr.toml not found".into()));
         }
         let data = read_toml(&path)?;
-        let cfg = Self { path, data };
+        let typed = parse_typed_config(&data)?;
+        let cfg = Self { path, data, typed };
         cfg.validate()?;
         Ok(cfg)
+    }
+
+    #[allow(dead_code)]
+    pub fn typed(&self) -> &DcrConfig {
+        &self.typed
+    }
+
+    #[allow(dead_code)]
+    pub fn package(&self) -> &PackageConfig {
+        &self.typed.package
+    }
+
+    #[allow(dead_code)]
+    pub fn build_config(&self) -> &BuildConfig {
+        &self.typed.build
     }
 
     pub fn get(&self, key: &str) -> Option<&Value> {
@@ -98,19 +209,15 @@ impl Config {
     }
 
     pub fn validate(&self) -> Result<(), ConfigError> {
-        let package = self
-            .get("package")
-            .and_then(|v| v.as_table())
-            .ok_or_else(|| ConfigError::Invalid("missing [package]".into()))?;
-
-        for key in ["name", "version"] {
-            let value = package.get(key).and_then(|v| v.as_str()).unwrap_or("");
-            if value.trim().is_empty() {
-                return Err(ConfigError::Invalid(format!("package.{key} is empty")));
-            }
+        if self.typed.package.name.trim().is_empty() {
+            return Err(ConfigError::Invalid("package.name is empty".into()));
         }
+        if self.typed.package.version.trim().is_empty() {
+            return Err(ConfigError::Invalid("package.version is empty".into()));
+        }
+        validate_package_name(&self.typed.package.name)?;
 
-        if let Some(pkg_type) = package.get("type").and_then(|v| v.as_str()) {
+        if let Some(pkg_type) = &self.typed.package.pkg_type {
             let pkg_type = pkg_type.trim();
             if !pkg_type.is_empty() && pkg_type != "lib" && pkg_type != "app" && pkg_type != "none"
             {
@@ -120,106 +227,41 @@ impl Config {
             }
         }
 
-        let build = self
-            .get("build")
-            .and_then(|v| v.as_table())
-            .ok_or_else(|| ConfigError::Invalid("missing [build]".into()))?;
-
-        if let Some(language) = build.get("language") {
-            self.validate_language(language)?;
-        } else {
-            return Err(ConfigError::Invalid("build.language is empty".into()));
+        validate_language_config(&self.typed.build.language, "build.language")?;
+        if self.typed.build.standard.trim().is_empty() {
+            return Err(ConfigError::Invalid("build.standard is empty".into()));
         }
-        for key in ["standard", "compiler"] {
-            let value = build.get(key).and_then(|v| v.as_str()).unwrap_or("");
-            if value.trim().is_empty() {
-                return Err(ConfigError::Invalid(format!("build.{key} is empty")));
-            }
+        if self.typed.build.compiler.trim().is_empty() {
+            return Err(ConfigError::Invalid("build.compiler is empty".into()));
         }
-        if let Some(platform) = build.get("platform")
-            && !platform
-                .as_str()
-                .map(|v| !v.trim().is_empty())
-                .unwrap_or(false)
+        if let Some(platform) = &self.typed.build.platform
+            && platform.trim().is_empty()
         {
             return Err(ConfigError::Invalid("build.platform is empty".into()));
         }
-        if let Some(toolchain) = self.get("toolchain").and_then(|v| v.as_table()) {
-            for key in ["cc", "cxx", "as", "ar", "ld"] {
-                if let Some(v) = toolchain.get(key)
-                    && !v.as_str().map(|s| !s.trim().is_empty()).unwrap_or(false)
-                {
-                    return Err(ConfigError::Invalid(format!("toolchain.{key} is invalid")));
-                }
-            }
-        }
-        if let Some(kind) = build.get("kind").and_then(|v| v.as_str()) {
+        validate_toolchain(self.typed.toolchain.as_ref())?;
+        if let Some(kind) = &self.typed.build.kind {
             let kind = kind.trim();
             if !kind.is_empty() && kind != "bin" && kind != "staticlib" && kind != "sharedlib" {
                 return Err(ConfigError::Invalid("build.kind is invalid".into()));
             }
         }
-        if let Some(exclude) = build.get("exclude") {
-            let arr = exclude.as_array().ok_or_else(|| {
-                ConfigError::Invalid("build.exclude must be an array of strings".into())
-            })?;
-            for item in arr {
-                let s = item.as_str().unwrap_or("");
-                if s.trim().is_empty() {
-                    return Err(ConfigError::Invalid(
-                        "build.exclude contains empty value".into(),
-                    ));
-                }
-            }
-        }
-        if let Some(include) = build.get("include") {
-            let arr = include.as_array().ok_or_else(|| {
-                ConfigError::Invalid("build.include must be an array of strings".into())
-            })?;
-            for item in arr {
-                let s = item.as_str().unwrap_or("");
-                if s.trim().is_empty() {
-                    return Err(ConfigError::Invalid(
-                        "build.include contains empty value".into(),
-                    ));
-                }
-            }
-        }
-        if let Some(roots) = build.get("roots") {
-            let arr = roots.as_array().ok_or_else(|| {
-                ConfigError::Invalid("build.roots must be an array of strings".into())
-            })?;
-            for item in arr {
-                let s = item.as_str().unwrap_or("");
-                if s.trim().is_empty() {
-                    return Err(ConfigError::Invalid(
-                        "build.roots contains empty value".into(),
-                    ));
-                }
-            }
-        }
-        if let Some(src_disable) = build.get("src_disable")
-            && !src_disable.is_bool()
-        {
-            return Err(ConfigError::Invalid(
-                "build.src_disable must be a boolean".into(),
-            ));
-        }
-        if let Some(clean) = build.get("clean") {
-            let arr = clean.as_array().ok_or_else(|| {
-                ConfigError::Invalid("build.clean must be an array of strings".into())
-            })?;
-            for item in arr {
-                let s = item.as_str().unwrap_or("");
-                if s.trim().is_empty() {
-                    return Err(ConfigError::Invalid(
-                        "build.clean contains empty value".into(),
-                    ));
-                }
-            }
+        validate_string_list(&self.typed.build.exclude, "build.exclude")?;
+        validate_string_list(&self.typed.build.include, "build.include")?;
+        validate_string_list(&self.typed.build.roots, "build.roots")?;
+        validate_string_list(&self.typed.build.clean, "build.clean")?;
+        validate_string_list(&self.typed.build.cflags, "build.cflags")?;
+        validate_string_list(&self.typed.build.ldflags, "build.ldflags")?;
+        if let Some(target) = &self.typed.build.target {
+            validate_non_empty_string(target, "build.target")?;
         }
         for profile in ["release", "debug"] {
-            if let Some(section) = build.get(profile) {
+            if let Some(section) = self
+                .data
+                .get("build")
+                .and_then(|v| v.as_table())
+                .and_then(|build| build.get(profile))
+            {
                 let table = section.as_table().ok_or_else(|| {
                     ConfigError::Invalid(format!("build.{profile} must be a table"))
                 })?;
@@ -236,10 +278,91 @@ impl Config {
 
     fn set(&mut self, key: &str, value: Value) -> Result<(), ConfigError> {
         let parts: Vec<&str> = key.split('.').collect();
+        let previous = self.data.clone();
         set_path(&mut self.data, &parts, value)?;
+        self.typed = match parse_typed_config(&self.data) {
+            Ok(typed) => typed,
+            Err(err) => {
+                self.data = previous;
+                return Err(err);
+            }
+        };
+        if let Err(err) = self.validate() {
+            self.data = previous;
+            self.typed = parse_typed_config(&self.data)?;
+            return Err(err);
+        }
         self.save()?;
         Ok(())
     }
+}
+
+fn parse_typed_config(value: &Value) -> Result<DcrConfig, ConfigError> {
+    value.clone().try_into().map_err(ConfigError::TomlDe)
+}
+
+fn validate_package_name(name: &str) -> Result<(), ConfigError> {
+    let trimmed = name.trim();
+    if trimmed != name {
+        return Err(ConfigError::Invalid(
+            "package.name must not contain leading or trailing whitespace".into(),
+        ));
+    }
+    if trimmed == "." || trimmed == ".." || trimmed.contains("..") {
+        return Err(ConfigError::Invalid("package.name is invalid".into()));
+    }
+    if !trimmed
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        return Err(ConfigError::Invalid(
+            "package.name must contain only ASCII letters, digits, '_' or '-'".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_language_config(language: &LanguageConfig, key: &str) -> Result<(), ConfigError> {
+    let values = language.values();
+    if values.is_empty() {
+        return Err(ConfigError::Invalid(format!("{key} is empty")));
+    }
+    for value in values {
+        validate_non_empty_string(value, key)?;
+    }
+    Ok(())
+}
+
+fn validate_toolchain(toolchain: Option<&ToolchainConfig>) -> Result<(), ConfigError> {
+    let Some(toolchain) = toolchain else {
+        return Ok(());
+    };
+    for (key, value) in [
+        ("cc", toolchain.cc.as_deref()),
+        ("cxx", toolchain.cxx.as_deref()),
+        ("as", toolchain.assembler.as_deref()),
+        ("ar", toolchain.ar.as_deref()),
+        ("ld", toolchain.ld.as_deref()),
+    ] {
+        if let Some(value) = value {
+            validate_non_empty_string(value, &format!("toolchain.{key}"))?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_string_list(values: &[String], key: &str) -> Result<(), ConfigError> {
+    for value in values {
+        validate_non_empty_string(value, key)?;
+    }
+    Ok(())
+}
+
+fn validate_non_empty_string(value: &str, key: &str) -> Result<(), ConfigError> {
+    if value.trim().is_empty() {
+        return Err(ConfigError::Invalid(format!("{key} contains empty value")));
+    }
+    Ok(())
 }
 
 impl Config {
@@ -671,6 +794,21 @@ mod tests {
     }
 
     #[test]
+    fn exposes_typed_config() {
+        let dir = temp_dir("typed_config");
+        let path = write_toml_file(
+            &dir,
+            "[package]\nname = \"typed\"\nversion = \"1.2.3\"\ntype = \"lib\"\n\n[build]\nlanguage = [\"c\", \"c++\"]\nstandard = \"c11\"\ncompiler = \"clang\"\nkind = \"staticlib\"\ncflags = [\"-Wall\"]\n\n[dependencies]\nfoo = \"1.0.0\"\n",
+        );
+        let config = Config::open(&path.to_string_lossy()).unwrap();
+        assert_eq!(config.package().name, "typed");
+        assert_eq!(config.typed().package.version, "1.2.3");
+        assert_eq!(config.build_config().compiler, "clang");
+        assert_eq!(config.build_config().cflags, ["-Wall"]);
+        assert!(config.typed().dependencies.contains_key("foo"));
+    }
+
+    #[test]
     fn open_invalid_toml_syntax() {
         let dir = temp_dir("open_invalid");
         let path = write_toml_file(&dir, "this is not [valid toml !!!");
@@ -704,6 +842,35 @@ mod tests {
         );
         let result = Config::open(&path.to_string_lossy());
         assert!(result.is_err(), "missing [build] should fail validation");
+    }
+
+    #[test]
+    fn validate_wrong_field_type_fails() {
+        let dir = temp_dir("wrong_type");
+        let path = write_toml_file(
+            &dir,
+            "[package]\nname = \"test\"\nversion = \"0.1.0\"\n\n[build]\nlanguage = \"c\"\nstandard = \"c11\"\ncompiler = [\"clang\"]\nkind = \"bin\"\n\n[dependencies]\n",
+        );
+        let result = Config::open(&path.to_string_lossy());
+        assert!(
+            result.is_err(),
+            "typed config should reject wrong field types"
+        );
+    }
+
+    #[test]
+    fn validate_invalid_package_names_fail() {
+        for name in [
+            "../evil", "bad/name", "bad name", "", " name", "name ", "a.b",
+        ] {
+            let dir = temp_dir("bad_name");
+            let content = format!(
+                "[package]\nname = \"{name}\"\nversion = \"0.1.0\"\n\n[build]\nlanguage = \"c\"\nstandard = \"c11\"\ncompiler = \"clang\"\nkind = \"bin\"\n\n[dependencies]\n"
+            );
+            let path = write_toml_file(&dir, &content);
+            let result = Config::open(&path.to_string_lossy());
+            assert!(result.is_err(), "package name `{name}` should fail");
+        }
     }
 
     #[test]

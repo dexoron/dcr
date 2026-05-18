@@ -1,7 +1,8 @@
 use crate::config::flags;
 use crate::core::config::Config;
 use crate::core::workspace::parse_workspace;
-use crate::utils::fs::{check_dir, find_project_root};
+use crate::utils::build::parse_version_info;
+use crate::utils::fs::{check_dir, find_project_root, with_dir};
 use crate::utils::log::{error, warn};
 use crate::utils::text::{BOLD_GREEN, colored};
 use glob::glob;
@@ -182,17 +183,6 @@ fn clean_project_at(
     })
 }
 
-fn with_dir<F, T>(dir: &Path, f: F) -> Result<T, String>
-where
-    F: FnOnce() -> Result<T, String>,
-{
-    let prev = std::env::current_dir().map_err(|_| "Failed to get current dir".to_string())?;
-    std::env::set_current_dir(dir).map_err(|_| "Failed to change directory".to_string())?;
-    let result = f();
-    let _ = std::env::set_current_dir(prev);
-    result
-}
-
 fn clean_custom_paths(config: &Config, profile: &str) -> Result<(), String> {
     let patterns = match config.get("build.clean") {
         Some(v) => v
@@ -236,42 +226,4 @@ fn substitute_version_vars(value: &str, config: &Config) -> String {
         .replace("{version_patch}", &info.patch)
         .replace("{version_suffix}", &info.suffix)
         .replace("{version_suffix_dash}", &info.suffix_dash)
-}
-
-struct VersionInfo {
-    full: String,
-    major: String,
-    minor: String,
-    patch: String,
-    suffix: String,
-    suffix_dash: String,
-}
-
-fn parse_version_info(version: &str) -> VersionInfo {
-    let mut full = version.trim().to_string();
-    if full.is_empty() {
-        full = "0.0.0".to_string();
-    }
-    let full_clone = full.clone();
-    let (base, suffix) = match full_clone.split_once('-') {
-        Some((head, tail)) => (head, tail),
-        None => (full_clone.as_str(), ""),
-    };
-    let mut parts = base.split('.');
-    let major = parts.next().unwrap_or("0").to_string();
-    let minor = parts.next().unwrap_or("0").to_string();
-    let patch = parts.next().unwrap_or("0").to_string();
-    let suffix_dash = if suffix.is_empty() {
-        "".to_string()
-    } else {
-        format!("-{suffix}")
-    };
-    VersionInfo {
-        full,
-        major,
-        minor,
-        patch,
-        suffix: suffix.to_string(),
-        suffix_dash,
-    }
 }

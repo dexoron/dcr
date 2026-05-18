@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.6.6] - 2026-05-18
+
+Fixed:
+
+- Path dependencies now work correctly: `dcr add` stores them as `{ path =
+"./..." }` tables, `is_registry_dep` properly distinguishes registry strings
+from path/git strings, and `deps/mod.rs` resolves both table-form and
+legacy string-form path dependencies
+- Registry dependency paths no longer hardcoded to `project_root/dcr-index`;
+now use `package_root_from_registry_info()` which resolves relative to the
+registry cache root (`~/.dcr/`)
+- Registry dependencies are now actually built: `build_project_at()` is
+called when `include_dir` or `lib_dir` is missing
+
+Added:
+
+- `SIGINT`/`Ctrl+C` handler via `ctrlc` crate — `dcr build` now checks
+`BUILD_INTERRUPTED` flag at key points and aborts cleanly
+- `utils/build.rs` — extracted shared utilities: `parse_version_info`,
+`normalize_target_os`, `resolve_compiler`, `primary_language`,
+`resolve_pkg_config_flags` and config helpers. Eliminates code duplication
+between `cli/build.rs`, `cli/run.rs`, `cli/clean.rs`, `cli/gen.rs`
+- `utils/fs.rs::with_dir` — extracted common directory-scoped execution
+- `run_command_sync_output` in `builder/common.rs` with global `OUTPUT_MUTEX`
+— synchronized compiler output across all backends (unix_cc, gas, nasm, msvc)
+- New helper functions in `deps/register.rs`: `get_registry_cache_root`,
+`package_root_from_registry_info`, `registry_include_dir`, `registry_lib_dir`,
+`path_from_string_dep`
+- Unit tests for `register.rs` (`is_registry_dep`, `package_root_from_registry_info`),
+`deps/mod.rs` (`path_dep_path`, `push_default_lib_dirs`),
+`utils/build.rs` (`normalize_target_os`, `parse_version_info`)
+
+Removed:
+
+- Removed unused dependencies `indicatif` and `console` from `Cargo.toml`
+
 ## [0.6.5] - 2026-05-13
 
 Added:

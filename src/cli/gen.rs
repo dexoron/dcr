@@ -3,180 +3,14 @@ use crate::core::builder::collect_sources;
 use crate::core::builder::common;
 use crate::core::config::Config;
 use crate::core::workspace::parse_workspace;
+use crate::utils::build::{
+    get_bool_with_profile, get_config_opt, get_config_str, get_language_with_profile_or_default,
+    get_list_with_profile, get_string_with_profile, normalize_target_os, resolve_compiler,
+    resolve_pkg_config_flags_lossy,
+};
 use crate::utils::fs::find_project_root;
-use crate::utils::log::{error, warn};
+use crate::utils::log::error;
 use std::path::{Path, PathBuf};
-
-// ── helpers copied from cli::build (private there) ─────────────────────────
-
-fn get_config_str(config: &Config, key: &str) -> String {
-    config
-        .get(key)
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string()
-}
-
-fn profile_table<'a>(config: &'a Config, profile: &str) -> Option<&'a toml::value::Table> {
-    config
-        .get("build")
-        .and_then(|v| v.as_table())
-        .and_then(|b| b.get(profile))
-        .and_then(|v| v.as_table())
-}
-
-fn get_string_with_profile(config: &Config, field: &str, profile: &str) -> String {
-    let base = get_config_str(config, &format!("build.{field}"));
-    let Some(table) = profile_table(config, profile) else {
-        return base;
-    };
-    let value = table.get(field).and_then(|v| v.as_str()).unwrap_or("");
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        base
-    } else {
-        trimmed.to_string()
-    }
-}
-
-fn get_config_list(config: &Config, key: &str) -> Vec<String> {
-    config
-        .get(key)
-        .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_str())
-                .map(|s| s.to_string())
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-fn get_list_with_profile(config: &Config, field: &str, profile: &str) -> Vec<String> {
-    let mut out = get_config_list(config, &format!("build.{field}"));
-    if let Some(table) = profile_table(config, profile)
-        && let Some(extra) = table.get(field).and_then(|v| v.as_array())
-    {
-        out.extend(
-            extra
-                .iter()
-                .filter_map(|v| v.as_str())
-                .map(|s| s.to_string()),
-        );
-    }
-    out
-}
-
-fn get_bool_with_profile(config: &Config, field: &str, profile: &str, default: bool) -> bool {
-    let base = config
-        .get(&format!("build.{field}"))
-        .and_then(|v| v.as_bool());
-    let profile_val =
-        profile_table(config, profile).and_then(|t| t.get(field).and_then(|v| v.as_bool()));
-    profile_val.or(base).unwrap_or(default)
-}
-
-fn get_language_with_profile(config: &Config, profile: &str) -> String {
-    if let Some(table) = profile_table(config, profile)
-        && let Some(value) = table.get("language")
-    {
-        return parse_language_value(value);
-    }
-    let value = config.get("build.language");
-    match value {
-        Some(v) => parse_language_value(v),
-        None => "c".to_string(),
-    }
-}
-
-fn parse_language_value(value: &toml::Value) -> String {
-    if let Some(s) = value.as_str() {
-        return s.trim().to_string();
-    }
-    if let Some(arr) = value.as_array() {
-        let parts: Vec<&str> = arr.iter().filter_map(|v| v.as_str()).collect();
-        return parts.join("+");
-    }
-    "c".to_string()
-}
-
-fn get_config_opt(config: &Config, key: &str) -> Option<String> {
-    let value = config.get(key)?.as_str()?;
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed.to_string())
-    }
-}
-
-fn resolve_compiler(
-    language: &str,
-    compiler: &str,
-    tc_cc: Option<&str>,
-    tc_cxx: Option<&str>,
-    tc_as: Option<&str>,
-) -> String {
-    let lang = primary_language(language);
-    if let Ok(v) = std::env::var("DCR_COMPILER") {
-        let t = v.trim().to_string();
-        if !t.is_empty() {
-            return t;
-        }
-    }
-    if lang == "asm" {
-        if let Ok(v) = std::env::var("DCR_AS") {
-            let t = v.trim().to_string();
-            if !t.is_empty() {
-                return t;
-            }
-        }
-        if let Some(v) = tc_as {
-            return v.to_string();
-        }
-    }
-    if lang == "c++" || lang == "cpp" || lang == "cxx" {
-        if let Ok(v) = std::env::var("DCR_CXX") {
-            let t = v.trim().to_string();
-            if !t.is_empty() {
-                return t;
-            }
-        }
-        if let Some(v) = tc_cxx {
-            return v.to_string();
-        }
-    }
-    if let Ok(v) = std::env::var("DCR_CC") {
-        let t = v.trim().to_string();
-        if !t.is_empty() {
-            return t;
-        }
-    }
-    if let Some(v) = tc_cc {
-        return v.to_string();
-    }
-    compiler.to_string()
-}
-
-fn primary_language(language: &str) -> String {
-    let parts: Vec<String> = language
-        .split('+')
-        .map(|p| p.trim().to_lowercase())
-        .filter(|p| !p.is_empty())
-        .collect();
-    for p in &parts {
-        if p == "c++" || p == "cpp" || p == "cxx" {
-            return p.clone();
-        }
-    }
-    if parts.iter().any(|p| p == "c") {
-        return "c".to_string();
-    }
-    if parts.iter().any(|p| p == "asm") {
-        return "asm".to_string();
-    }
-    language.to_lowercase()
-}
 
 /// Like `deps::resolve_deps` but does NOT require lib directories to exist.
 /// Used by `gen` commands where the project may not have been built yet.
@@ -310,53 +144,6 @@ fn resolve_deps_for_gen(config: &Config, profile: &str, project_root: &Path) -> 
     }
 }
 
-fn resolve_pkg_config_flags(
-    pkgs: &[String],
-    base_cflags: &[String],
-    base_ldflags: &[String],
-) -> (Vec<String>, Vec<String>) {
-    let mut cflags = base_cflags.to_vec();
-    let mut ldflags = base_ldflags.to_vec();
-    for pkg in pkgs {
-        match std::process::Command::new("pkg-config")
-            .arg("--cflags")
-            .arg(pkg)
-            .output()
-        {
-            Ok(out) if out.status.success() => {
-                let s = String::from_utf8_lossy(&out.stdout);
-                cflags.extend(s.split_whitespace().map(|v| v.to_string()));
-            }
-            Ok(out) => {
-                let err = String::from_utf8_lossy(&out.stderr);
-                eprintln!("Warning: pkg-config --cflags {pkg} failed: {err}");
-            }
-            Err(e) => {
-                eprintln!("Warning: pkg-config --cflags {pkg} error: {e}");
-            }
-        }
-
-        match std::process::Command::new("pkg-config")
-            .arg("--libs")
-            .arg(pkg)
-            .output()
-        {
-            Ok(out) if out.status.success() => {
-                let s = String::from_utf8_lossy(&out.stdout);
-                ldflags.extend(s.split_whitespace().map(|v| v.to_string()));
-            }
-            Ok(out) => {
-                let err = String::from_utf8_lossy(&out.stderr);
-                eprintln!("Warning: pkg-config --libs {pkg} failed: {err}");
-            }
-            Err(e) => {
-                eprintln!("Warning: pkg-config --libs {pkg} error: {e}");
-            }
-        }
-    }
-    (cflags, ldflags)
-}
-
 // ── public API ───────────────────────────────────────────────────────────────
 
 /// Everything needed to generate output for one project member.
@@ -422,7 +209,7 @@ fn collect_project_info_inner(root: &Path, profile: &str) -> Result<ProjectInfo,
 
     let name = get_config_str(&config, "package.name");
     let version = get_config_str(&config, "package.version");
-    let language = get_language_with_profile(&config, profile);
+    let language = get_language_with_profile_or_default(&config, profile);
     let standard = get_string_with_profile(&config, "standard", profile);
     let compiler_s = get_string_with_profile(&config, "compiler", profile);
     let kind = get_string_with_profile(&config, "kind", profile);
@@ -464,7 +251,7 @@ fn collect_project_info_inner(root: &Path, profile: &str) -> Result<ProjectInfo,
 
     let resolved = resolve_deps_for_gen(&config, profile, root);
     let (resolved_cflags, resolved_ldflags) =
-        resolve_pkg_config_flags(&pkg_configs, &base_cflags, &base_ldflags);
+        resolve_pkg_config_flags_lossy(&pkg_configs, &base_cflags, &base_ldflags);
 
     // Build exclude/include pattern lists (same logic as cli::build)
     let mut combined_excludes: Vec<PathBuf> = Vec::new();
@@ -1393,22 +1180,6 @@ fn parse_gen_args(args: &[String]) -> Result<(PathBuf, String), i32> {
     };
 
     Ok((root, profile))
-}
-
-fn normalize_target_os(s: &str) -> &str {
-    match s {
-        "linux" => "x86_64-unknown-linux-gnu",
-        "macos" => "x86_64-apple-darwin",
-        "windows" => "x86_64-pc-windows-msvc",
-        _ if s.contains('-') => s, // Assume valid triple
-        _ => {
-            warn(&format!(
-                "Unknown target '{}', using as-is. Supported short names: linux, macos, windows",
-                s
-            ));
-            s
-        }
-    }
 }
 
 fn normalize_target(s: &str, profile: &str) -> Option<String> {

@@ -29,3 +29,14 @@ pub fn find_project_root(start: &Path) -> io::Result<Option<PathBuf>> {
     }
     Ok(None)
 }
+
+pub fn with_dir<F, T>(dir: &Path, f: F) -> Result<T, String>
+where
+    F: FnOnce() -> Result<T, String>,
+{
+    let prev = std::env::current_dir().map_err(|_| "Failed to get current dir".to_string())?;
+    std::env::set_current_dir(dir).map_err(|_| "Failed to change directory".to_string())?;
+    let result = f();
+    let _ = std::env::set_current_dir(prev);
+    result
+}

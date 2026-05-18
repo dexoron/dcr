@@ -140,9 +140,5 @@ fn build_object(
         cmd.arg(flag);
     }
 
-    match cmd.status() {
-        Ok(status) if status.success() => Ok(()),
-        Ok(_) => Err("Build failed".to_string()),
-        Err(err) => Err(format!("Build failed: {err}")),
-    }
+    common::run_command_sync_output(&mut cmd)
 }

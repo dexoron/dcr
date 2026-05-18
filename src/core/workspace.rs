@@ -1,4 +1,5 @@
 use crate::core::config::Config;
+use crate::utils::build::normalize_target_os;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use toml::Value;
@@ -24,7 +25,7 @@ pub fn parse_workspace(
     let mut table = None;
     // Order: workspace.target.profile, workspace.profile.target, workspace.target, workspace.profile, workspace
     let combinations = if let Some(t) = target {
-        let normalized_t = crate::cli::build::normalize_target_os(t);
+        let normalized_t = normalize_target_os(t);
         vec![
             format!("workspace.{}.{}", normalized_t, profile),
             format!("workspace.{}.{}", profile, normalized_t),

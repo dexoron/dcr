@@ -68,7 +68,9 @@ pub fn add(args: &[String]) -> i32 {
             Value::Table(table)
         }
     } else if let Some(path) = add_args.path {
-        Value::String(path)
+        let mut table = Map::new();
+        table.insert("path".to_string(), Value::String(path));
+        Value::Table(table)
     } else {
         error("Dependency source (path or git) must be provided");
         return 1;

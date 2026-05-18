@@ -1,6 +1,6 @@
 [package]
 name = "dcr"
-version = "0.6.5"
+version = "0.6.6"
 edition = "2024"
 build = "build.rs"
 
@@ -11,7 +11,6 @@ serde = { version = "1", features = ["derive"] }
 self-replace = "1"
 sha2 = "0.10"
 toml = "1.0.3"
-indicatif = "0.18.4"
-console = "0.16.3"
 git2 = "0.20.4"
 serde_json = "1"
+ctrlc = "3"

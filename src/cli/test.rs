@@ -1,12 +1,15 @@
 use crate::cli::build;
 use crate::config::{FILE_DCR_TEST_H, FILE_TEST_C, flags};
 use crate::core::config::Config;
-use crate::utils::fs::find_project_root;
+use crate::utils::build::{
+    get_config_opt, get_config_str, get_language_with_profile, get_list_with_profile,
+    get_string_with_profile, resolve_compiler, resolve_pkg_config_flags,
+};
+use crate::utils::fs::{find_project_root, with_dir};
 use crate::utils::log::error;
 use crate::utils::text::{BOLD_GREEN, BOLD_RED, RESET, colored};
-use std::env;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const BOLD_BLUE: &str = "\x1b[1m\x1b[94m";
@@ -80,67 +83,79 @@ fn run_testsuite() -> Result<i32, String> {
     }
 
     let config = Config::open("./dcr.toml").map_err(|_| "Failed to read dcr.toml".to_string())?;
-    let name = config
-        .get("package.name")
-        .and_then(|v| v.as_str())
-        .ok_or("package.name not found in dcr.toml")?;
-    let kind = config
-        .get("package.kind")
-        .and_then(|v| v.as_str())
-        .unwrap_or("bin");
-
-    let compiler = env::var("DCR_CC").unwrap_or_else(|_| "cc".to_string());
     let profile = "release";
-    let flags_vec = flags(profile).unwrap_or(&[]);
-    let flags_str = flags_vec.join(" ");
+    let name = get_config_str(&config, "package.name");
+    let language = get_language_with_profile(&config, profile)?;
+    let compiler_cfg = get_string_with_profile(&config, "compiler", profile);
+    let standard = get_string_with_profile(&config, "standard", profile);
+    let package_type = get_config_str(&config, "package.type");
+    let build_kind = get_string_with_profile(&config, "kind", profile);
+    let tc_cc = get_config_opt(&config, "toolchain.cc");
+    let tc_cxx = get_config_opt(&config, "toolchain.cxx");
+    let tc_as = get_config_opt(&config, "toolchain.as");
+    let compiler = resolve_compiler(
+        &language,
+        &compiler_cfg,
+        tc_cc.as_deref(),
+        tc_cxx.as_deref(),
+        tc_as.as_deref(),
+    );
 
-    let test_c = "./tests/test.c";
-    if !Path::new(test_c).exists() {
+    let mut cflags: Vec<String> = flags(profile)
+        .unwrap_or(&[])
+        .iter()
+        .map(|v| v.to_string())
+        .collect();
+    cflags.extend(get_list_with_profile(&config, "cflags", profile));
+    let ldflags = get_list_with_profile(&config, "ldflags", profile);
+    let pkg_configs = get_list_with_profile(&config, "pkg_config", profile);
+    let (cflags, ldflags) = resolve_pkg_config_flags(&pkg_configs, &cflags, &ldflags)?;
+    let includes = test_include_dirs(&config, profile);
+    let test_sources = collect_test_sources()?;
+    if test_sources.is_empty() {
         return Err("tests/test.c not found; run 'dcr test --init' first".to_string());
     }
 
-    // Compile test.c to object
-    let obj_path = "./tests/test.o";
-    let compile_cmd = format!("{} -c {} -o {} {}", compiler, test_c, obj_path, flags_str);
-    let compile_status = Command::new("sh")
-        .arg("-c")
-        .arg(&compile_cmd)
-        .status()
-        .map_err(|_| format!("Failed to compile {}", test_c))?;
-    if !compile_status.success() {
-        return Err(format!("Compilation of {} failed", test_c));
+    let link_project_lib =
+        package_type == "lib" || build_kind == "staticlib" || build_kind == "sharedlib";
+    let mut stdout = String::new();
+    let mut declared = Vec::new();
+    let mut suite_success = true;
+
+    fs::create_dir_all("./tests/target")
+        .map_err(|e| format!("Failed to create tests/target: {e}"))?;
+    for source in &test_sources {
+        declared.extend(extract_test_names_path(source));
+        let stem = source
+            .file_stem()
+            .and_then(|v| v.to_str())
+            .unwrap_or("test");
+        let obj_path = Path::new("./tests/target").join(format!("{stem}.o"));
+        let bin_path =
+            Path::new("./tests/target").join(format!("{stem}{}", std::env::consts::EXE_SUFFIX));
+
+        compile_test_source(&compiler, &standard, &cflags, &includes, source, &obj_path)?;
+        link_test_binary(
+            &compiler,
+            &ldflags,
+            link_project_lib.then_some(name.as_str()),
+            &obj_path,
+            &bin_path,
+        )?;
+
+        let out = Command::new(&bin_path)
+            .output()
+            .map_err(|_| format!("Failed to run `{}`", bin_path.display()))?;
+        stdout.push_str(&String::from_utf8_lossy(&out.stdout));
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        if !stderr.trim().is_empty() {
+            eprint!("{}", stderr);
+        }
+        if !out.status.success() {
+            suite_success = false;
+        }
     }
 
-    // Link
-    let bin_path = format!("./tests/test{}", std::env::consts::EXE_SUFFIX);
-    let link_cmd = if kind == "lib" {
-        format!(
-            "{} {} -o {} -Ltarget/release -l{}",
-            compiler, obj_path, bin_path, name
-        )
-    } else {
-        format!("{} {} -o {}", compiler, obj_path, bin_path)
-    };
-    let link_status = Command::new("sh")
-        .arg("-c")
-        .arg(&link_cmd)
-        .status()
-        .map_err(|_| format!("Failed to link {}", bin_path))?;
-    if !link_status.success() {
-        return Err(format!("Linking of {} failed", bin_path));
-    }
-
-    let out = Command::new(&bin_path)
-        .output()
-        .map_err(|_| format!("Failed to run `{bin_path}`"))?;
-
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    if !stderr.trim().is_empty() {
-        eprint!("{}", stderr);
-    }
-
-    let declared = extract_test_names("./tests/test.c");
     let mut pass = 0;
     let mut skip = 0;
     let mut fail = 0;
@@ -189,7 +204,7 @@ fn run_testsuite() -> Result<i32, String> {
     }
 
     if !parsed_any {
-        if out.status.success() {
+        if suite_success {
             for name in &declared {
                 println!("{} {}", colored("[PASS]", BOLD_GREEN), name);
             }
@@ -216,10 +231,102 @@ fn run_testsuite() -> Result<i32, String> {
     print_field("FAIL", fail, BOLD_RED);
     println!("{}", colored("=====================", BOLD_GREEN));
 
-    if fail > 0 || !out.status.success() {
+    if fail > 0 || !suite_success {
         return Ok(1);
     }
     Ok(0)
+}
+
+fn collect_test_sources() -> Result<Vec<PathBuf>, String> {
+    let tests_dir = Path::new("./tests");
+    if !tests_dir.is_dir() {
+        return Ok(Vec::new());
+    }
+    let mut sources = Vec::new();
+    for entry in fs::read_dir(tests_dir).map_err(|e| format!("Failed to read tests/: {e}"))? {
+        let path = entry
+            .map_err(|e| format!("Failed to read tests/: {e}"))?
+            .path();
+        if path.extension().and_then(|v| v.to_str()) == Some("c") {
+            sources.push(path);
+        }
+    }
+    sources.sort();
+    Ok(sources)
+}
+
+fn test_include_dirs(config: &Config, profile: &str) -> Vec<String> {
+    let mut dirs = vec![
+        "./tests".to_string(),
+        "./src".to_string(),
+        "./target/include".to_string(),
+    ];
+    dirs.extend(get_list_with_profile(config, "include", profile));
+    dirs
+}
+
+fn compile_test_source(
+    compiler: &str,
+    standard: &str,
+    cflags: &[String],
+    includes: &[String],
+    source: &Path,
+    obj_path: &Path,
+) -> Result<(), String> {
+    let mut cmd = Command::new(compiler);
+    cmd.arg("-c").arg(source).arg("-o").arg(obj_path);
+    if !standard.trim().is_empty() {
+        cmd.arg(format!("-std={}", standard.trim()));
+    }
+    for flag in cflags {
+        cmd.arg(flag);
+    }
+    for dir in includes {
+        cmd.arg(format!("-I{dir}"));
+    }
+    let output = cmd
+        .output()
+        .map_err(|e| format!("Failed to compile {}: {e}", source.display()))?;
+    print_command_output(&output);
+    if !output.status.success() {
+        return Err(format!("Compilation of {} failed", source.display()));
+    }
+    Ok(())
+}
+
+fn link_test_binary(
+    compiler: &str,
+    ldflags: &[String],
+    project_lib: Option<&str>,
+    obj_path: &Path,
+    bin_path: &Path,
+) -> Result<(), String> {
+    let mut cmd = Command::new(compiler);
+    cmd.arg(obj_path);
+    if let Some(name) = project_lib {
+        cmd.arg("-Ltarget/lib").arg(format!("-l{name}"));
+    }
+    for flag in ldflags {
+        cmd.arg(flag);
+    }
+    cmd.arg("-o").arg(bin_path);
+    let output = cmd
+        .output()
+        .map_err(|e| format!("Failed to link {}: {e}", bin_path.display()))?;
+    print_command_output(&output);
+    if !output.status.success() {
+        return Err(format!("Linking of {} failed", bin_path.display()));
+    }
+    Ok(())
+}
+
+fn print_command_output(output: &std::process::Output) {
+    if !output.stdout.is_empty() {
+        print!("{}", String::from_utf8_lossy(&output.stdout));
+    }
+    if !output.stderr.is_empty() {
+        eprint!("{}", String::from_utf8_lossy(&output.stderr));
+    }
 }
 
 fn ensure_test_header() -> Result<(), String> {
@@ -233,7 +340,7 @@ fn ensure_test_header() -> Result<(), String> {
     Ok(())
 }
 
-fn extract_test_names(path: &str) -> Vec<String> {
+fn extract_test_names_path(path: &Path) -> Vec<String> {
     let Ok(content) = fs::read_to_string(path) else {
         return Vec::new();
     };
@@ -255,15 +362,4 @@ fn print_field(label: &str, value: i32, color: &str) {
     } else {
         println!("{}{}:  {}{}", color, label, value, RESET);
     }
-}
-
-fn with_dir<F, T>(dir: &Path, f: F) -> Result<T, String>
-where
-    F: FnOnce() -> Result<T, String>,
-{
-    let prev = std::env::current_dir().map_err(|_| "Failed to get current dir".to_string())?;
-    std::env::set_current_dir(dir).map_err(|_| "Failed to change directory".to_string())?;
-    let result = f();
-    let _ = std::env::set_current_dir(prev);
-    result
 }

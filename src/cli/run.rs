@@ -2,10 +2,11 @@ use crate::cli::build::build;
 use crate::cli::flags::parse_build_run_flags;
 use crate::core::config::Config;
 use crate::core::runner::run_binary;
+use crate::utils::build::{normalize_target_os, parse_version_info};
 use crate::utils::fs::find_project_root;
+use crate::utils::fs::with_dir;
 use crate::utils::log::error;
 use crate::utils::text::{BOLD_GREEN, colored};
-use std::path::Path;
 use std::process::Command;
 
 fn get_run_cmd(
@@ -33,15 +34,6 @@ fn get_run_cmd(
         None
     } else {
         Some(substitute_run_vars(trimmed, profile, version))
-    }
-}
-
-fn normalize_target_os(s: &str) -> &str {
-    match s {
-        "linux" => "x86_64-unknown-linux-gnu",
-        "macos" => "x86_64-apple-darwin",
-        "windows" => "x86_64-pc-windows-msvc",
-        _ => s,
     }
 }
 
@@ -152,17 +144,6 @@ pub fn run(args: &[String]) -> i32 {
     1
 }
 
-fn with_dir<F, T>(dir: &Path, f: F) -> Result<T, String>
-where
-    F: FnOnce() -> Result<T, String>,
-{
-    let prev = std::env::current_dir().map_err(|_| "Failed to get current dir".to_string())?;
-    std::env::set_current_dir(dir).map_err(|_| "Failed to change directory".to_string())?;
-    let result = f();
-    let _ = std::env::set_current_dir(prev);
-    result
-}
-
 fn run_shell(cmd: &str) -> i32 {
     let status = if cfg!(target_os = "windows") {
         Command::new("cmd").arg("/C").arg(cmd).status()
@@ -185,42 +166,4 @@ fn substitute_run_vars(cmd: &str, profile: &str, version: &str) -> String {
         .replace("{version_patch}", &info.patch)
         .replace("{version_suffix}", &info.suffix)
         .replace("{version_suffix_dash}", &info.suffix_dash)
-}
-
-struct VersionInfo {
-    full: String,
-    major: String,
-    minor: String,
-    patch: String,
-    suffix: String,
-    suffix_dash: String,
-}
-
-fn parse_version_info(version: &str) -> VersionInfo {
-    let mut full = version.trim().to_string();
-    if full.is_empty() {
-        full = "0.0.0".to_string();
-    }
-    let full_clone = full.clone();
-    let (base, suffix) = match full_clone.split_once('-') {
-        Some((head, tail)) => (head, tail),
-        None => (full_clone.as_str(), ""),
-    };
-    let mut parts = base.split('.');
-    let major = parts.next().unwrap_or("0").to_string();
-    let minor = parts.next().unwrap_or("0").to_string();
-    let patch = parts.next().unwrap_or("0").to_string();
-    let suffix_dash = if suffix.is_empty() {
-        "".to_string()
-    } else {
-        format!("-{suffix}")
-    };
-    VersionInfo {
-        full,
-        major,
-        minor,
-        patch,
-        suffix: suffix.to_string(),
-        suffix_dash,
-    }
 }

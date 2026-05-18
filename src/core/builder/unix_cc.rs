@@ -200,11 +200,7 @@ fn build_object(
         eprintln!("[dcr] {:?}", cmd);
     }
 
-    match cmd.status() {
-        Ok(status) if status.success() => Ok(()),
-        Ok(_) => Err("Build failed".to_string()),
-        Err(err) => Err(format!("Build failed: {err}")),
-    }
+    common::run_command_sync_output(&mut cmd)
 }
 
 fn asm_lang_flag(source: &str) -> Option<&'static str> {

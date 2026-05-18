@@ -5,16 +5,28 @@ use crate::core::builder::{BuildContext, build as build_project, collect_sources
 use crate::core::config::Config;
 use crate::core::deps::{register, resolve_deps};
 use crate::core::workspace::parse_workspace;
-use crate::utils::fs::{check_dir, find_project_root};
-use crate::utils::log::{error, warn};
+use crate::utils::build::{
+    get_bool_with_profile, get_config_opt, get_config_str, get_language_with_profile,
+    normalize_target_os, parse_version_info, profile_table, resolve_compiler,
+    resolve_pkg_config_flags, resolve_tool,
+};
+use crate::utils::fs::{check_dir, find_project_root, with_dir};
+use crate::utils::log::error;
 use crate::utils::text::{BOLD_GREEN, colored};
 use glob::glob;
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Once;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
+static BUILD_INTERRUPTED: AtomicBool = AtomicBool::new(false);
+static SIGNAL_HANDLER: Once = Once::new();
+
 pub fn build(args: &[String]) -> i32 {
+    install_signal_handler();
+    BUILD_INTERRUPTED.store(false, Ordering::SeqCst);
     let start_dir = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(_) => {
@@ -67,77 +79,20 @@ pub fn build(args: &[String]) -> i32 {
     }
 }
 
-fn get_config_str(config: &Config, key: &str) -> String {
-    config
-        .get(key)
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string()
+fn install_signal_handler() {
+    SIGNAL_HANDLER.call_once(|| {
+        let _ = ctrlc::set_handler(|| {
+            BUILD_INTERRUPTED.store(true, Ordering::SeqCst);
+        });
+    });
 }
 
-fn get_config_language(config: &Config, key: &str) -> Result<String, String> {
-    let value = config.get(key).ok_or_else(|| format!("{key} is missing"))?;
-    if let Some(s) = value.as_str() {
-        let trimmed = s.trim();
-        if trimmed.is_empty() {
-            return Err(format!("{key} is empty"));
-        }
-        return Ok(trimmed.to_string());
+fn check_interrupted() -> Result<(), String> {
+    if BUILD_INTERRUPTED.load(Ordering::SeqCst) {
+        Err("Build interrupted".to_string())
+    } else {
+        Ok(())
     }
-    let arr = value
-        .as_array()
-        .ok_or_else(|| format!("{key} must be string or array of strings"))?;
-    let mut parts = Vec::new();
-    for item in arr {
-        let s = item
-            .as_str()
-            .ok_or_else(|| format!("{key} must be string or array of strings"))?;
-        let trimmed = s.trim();
-        if trimmed.is_empty() {
-            return Err(format!("{key} contains empty value"));
-        }
-        parts.push(trimmed.to_string());
-    }
-    if parts.is_empty() {
-        return Err(format!("{key} is empty"));
-    }
-    Ok(parts.join("+"))
-}
-
-fn parse_language_value(value: &toml::Value, key: &str) -> Result<String, String> {
-    if let Some(s) = value.as_str() {
-        let trimmed = s.trim();
-        if trimmed.is_empty() {
-            return Err(format!("{key} is empty"));
-        }
-        return Ok(trimmed.to_string());
-    }
-    let arr = value
-        .as_array()
-        .ok_or_else(|| format!("{key} must be string or array of strings"))?;
-    let mut parts = Vec::new();
-    for item in arr {
-        let s = item
-            .as_str()
-            .ok_or_else(|| format!("{key} must be string or array of strings"))?;
-        let trimmed = s.trim();
-        if trimmed.is_empty() {
-            return Err(format!("{key} contains empty value"));
-        }
-        parts.push(trimmed.to_string());
-    }
-    if parts.is_empty() {
-        return Err(format!("{key} is empty"));
-    }
-    Ok(parts.join("+"))
-}
-
-fn profile_table<'a>(config: &'a Config, profile: &str) -> Option<&'a toml::value::Table> {
-    config
-        .get("build")
-        .and_then(|v| v.as_table())
-        .and_then(|b| b.get(profile))
-        .and_then(|v| v.as_table())
 }
 
 fn get_config_value_raw(
@@ -211,7 +166,7 @@ fn get_string_with_profile_and_target(
     }
 }
 
-fn get_string_with_profile(config: &Config, field: &str, profile: &str) -> String {
+fn get_build_string_with_profile(config: &Config, field: &str, profile: &str) -> String {
     get_string_with_profile_and_target(config, field, profile, None)
 }
 
@@ -275,22 +230,18 @@ fn get_list_with_profile_and_target(
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::build::normalize_target_os;
+
     #[test]
     fn test_normalize_target_os() {
+        assert_eq!(normalize_target_os("linux"), "x86_64-unknown-linux-gnu");
+        assert_eq!(normalize_target_os("macos"), "x86_64-apple-darwin");
+        assert_eq!(normalize_target_os("windows"), "x86_64-pc-windows-msvc");
         assert_eq!(
-            super::normalize_target_os("linux"),
+            normalize_target_os("x86_64-unknown-linux-gnu"),
             "x86_64-unknown-linux-gnu"
         );
-        assert_eq!(super::normalize_target_os("macos"), "x86_64-apple-darwin");
-        assert_eq!(
-            super::normalize_target_os("windows"),
-            "x86_64-pc-windows-msvc"
-        );
-        assert_eq!(
-            super::normalize_target_os("x86_64-unknown-linux-gnu"),
-            "x86_64-unknown-linux-gnu"
-        );
-        assert_eq!(super::normalize_target_os("unknown"), "unknown");
+        assert_eq!(normalize_target_os("unknown"), "unknown");
     }
 }
 
@@ -304,34 +255,6 @@ fn get_list_with_profile(
 
 fn get_targets(config: &Config, profile: &str) -> Result<Vec<String>, String> {
     get_list_with_profile(config, "targets", profile)
-}
-
-fn get_bool_with_profile(config: &Config, field: &str, profile: &str, default: bool) -> bool {
-    let base = config
-        .get(&format!("build.{field}"))
-        .and_then(|v| v.as_bool());
-    let profile_val = profile_table(config, profile)
-        .and_then(|table| table.get(field).and_then(|value| value.as_bool()));
-    profile_val.or(base).unwrap_or(default)
-}
-
-fn get_language_with_profile(config: &Config, profile: &str) -> Result<String, String> {
-    if let Some(table) = profile_table(config, profile)
-        && let Some(value) = table.get("language")
-    {
-        return parse_language_value(value, &format!("build.{profile}.language"));
-    }
-    get_config_language(config, "build.language")
-}
-
-fn get_config_opt(config: &Config, key: &str) -> Option<String> {
-    let value = config.get(key)?.as_str()?;
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed.to_string())
-    }
 }
 
 fn get_config_list(config: &Config, key: &str) -> Result<Vec<String>, String> {
@@ -467,6 +390,7 @@ fn build_from_root(
 
     let start_time = Instant::now();
     for (i, build_target) in targets_to_build.iter().enumerate() {
+        check_interrupted()?;
         if targets_to_build.len() > 1 {
             println!(
                 "    Building target {} of {}: {}",
@@ -523,6 +447,7 @@ fn build_project_at(
     force: bool,
 ) -> Result<(), String> {
     with_dir(project_root, || {
+        check_interrupted()?;
         let items = check_dir(None).map_err(|_| "Failed to read project directory".to_string())?;
         if !items.contains(&"dcr.toml".to_string()) {
             return Err("dcr.toml file not found".to_string());
@@ -530,7 +455,7 @@ fn build_project_at(
         let config = Config::open("./dcr.toml").map_err(|err| err.to_string())?;
         let project_name = get_config_str(&config, "package.name");
         let project_version = get_config_str(&config, "package.version");
-        let build_target_config = get_string_with_profile(&config, "target", profile);
+        let build_target_config = get_build_string_with_profile(&config, "target", profile);
         let build_target = target.or(if build_target_config.is_empty() {
             None
         } else {
@@ -599,41 +524,46 @@ fn build_project_at(
         ensure_target_dirs(&items, profile, target_dir);
 
         let deps_table = config.get("dependencies").and_then(|v| v.as_table());
-        let mut resolved = resolve_deps(&config, profile, build_target, project_root)?;
+        let resolved = resolve_deps(&config, profile, build_target, project_root)?;
 
-        // Process dependencies
+        // Registry dependencies are cached under the DCR registry root. Build
+        // them as normal DCR projects before the current project is linked.
         if let Some(deps) = deps_table {
-            for (name, _) in deps {
-                if register::is_registry_dep(config.get(&format!("dependencies.{name}")).unwrap()) {
+            for (name, value) in deps {
+                if register::is_registry_dep(value) {
                     let pkg_info = register::resolve_package_from_registry(name)?;
-                    let _version = pkg_info
+                    let version = pkg_info
                         .get("latest_version")
+                        .or_else(|| pkg_info.get("version"))
                         .and_then(|v| v.as_str())
                         .unwrap_or("unknown");
-
-                    let pkg_path = pkg_info.get("path").and_then(|v| v.as_str()).unwrap_or("");
-                    let dep_root = register::get_index_path()
-                        .parent()
-                        .unwrap()
-                        .join(Path::new(pkg_path).parent().unwrap());
+                    let dep_root = register::package_root_from_registry_info(&pkg_info)?;
                     let include_dir = dep_root.join("target").join("include");
+                    let lib_dir = dep_root.join("target").join("lib");
 
-                    if !include_dir.exists() {
+                    if !include_dir.exists() || !lib_dir.exists() {
                         print!(
                             "\r{:100}\r      {} {} v{}",
                             "",
                             colored("Building", BOLD_GREEN),
                             name,
-                            _version
+                            version
                         );
                         std::io::Write::flush(&mut std::io::stdout()).unwrap();
-                        std::thread::sleep(std::time::Duration::from_millis(300));
+                        if !dep_root.join("dcr.toml").is_file() {
+                            return Err(format!(
+                                "Registry dependency `{}` is missing dcr.toml at {}",
+                                name,
+                                dep_root.display()
+                            ));
+                        }
+                        build_project_at(&dep_root, profile, build_target, &[], force)?;
                         print!(
                             "\r{:100}\r       {} {} v{}",
                             "",
                             colored("Ready", BOLD_GREEN),
                             name,
-                            _version
+                            version
                         );
                         println!();
                     } else {
@@ -641,21 +571,9 @@ fn build_project_at(
                             "      {} {} v{}",
                             colored("Ready", BOLD_GREEN),
                             name,
-                            _version
+                            version
                         );
                     }
-
-                    resolved
-                        .include_dirs
-                        .push(include_dir.to_string_lossy().to_string());
-                    resolved.lib_dirs.push(
-                        dep_root
-                            .join("target")
-                            .join("lib")
-                            .to_string_lossy()
-                            .to_string(),
-                    );
-                    resolved.libs.push(name.clone());
                 }
             }
         }
@@ -803,6 +721,7 @@ fn build_project_at(
         );
         if !skip {
             run_build(&ctx)?;
+            check_interrupted()?;
             write_build_fingerprint(&ctx, &fingerprint)?;
         }
         if ctx.package_type == Some("lib") {
@@ -870,33 +789,6 @@ fn package_library(ctx: &BuildContext, headers: &[PathBuf]) -> Result<(), String
     Ok(())
 }
 
-fn with_dir<F, T>(dir: &Path, f: F) -> Result<T, String>
-where
-    F: FnOnce() -> Result<T, String>,
-{
-    let prev = std::env::current_dir().map_err(|_| "Failed to get current dir".to_string())?;
-    std::env::set_current_dir(dir).map_err(|_| "Failed to change directory".to_string())?;
-    let result = f();
-    let _ = std::env::set_current_dir(prev);
-    result
-}
-
-pub fn normalize_target_os(target: &str) -> &str {
-    match target {
-        "linux" => "x86_64-unknown-linux-gnu",
-        "macos" => "x86_64-apple-darwin",
-        "windows" => "x86_64-pc-windows-msvc",
-        _ if target.contains('-') => target, // Assume valid triple
-        _ => {
-            warn(&format!(
-                "Unknown target '{}', using as-is. Supported short names: linux, macos, windows",
-                target
-            ));
-            target
-        }
-    }
-}
-
 pub fn normalize_target(target: &str, profile: &str) -> Option<String> {
     let trimmed = normalize_target_os(target.trim());
     if trimmed.is_empty() {
@@ -918,176 +810,6 @@ fn normalize_platform(platform: &str) -> Option<&str> {
     } else {
         Some(trimmed)
     }
-}
-
-fn resolve_compiler(
-    language: &str,
-    compiler: &str,
-    tc_cc: Option<&str>,
-    tc_cxx: Option<&str>,
-    tc_as: Option<&str>,
-) -> String {
-    let lang = primary_language(language);
-    env_override_compiler(&lang)
-        .or_else(|| toolchain_override_compiler(&lang, tc_cc, tc_cxx, tc_as))
-        .unwrap_or_else(|| compiler.to_string())
-}
-
-fn env_override_compiler(lang: &str) -> Option<String> {
-    if let Ok(value) = std::env::var("DCR_COMPILER") {
-        let trimmed = value.trim();
-        if !trimmed.is_empty() {
-            return Some(trimmed.to_string());
-        }
-    }
-    if lang == "asm" {
-        if let Ok(value) = std::env::var("DCR_AS") {
-            let trimmed = value.trim();
-            if !trimmed.is_empty() {
-                return Some(trimmed.to_string());
-            }
-        }
-        return None;
-    }
-    if (lang == "c++" || lang == "cpp" || lang == "cxx")
-        && let Ok(value) = std::env::var("DCR_CXX")
-    {
-        let trimmed = value.trim();
-        if !trimmed.is_empty() {
-            return Some(trimmed.to_string());
-        }
-    }
-    if let Ok(value) = std::env::var("DCR_CC") {
-        let trimmed = value.trim();
-        if !trimmed.is_empty() {
-            return Some(trimmed.to_string());
-        }
-    }
-    None
-}
-
-fn toolchain_override_compiler(
-    lang: &str,
-    tc_cc: Option<&str>,
-    tc_cxx: Option<&str>,
-    tc_as: Option<&str>,
-) -> Option<String> {
-    if lang == "asm" {
-        return tc_as.map(|v| v.to_string());
-    }
-    if (lang == "c++" || lang == "cpp" || lang == "cxx")
-        && let Some(v) = tc_cxx
-    {
-        return Some(v.to_string());
-    }
-    tc_cc.map(|v| v.to_string())
-}
-
-fn primary_language(language: &str) -> String {
-    let parts: Vec<String> = language
-        .split('+')
-        .map(|p| p.trim().to_lowercase())
-        .filter(|p| !p.is_empty())
-        .collect();
-    for p in &parts {
-        if p == "c++" || p == "cpp" || p == "cxx" {
-            return p.clone();
-        }
-    }
-    if parts.iter().any(|p| p == "c") {
-        return "c".to_string();
-    }
-    if parts.iter().any(|p| p == "asm") {
-        return "asm".to_string();
-    }
-    language.to_lowercase()
-}
-
-fn resolve_tool(env_key: &str, fallback: Option<&str>) -> Option<String> {
-    if let Ok(value) = std::env::var(env_key) {
-        let trimmed = value.trim();
-        if !trimmed.is_empty() {
-            return Some(trimmed.to_string());
-        }
-    }
-    fallback.map(|v| v.to_string())
-}
-
-fn resolve_pkg_config_flags(
-    pkgs: &[String],
-    base_cflags: &[String],
-    base_ldflags: &[String],
-) -> Result<(Vec<String>, Vec<String>), String> {
-    let mut cflags = base_cflags.to_vec();
-    let mut ldflags = base_ldflags.to_vec();
-    if pkgs.is_empty() {
-        return Ok((cflags, ldflags));
-    }
-    for pkg in pkgs {
-        let c_out = run_pkg_config(pkg, "--cflags")?;
-        let l_out = run_pkg_config(pkg, "--libs")?;
-        cflags.extend(split_flags(&c_out));
-        ldflags.extend(split_flags(&l_out));
-    }
-    Ok((cflags, ldflags))
-}
-
-fn run_pkg_config(pkg: &str, arg: &str) -> Result<String, String> {
-    let output = std::process::Command::new("pkg-config")
-        .arg(arg)
-        .arg(pkg)
-        .output()
-        .map_err(|err| format!("Failed to run pkg-config: {err}"))?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("pkg-config failed for {pkg}: {stderr}"));
-    }
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
-}
-
-fn split_flags(value: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut current = String::new();
-    let mut chars = value.chars().peekable();
-    let mut quote: Option<char> = None;
-    while let Some(ch) = chars.next() {
-        if let Some(q) = quote {
-            if ch == q {
-                quote = None;
-                continue;
-            }
-            if ch == '\\' {
-                if let Some(next) = chars.next() {
-                    current.push(next);
-                }
-                continue;
-            }
-            current.push(ch);
-            continue;
-        }
-        if ch == '"' || ch == '\'' {
-            quote = Some(ch);
-            continue;
-        }
-        if ch.is_whitespace() {
-            if !current.is_empty() {
-                out.push(current.clone());
-                current.clear();
-            }
-            continue;
-        }
-        if ch == '\\' {
-            if let Some(next) = chars.next() {
-                current.push(next);
-            }
-            continue;
-        }
-        current.push(ch);
-    }
-    if !current.is_empty() {
-        out.push(current);
-    }
-    out
 }
 
 struct ToolchainExecs {
@@ -1447,44 +1169,6 @@ fn expand_step_value(template: &str, stem: &str, vars: &StepVars) -> String {
         .replace("{version_patch}", vars.version_patch)
         .replace("{version_suffix}", vars.version_suffix)
         .replace("{version_suffix_dash}", vars.version_suffix_dash)
-}
-
-struct VersionInfo {
-    full: String,
-    major: String,
-    minor: String,
-    patch: String,
-    suffix: String,
-    suffix_dash: String,
-}
-
-fn parse_version_info(version: &str) -> VersionInfo {
-    let mut full = version.trim().to_string();
-    if full.is_empty() {
-        full = "0.0.0".to_string();
-    }
-    let full_clone = full.clone();
-    let (base, suffix) = match full_clone.split_once('-') {
-        Some((head, tail)) => (head, tail),
-        None => (full_clone.as_str(), ""),
-    };
-    let mut parts = base.split('.');
-    let major = parts.next().unwrap_or("0").to_string();
-    let minor = parts.next().unwrap_or("0").to_string();
-    let patch = parts.next().unwrap_or("0").to_string();
-    let suffix_dash = if suffix.is_empty() {
-        "".to_string()
-    } else {
-        format!("-{suffix}")
-    };
-    VersionInfo {
-        full,
-        major,
-        minor,
-        patch,
-        suffix: suffix.to_string(),
-        suffix_dash,
-    }
 }
 
 struct StepVars<'a> {

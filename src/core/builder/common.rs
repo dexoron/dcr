@@ -1,5 +1,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::sync::{Mutex, OnceLock};
+
+static OUTPUT_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
 
 pub fn collect_sources(
     roots: &[PathBuf],
@@ -194,6 +198,22 @@ where
     }
 
     Ok(())
+}
+
+pub fn run_command_sync_output(cmd: &mut Command) -> Result<(), String> {
+    let output = cmd.output().map_err(|err| format!("Build failed: {err}"))?;
+    let _guard = OUTPUT_MUTEX.get_or_init(|| Mutex::new(())).lock().unwrap();
+    if !output.stdout.is_empty() {
+        print!("{}", String::from_utf8_lossy(&output.stdout));
+    }
+    if !output.stderr.is_empty() {
+        eprint!("{}", String::from_utf8_lossy(&output.stderr));
+    }
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err("Build failed".to_string())
+    }
 }
 
 pub fn normalize_source_path(path: &Path) -> String {

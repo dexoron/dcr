@@ -3,6 +3,7 @@ use reqwest::blocking::Client;
 use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
+#[cfg(target_os = "linux")]
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -156,14 +157,14 @@ fn temp_binary_path(current_exe: &Path) -> PathBuf {
     current_exe.with_extension(extension)
 }
 
-fn set_executable_permissions(path: &Path) {
+fn set_executable_permissions(_path: &Path) {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        if let Ok(meta) = fs::metadata(path) {
+        if let Ok(meta) = fs::metadata(_path) {
             let mut perms = meta.permissions();
             perms.set_mode(0o755);
-            let _ = fs::set_permissions(path, perms);
+            let _ = fs::set_permissions(_path, perms);
         }
     }
 }
