@@ -20,6 +20,7 @@ pub mod build;
 pub mod clean;
 pub mod flag_update;
 pub mod flags;
+pub mod fmt;
 pub mod r#gen;
 pub mod help;
 pub mod init;
