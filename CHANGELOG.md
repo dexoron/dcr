@@ -38,6 +38,10 @@ Fixed:
 - Consolidated duplicate `OUTPUT_MUTEX` definitions — MSVC backend now uses the shared mutex from `common.rs`.
 - Registry cache root directory is created if missing (prevents cryptic errors when `~/.dcr/` does not exist).
 
+Changed:
+
+- `openssl` dependency is now conditional (`cfg(not(windows))`) — no longer pulled in on Windows, fixing Windows CI builds that lack Perl `Locale::Maketext::Simple`. On Linux (including musl cross-compilation) the vendored OpenSSL build is unchanged.
+
 ## [0.6.6] - 2026-05-18
 
 Fixed:
