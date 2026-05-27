@@ -1,0 +1,64 @@
+name: Dexoron Packages Index
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Release"]
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+jobs:
+  update-packages-index:
+    runs-on: ubuntu-latest
+    # Запускаем только если это ручной вызов ИЛИ если родительский релиз завершился успешно
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout Central Packages Repo
+        uses: actions/checkout@v4
+        with:
+          repository: 'dexoron/packages'
+          token: ${{ secrets.PACKAGES_REPO_TOKEN }}
+          path: 'central-packages'
+
+      - name: Download built package artifact
+        # Этот шаг отработает только при автоматическом набеге из главного релиза
+        if: ${{ github.event_name == 'workflow_run' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: arch-package
+          path: central-packages/archlinux/x86_64/
+          github-token: ${{ secrets.PACKAGES_REPO_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Update Pacman Database (Inside Arch Container)
+        # Запускаем изолированный контейнер Арча только ради одной команды repo-add
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/central-packages:/packages \
+            archlinux:latest \
+            bash -c "
+              cd /packages/archlinux/x86_64 && \
+              rm -f dexoron.db dexoron.files && \
+              repo-add dexoron.db.tar.gz *.pkg.tar.zst && \
+              ln -sf dexoron.db.tar.gz dexoron.db && \
+              ln -sf dexoron.files.tar.gz dexoron.files
+            "
+
+      - name: Push to dexoron/packages
+        run: |
+          cd central-packages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          # Проверяем, изменилось ли что-то, чтобы не плодить пустые коммиты
+          if [ -n "$(git status --porcelain)" ]; then
+            git add archlinux/
+            git commit -m "chore(arch): update repository db with new packages"
+            git push
+          else
+            echo "No changes detected in repository database."
+          fi
