@@ -15,6 +15,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+#[cfg(any(
+    target_os = "freebsd",
+    target_os = "openbsd",
+    target_os = "netbsd",
+    target_os = "dragonfly"
+))]
+pub mod bsd;
 #[cfg(target_os = "linux")]
 pub mod linux;
 #[cfg(target_os = "macos")]
@@ -35,7 +42,24 @@ pub fn bin_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     {
         return windows::bin_path(profile, name, target_dir);
     }
-    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+    #[cfg(any(
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    ))]
+    {
+        return bsd::bin_path(profile, name, target_dir);
+    }
+    #[cfg(not(any(
+        target_os = "linux",
+        target_os = "macos",
+        target_os = "windows",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    )))]
     {
         match target_dir {
             Some(dir) => format!("{}/{}", dir.trim_end_matches('/'), name),
@@ -57,7 +81,24 @@ pub fn elf_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     {
         return windows::elf_path(profile, name, target_dir);
     }
-    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+    #[cfg(any(
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    ))]
+    {
+        return bsd::elf_path(profile, name, target_dir);
+    }
+    #[cfg(not(any(
+        target_os = "linux",
+        target_os = "macos",
+        target_os = "windows",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    )))]
     {
         match target_dir {
             Some(dir) => format!("{}/{}", dir.trim_end_matches('/'), name),
@@ -79,7 +120,24 @@ pub fn efi_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     {
         return windows::efi_path(profile, name, target_dir);
     }
-    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+    #[cfg(any(
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    ))]
+    {
+        return bsd::efi_path(profile, name, target_dir);
+    }
+    #[cfg(not(any(
+        target_os = "linux",
+        target_os = "macos",
+        target_os = "windows",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    )))]
     {
         match target_dir {
             Some(dir) => format!("{}/{}.efi", dir.trim_end_matches('/'), name),
@@ -101,7 +159,24 @@ pub fn lib_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     {
         return windows::lib_path(profile, name, target_dir);
     }
-    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+    #[cfg(any(
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    ))]
+    {
+        return bsd::lib_path(profile, name, target_dir);
+    }
+    #[cfg(not(any(
+        target_os = "linux",
+        target_os = "macos",
+        target_os = "windows",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    )))]
     {
         match target_dir {
             Some(dir) => format!("{}/lib{}.a", dir.trim_end_matches('/'), name),
@@ -123,7 +198,24 @@ pub fn shared_lib_path(profile: &str, name: &str, target_dir: Option<&str>) -> S
     {
         return windows::shared_lib_path(profile, name, target_dir);
     }
-    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+    #[cfg(any(
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    ))]
+    {
+        return bsd::shared_lib_path(profile, name, target_dir);
+    }
+    #[cfg(not(any(
+        target_os = "linux",
+        target_os = "macos",
+        target_os = "windows",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    )))]
     {
         match target_dir {
             Some(dir) => format!("{}/lib{}.so", dir.trim_end_matches('/'), name),

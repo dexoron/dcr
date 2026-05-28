@@ -1,5 +1,5 @@
 use crate::utils::log::error;
-use crate::utils::text::{colored, BOLD_GREEN};
+use crate::utils::text::{BOLD_GREEN, colored};
 use glob::glob;
 use std::process::Command;
 

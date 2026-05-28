@@ -120,11 +120,22 @@ fn clean_from_root(root: &Path, flags: &CleanFlags) -> Result<(), String> {
         })
         .or_else(|| {
             Some(if cfg!(target_os = "linux") {
-                "x86_64-unknown-linux-gnu".to_string()
+                format!("{}-unknown-linux-gnu", std::env::consts::ARCH)
             } else if cfg!(target_os = "macos") {
                 "x86_64-apple-darwin".to_string()
             } else if cfg!(target_os = "windows") {
                 "x86_64-pc-windows-msvc".to_string()
+            } else if cfg!(any(
+                target_os = "freebsd",
+                target_os = "openbsd",
+                target_os = "netbsd",
+                target_os = "dragonfly"
+            )) {
+                format!(
+                    "{}-unknown-{}",
+                    std::env::consts::ARCH,
+                    std::env::consts::OS
+                )
             } else {
                 "unknown".to_string()
             })

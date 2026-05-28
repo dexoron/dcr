@@ -160,15 +160,26 @@ fn run_project(
     let mut target = flags.target.clone();
     if target.is_none() {
         let default_target = if cfg!(target_os = "linux") {
-            "x86_64-unknown-linux-gnu"
+            format!("{}-unknown-linux-gnu", std::env::consts::ARCH)
         } else if cfg!(target_os = "macos") {
-            "x86_64-apple-darwin"
+            "x86_64-apple-darwin".to_string()
         } else if cfg!(target_os = "windows") {
-            "x86_64-pc-windows-msvc"
+            "x86_64-pc-windows-msvc".to_string()
+        } else if cfg!(any(
+            target_os = "freebsd",
+            target_os = "openbsd",
+            target_os = "netbsd",
+            target_os = "dragonfly"
+        )) {
+            format!(
+                "{}-unknown-{}",
+                std::env::consts::ARCH,
+                std::env::consts::OS
+            )
         } else {
-            "unknown"
+            "unknown".to_string()
         };
-        target = Some(default_target.to_string());
+        target = Some(default_target);
     }
 
     let build_kind = config
