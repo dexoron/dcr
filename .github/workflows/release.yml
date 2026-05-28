@@ -228,14 +228,15 @@ jobs:
       - name: Build Arch Package inside Container
         if: matrix.package_type == 'arch'
         run: |
-          PKGVER='${{ needs.setup.outputs.version }}'
+          PKGVER_ORIG='${{ needs.setup.outputs.version }}'
+          PKGVER_CLEAN="${PKGVER_ORIG//-/.}"
           TAG='${{ needs.setup.outputs.tag }}'
           SRC_URL="https://github.com/dexoron/dcr/archive/refs/tags/${TAG}.tar.gz"
           SHA256="$(curl -fsSL "$SRC_URL" | sha256sum | awk '{print $1}')"
           mkdir -p arch-build
           cat > arch-build/PKGBUILD <<PKG
           pkgname=dcr
-          pkgver=${PKGVER}
+          pkgver=${PKGVER_CLEAN}
           pkgrel=1
           pkgdesc="Cargo-like utility to manage C/C++ projects"
           arch=('x86_64')
@@ -244,14 +245,14 @@ jobs:
           depends=('gcc-libs')
           makedepends=('cargo')
           options=('!lto')
-          source=("\$pkgname-\$pkgver.tar.gz::\$url/archive/refs/tags/v\$pkgver.tar.gz")
+          source=("\$pkgname-\$pkgver.tar.gz::\$url/archive/refs/tags/${TAG}.tar.gz")
           sha256sums=('${SHA256}')
           build() {
-            cd "\$srcdir/\$pkgname-\$pkgver"
+            cd "\$srcdir/\$pkgname-${PKGVER_ORIG}"
             cargo build --release --locked
           }
           package() {
-            cd "\$srcdir/\$pkgname-\$pkgver"
+            cd "\$srcdir/\$pkgname-${PKGVER_ORIG}"
             install -Dm755 "target/release/dcr" "\$pkgdir/usr/bin/dcr"
             install -Dm644 LICENSE "\$pkgdir/usr/share/licenses/\$pkgname/LICENSE"
           }
@@ -506,14 +507,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PKGVER='${{ needs.setup.outputs.version }}'
+          PKGVER_ORIG='${{ needs.setup.outputs.version }}'
+          PKGVER_CLEAN="${PKGVER_ORIG//-/.}"
           SRC_URL='${{ steps.meta.outputs.source_url }}'
           SHA256='${{ steps.meta.outputs.sha256 }}'
 
           mkdir -p packages/aur/dcr
           cat > packages/aur/dcr/PKGBUILD <<PKG
           pkgname=dcr
-          pkgver=${PKGVER}
+          pkgver=${PKGVER_CLEAN}
           pkgrel=1
           pkgdesc="Cargo-like utility to manage C/C++ projects"
           arch=('x86_64' 'aarch64')
@@ -526,11 +528,11 @@ jobs:
             'gcc: build C/C++ projects with GCC'
             'clang: build C/C++ projects with Clang'
           )
-          source=("\$pkgname-\$pkgver.tar.gz::\$url/archive/refs/tags/v\$pkgver.tar.gz")
+          source=("\$pkgname-\$pkgver.tar.gz::\${SRC_URL}")
           sha256sums=('${SHA256}')
 
           build() {
-            cd "\$srcdir/\$pkgname-\$pkgver"
+            cd "\$srcdir/\$pkgname-${PKGVER_ORIG}"
             export CARGO_PROFILE_RELEASE_LTO=false
             export RUSTFLAGS="\${RUSTFLAGS:-}"
             export RUSTFLAGS="\${RUSTFLAGS/-C link-arg=-fuse-ld=lld/}"
@@ -538,7 +540,7 @@ jobs:
           }
 
           package() {
-            cd "\$srcdir/\$pkgname-\$pkgver"
+            cd "\$srcdir/\$pkgname-${PKGVER_ORIG}"
             install -Dm755 "target/release/dcr" "\$pkgdir/usr/bin/dcr"
             install -Dm644 LICENSE "\$pkgdir/usr/share/licenses/\$pkgname/LICENSE"
           }
@@ -547,7 +549,7 @@ jobs:
           cat > packages/aur/dcr/.SRCINFO <<SRC
           pkgbase = dcr
             pkgdesc = Cargo-like utility to manage C/C++ projects
-            pkgver = ${PKGVER}
+            pkgver = ${PKGVER_CLEAN}
             pkgrel = 1
             url = https://github.com/dexoron/dcr
             arch = x86_64
@@ -558,7 +560,7 @@ jobs:
             optdepends = gcc: build C/C++ projects with GCC
             optdepends = clang: build C/C++ projects with Clang
             options = !lto
-            source = dcr-${PKGVER}.tar.gz::${SRC_URL}
+            source = dcr-${PKGVER_CLEAN}.tar.gz::${SRC_URL}
             sha256sums = ${SHA256}
 
           pkgname = dcr
@@ -618,14 +620,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PKGVER='${{ needs.setup.outputs.version }}'
+          PKGVER_ORIG='${{ needs.setup.outputs.version }}'
+          PKGVER_CLEAN="${PKGVER_ORIG//-/.}"
           BIN_URL='${{ steps.meta.outputs.bin_url }}'
           SHA256='${{ steps.meta.outputs.sha256 }}'
 
           mkdir -p packages/aur/dcr-bin
           cat > packages/aur/dcr-bin/PKGBUILD <<PKG
           pkgname=dcr-bin
-          pkgver=${PKGVER}
+          pkgver=${PKGVER_CLEAN}
           pkgrel=1
           pkgdesc="Cargo-like utility to manage C/C++ projects (pre-compiled musl binary)"
           arch=('x86_64')
@@ -648,7 +651,7 @@ jobs:
           cat > packages/aur/dcr-bin/.SRCINFO <<SRC
           pkgbase = dcr-bin
             pkgdesc = Cargo-like utility to manage C/C++ projects (pre-compiled musl binary)
-            pkgver = ${PKGVER}
+            pkgver = ${PKGVER_CLEAN}
             pkgrel = 1
             url = https://github.com/dexoron/dcr
             arch = x86_64
@@ -657,7 +660,7 @@ jobs:
             conflicts = dcr
             optdepends = gcc: build C/C++ projects with GCC
             optdepends = clang: build C/C++ projects with Clang
-            source_x86_64 = dcr-${PKGVER}::${BIN_URL}
+            source_x86_64 = dcr-${PKGVER_CLEAN}::${BIN_URL}
             sha256sums_x86_64 = ${SHA256}
 
           pkgname = dcr-bin
