@@ -129,6 +129,12 @@ jobs:
           pip install cargo-zigbuild
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
+      - name: Setup Zig
+        if: matrix.target != 'x86_64-unknown-linux-gnu'
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
