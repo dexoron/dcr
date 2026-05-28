@@ -74,7 +74,6 @@ jobs:
           cd central-packages/debian
           dpkg-scanpackages . /dev/null | gzip -9c > Packages.gz
           
-          # Генерация и подпись Release
           echo "Origin: Dexoron" > Release
           echo "Suite: stable" >> Release
           echo "Architectures: amd64" >> Release
@@ -83,8 +82,8 @@ jobs:
           echo "SHA256:" >> Release
           echo " $(sha256sum Packages.gz | awk '{print $1" "$2}')" >> Release
           
-          gpg --batch --yes --detach-sign --armor --output Release.gpg Release
-          gpg --batch --yes --clearsign --output InRelease Release
+          gpg --batch --yes --pinentry-mode loopback --local-user 74322D39483E9C9E8C86C0AA0770A5C2A2A82DAC --detach-sign --armor --output Release.gpg Release
+          gpg --batch --yes --pinentry-mode loopback --local-user 74322D39483E9C9E8C86C0AA0770A5C2A2A82DAC --clearsign --output InRelease Release
 
       - name: Update Fedora DNF Repository Index
         run: |
