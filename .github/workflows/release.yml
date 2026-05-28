@@ -408,9 +408,10 @@ jobs:
         with:
           usesh: true
           run: |
-            export PATH="/usr/pkg/bin:/usr/pkg/sbin:$PATH"
             pkg_add rust perl gmake
-            export MAKE=gmake
+            mkdir -p /tmp/bin
+            ln -sf /usr/pkg/bin/gmake /tmp/bin/make
+            export PATH="/tmp/bin:/usr/pkg/bin:/usr/pkg/sbin:$PATH"
             cargo build --release
 
       - name: Prepare NetBSD Artifact
