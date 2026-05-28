@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.0-dev] - 2026-05-28
+
+Added:
+
+- **FreeBSD, OpenBSD, NetBSD, DragonflyBSD target support** — full platform routing and dynamically generated target triples.
+
 ## [0.6.9] - 2026-05-28
 
 Added:

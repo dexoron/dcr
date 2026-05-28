@@ -1,6 +1,6 @@
 [package]
 name = "dcr"
-version = "0.6.9"
+version = "0.7.0-dev"
 edition = "2024"
 build = "build.rs"
 description = "DCR is a utility for managing C/C++ projects in a Cargo-like style."
