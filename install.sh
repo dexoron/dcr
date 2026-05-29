@@ -30,8 +30,8 @@ CHANNEL=""
 
 check_os() {
     case "$(uname -s)" in
-        Linux|Darwin) ;;
-        *) error "Only Linux and macOS are supported"; exit 1 ;;
+        Linux|Darwin|FreeBSD|OpenBSD|NetBSD|DragonFly) ;;
+        *) error "Only Linux, macOS, and BSD systems are supported"; exit 1 ;;
     esac
 }
 
@@ -41,15 +41,26 @@ detect_target() {
     arch="$(uname -m)"
 
     case "$os:$arch" in
-        Linux:x86_64)          TARGET_TRIPLE="x86_64-unknown-linux-gnu" ;;
-        Darwin:x86_64)         TARGET_TRIPLE="x86_64-apple-darwin" ;;
-        Darwin:arm64|Darwin:aarch64) TARGET_TRIPLE="aarch64-apple-darwin" ;;
+        Linux:x86_64)                      TARGET_TRIPLE="x86_64-unknown-linux-gnu" ;;
+        Linux:aarch64|Linux:arm64)         TARGET_TRIPLE="aarch64-unknown-linux-gnu" ;;
+        Darwin:x86_64)                     TARGET_TRIPLE="x86_64-apple-darwin" ;;
+        Darwin:arm64|Darwin:aarch64)       TARGET_TRIPLE="aarch64-apple-darwin" ;;
+        FreeBSD:x86_64|FreeBSD:amd64)      TARGET_TRIPLE="x86_64-unknown-freebsd" ;;
+        OpenBSD:x86_64|OpenBSD:amd64)      TARGET_TRIPLE="x86_64-unknown-openbsd" ;;
+        NetBSD:x86_64|NetBSD:amd64)        TARGET_TRIPLE="x86_64-unknown-netbsd" ;;
+        DragonFly:x86_64|DragonFly:amd64)  TARGET_TRIPLE="x86_64-unknown-dragonfly" ;;
         *) error "Unsupported platform: $os/$arch"; exit 1 ;;
     esac
 }
 
 check_common_dependencies() {
     command -v curl >/dev/null 2>&1 || { error "curl is not installed"; exit 1; }
+    if [[ "$CHANNEL" == "dev" ]]; then
+        if ! command -v python3 >/dev/null 2>&1 && ! command -v jq >/dev/null 2>&1; then
+            error "For dev installations, either 'python3' or 'jq' must be installed to parse GitHub API response."
+            exit 1
+        fi
+    fi
 }
 
 check_build_dependencies() {
@@ -83,15 +94,16 @@ select_install_mode() {
     esac
 }
 
-# Возвращает JSON нужного релиза в stdout
+# Returns JSON of the requested release to stdout
 fetch_release_json() {
     if [[ "$CHANNEL" == "dev" ]]; then
         log "Looking for latest dev (pre-release)..."
-        local json
+        local json result
         json="$(curl -fsSL "$GITHUB_API_ALL")"
-        # Первый pre-release в списке
-        local result
-        result="$(printf '%s' "$json" | python3 - <<'EOF'
+        if command -v jq >/dev/null 2>&1; then
+            result="$(printf '%s' "$json" | jq -e -c 'map(select(.prerelease == true))[0]')"
+        else
+            result="$(printf '%s' "$json" | python3 - <<'EOF'
 import sys, json
 releases = json.load(sys.stdin)
 pre = [r for r in releases if r.get("prerelease", False)]
@@ -101,7 +113,9 @@ else:
     print(json.dumps(pre[0]), end="")
 EOF
 )"
-        if [[ -z "$result" || "$result" == "{}" ]]; then
+        fi
+
+        if [[ -z "$result" || "$result" == "{}" || "$result" == "null" ]]; then
             error "No dev (pre-release) found on GitHub"
             exit 1
         fi
@@ -123,9 +137,9 @@ download_binary() {
         exit 1
     fi
 
-    # Версия без ведущего 'v'
+    # Version without leading 'v'
     version="${tag#v}"
-    # Имя бинарника: dcr-<triple>-<version>
+    # Binary name: dcr-<triple>-<version>
     asset_name="dcr-${TARGET_TRIPLE}-${version}"
 
     log "Fetching release ${tag} (channel: ${CHANNEL})..."
@@ -149,7 +163,7 @@ prepare_sources() {
     rm -rf "$TMPDIR"
     git clone --depth 1 "$REPO_URL" "$TMPDIR"
     if [[ "$CHANNEL" == "dev" ]]; then
-        # Клонируем dev ветку, если она есть
+        # Clone dev branch if it exists
         git clone --depth 1 --branch dev "$REPO_URL" "$TMPDIR" 2>/dev/null || \
         git clone --depth 1 "$REPO_URL" "$TMPDIR"
     fi
@@ -193,8 +207,8 @@ main() {
 
     check_os
     detect_target
-    check_common_dependencies
     select_channel
+    check_common_dependencies
     select_install_mode
     cleanup
 
