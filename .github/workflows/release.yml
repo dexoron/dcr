@@ -378,7 +378,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        system: [freebsd, openbsd, netbsd, dragonfly]
+        system: [freebsd, openbsd, netbsd]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -446,22 +446,7 @@ jobs:
           cp target/release/dcr "$ASSET"
           echo "BSD_ASSET=${ASSET}" >> "$GITHUB_ENV"
 
-      # --- DRAGONFLYBSD ---
-      - name: Build in DragonFly BSD VM
-        if: matrix.system == 'dragonfly'
-        uses: vmactions/dragonflybsd-vm@v1
-        with:
-          usesh: true
-          run: |
-            pkg install -y rust perl5 gmake
-            cargo build --release
 
-      - name: Prepare DragonFly BSD Artifact
-        if: matrix.system == 'dragonfly'
-        run: |
-          ASSET="dcr-x86_64-unknown-dragonfly-${{ needs.setup.outputs.version }}"
-          cp target/release/dcr "$ASSET"
-          echo "BSD_ASSET=${ASSET}" >> "$GITHUB_ENV"
 
       # --- UPLOAD TARGET ---
       - name: Upload BSD Asset to Release

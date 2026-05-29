@@ -30,7 +30,7 @@ CHANNEL=""
 
 check_os() {
     case "$(uname -s)" in
-        Linux|Darwin|FreeBSD|OpenBSD|NetBSD|DragonFly) ;;
+        Linux|Darwin|FreeBSD|OpenBSD|NetBSD) ;;
         *) error "Only Linux, macOS, and BSD systems are supported"; exit 1 ;;
     esac
 }
@@ -48,7 +48,7 @@ detect_target() {
         FreeBSD:x86_64|FreeBSD:amd64)      TARGET_TRIPLE="x86_64-unknown-freebsd" ;;
         OpenBSD:x86_64|OpenBSD:amd64)      TARGET_TRIPLE="x86_64-unknown-openbsd" ;;
         NetBSD:x86_64|NetBSD:amd64)        TARGET_TRIPLE="x86_64-unknown-netbsd" ;;
-        DragonFly:x86_64|DragonFly:amd64)  TARGET_TRIPLE="x86_64-unknown-dragonfly" ;;
+
         *) error "Unsupported platform: $os/$arch"; exit 1 ;;
     esac
 }
