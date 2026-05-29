@@ -37,9 +37,6 @@ pub fn collect_sources(
         collect_sources_rec(root, extensions, &mut sources, exclude_dirs, include_paths)?;
     }
     sources.sort();
-    if sources.is_empty() {
-        return Err(format!("No source files found in {}", format_roots(roots)));
-    }
     Ok(sources)
 }
 
@@ -87,17 +84,6 @@ fn collect_sources_rec(
         }
     }
     Ok(())
-}
-
-fn format_roots(roots: &[PathBuf]) -> String {
-    if roots.is_empty() {
-        return "<none>".to_string();
-    }
-    let mut out = Vec::new();
-    for root in roots {
-        out.push(root.to_string_lossy().to_string());
-    }
-    out.join(", ")
 }
 
 pub fn is_excluded(path: &Path, exclude_dirs: &[PathBuf], include_paths: &[String]) -> bool {
@@ -624,7 +610,8 @@ mod tests {
         let result = collect_sources(&roots, &["c"], &[], &include);
         std::env::set_current_dir(prev).unwrap();
 
-        assert!(result.is_err(), "empty src should return error");
+        let sources = result.expect("empty src should return Ok");
+        assert!(sources.is_empty(), "empty src should return empty vec");
     }
 
     #[test]

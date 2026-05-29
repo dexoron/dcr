@@ -27,7 +27,15 @@ const DEFAULT_LANGUAGE: &str = "c";
 const DEFAULT_STANDARD: &str = "c11";
 const DEFAULT_COMPILER: &str = "clang";
 const DEFAULT_KIND: &str = "bin";
-const VALID_KINDS: &[&str] = &["bin", "staticlib", "sharedlib", "efi", "elf"];
+const VALID_KINDS: &[&str] = &[
+    "bin",
+    "staticlib",
+    "sharedlib",
+    "efi",
+    "elf",
+    "none",
+    "custom",
+];
 
 #[derive(Debug)]
 pub enum ConfigError {
@@ -101,7 +109,8 @@ pub struct PackageConfig {
 #[derive(Debug, Clone, Deserialize)]
 pub struct BuildConfig {
     pub language: LanguageConfig,
-    pub standard: String,
+    #[serde(default)]
+    pub standard: Option<String>,
     #[serde(default)]
     pub cxx_standard: Option<String>,
     pub compiler: String,
@@ -353,7 +362,14 @@ impl Config {
         }
 
         validate_language_config(&build.language, "build.language")?;
-        if build.standard.trim().is_empty() {
+        let lang_is_asm = match &build.language {
+            LanguageConfig::One(s) => s.trim().eq_ignore_ascii_case("asm"),
+            LanguageConfig::Many(v) => v.len() == 1 && v[0].trim().eq_ignore_ascii_case("asm"),
+        };
+        if let Some(ref std) = build.standard
+            && std.trim().is_empty()
+            && !lang_is_asm
+        {
             return Err(ConfigError::Invalid("build.standard is empty".into()));
         }
         if build.compiler.trim().is_empty() {
@@ -754,7 +770,9 @@ fn format_toml(value: &Value) -> Result<String, ConfigError> {
     } else {
         out.push_str(&format!("language = \"{language}\"\n"));
     }
-    out.push_str(&format!("standard = \"{standard}\"\n"));
+    if !standard.is_empty() {
+        out.push_str(&format!("standard = \"{standard}\"\n"));
+    }
     out.push_str(&format!("compiler = \"{compiler}\"\n"));
     let kind = build
         .get("kind")
