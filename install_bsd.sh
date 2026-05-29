@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
-set -Eeuo pipefail
+#!/bin/sh
+set -eu
 
 TMPDIR="/tmp/dcr-install"
 INSTALL_PATH="$HOME/.local/share/dcr"
@@ -16,14 +16,11 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 mkdir -p "$(dirname "$LOGFILE")"
-exec > >(tee -a "$LOGFILE") 2>&1
 
-log()     { echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1"; }
-success() { echo -e "${GREEN}✔ $1${NC}"; }
-warn()    { echo -e "${YELLOW}⚠ $1${NC}"; }
-error()   { echo -e "${RED}✖ $1${NC}"; }
-
-trap 'error "Error on line $LINENO"; exit 1' ERR
+log()     { printf "${BLUE}[%s]${NC} %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$1" | tee -a "$LOGFILE"; }
+success() { printf "${GREEN}✔ %s${NC}\n" "$1" | tee -a "$LOGFILE"; }
+warn()    { printf "${YELLOW}⚠ %s${NC}\n" "$1" | tee -a "$LOGFILE"; }
+error()   { printf "${RED}✖ %s${NC}\n" "$1" | tee -a "$LOGFILE" >&2; }
 
 INSTALL_MODE=""
 CHANNEL=""
@@ -51,7 +48,7 @@ detect_target() {
 
 check_common_dependencies() {
     command -v curl >/dev/null 2>&1 || { error "curl is not installed"; exit 1; }
-    if [[ "$CHANNEL" == "dev" ]]; then
+    if [ "$CHANNEL" = "dev" ]; then
         if ! command -v python3 >/dev/null 2>&1 && ! command -v jq >/dev/null 2>&1; then
             error "For dev installations, either 'python3' or 'jq' must be installed to parse GitHub API response."
             exit 1
@@ -68,7 +65,8 @@ select_channel() {
     echo "Choose channel:"
     echo "  1) Latest stable release (default)"
     echo "  2) Latest dev (pre-release)"
-    read -r -p "Enter 1 or 2 [1]: " choice
+    printf "Enter 1 or 2 [1]: "
+    read -r choice
 
     case "${choice:-1}" in
         1) CHANNEL="stable" ;;
@@ -81,7 +79,8 @@ select_install_mode() {
     echo "Choose installation mode:"
     echo "  1) Download prebuilt binary from GitHub Release (recommended)"
     echo "  2) Build from git"
-    read -r -p "Enter 1 or 2 [1]: " choice
+    printf "Enter 1 or 2 [1]: "
+    read -r choice
 
     case "${choice:-1}" in
         1) INSTALL_MODE="release" ;;
@@ -91,7 +90,7 @@ select_install_mode() {
 }
 
 fetch_release_json() {
-    if [[ "$CHANNEL" == "dev" ]]; then
+    if [ "$CHANNEL" = "dev" ]; then
         log "Looking for latest dev (pre-release)..."
         local json result
         json="$(curl -fsSL "$GITHUB_API_ALL")"
@@ -110,7 +109,7 @@ EOF
 )"
         fi
 
-        if [[ -z "$result" || "$result" == "{}" || "$result" == "null" ]]; then
+        if [ -z "$result" ] || [ "$result" = "{}" ] || [ "$result" = "null" ]; then
             error "No dev (pre-release) found on GitHub"
             exit 1
         fi
@@ -127,7 +126,7 @@ download_binary() {
 
     tag="$(printf '%s\n' "$release_json" | \
         sed -n 's/.*"tag_name": "\([^"]*\)".*/\1/p' | head -n1)"
-    if [[ -z "$tag" ]]; then
+    if [ -z "$tag" ]; then
         error "Failed to determine release version"
         exit 1
     fi
@@ -140,7 +139,7 @@ download_binary() {
     download_url="$(printf '%s\n' "$release_json" | \
         sed -n "s#.*\"browser_download_url\": \"\([^\"]*/${asset_name}\)\".*#\1#p" | head -n1)"
 
-    if [[ -z "$download_url" ]]; then
+    if [ -z "$download_url" ]; then
         error "Asset ${asset_name} not found in release ${tag}"
         exit 1
     fi
@@ -155,7 +154,7 @@ prepare_sources() {
     log "Fetching sources..."
     rm -rf "$TMPDIR"
     git clone --depth 1 "$REPO_URL" "$TMPDIR"
-    if [[ "$CHANNEL" == "dev" ]]; then
+    if [ "$CHANNEL" = "dev" ]; then
         git clone --depth 1 --branch dev "$REPO_URL" "$TMPDIR" 2>/dev/null || \
         git clone --depth 1 "$REPO_URL" "$TMPDIR"
     fi
@@ -204,7 +203,7 @@ main() {
     select_install_mode
     cleanup
 
-    if [[ "$INSTALL_MODE" == "build" ]]; then
+    if [ "$INSTALL_MODE" = "build" ]; then
         check_build_dependencies
         prepare_sources
         build_binary
