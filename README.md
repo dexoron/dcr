@@ -74,6 +74,16 @@ curl -fsSL https://dcr.dexoron.su/install.sh | bash
 </td>
 </tr>
 <tr>
+<td><b>BSD (script)</b></td>
+<td>
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/dexoron/dcr/dev/install_bsd.sh | bash
+```
+
+</td>
+</tr>
+<tr>
 <td><b>Windows (PowerShell)</b></td>
 <td>
 
@@ -159,9 +169,9 @@ other in [docs/](docs/) and `dcr --help`
 | Linux   | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ |
 | macOS   | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Windows | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
-| FreeBSD | ⚠️ | ⚠️ | ❌ | ❌ | ❌ | ⚠️ | ❌ | ❌ | ❌ |
-| OpenBSD | ⚠️ | ⚠️ | ❌ | ❌ | ❌ | ⚠️ | ❌ | ❌ | ❌ |
-| NetBSD  | ⚠️ | ⚠️ | ❌ | ❌ | ❌ | ⚠️ | ❌ | ❌ | ❌ |
+| FreeBSD | ✅ | ⚠️ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| OpenBSD | ✅ | ⚠️ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| NetBSD  | ✅ | ⚠️ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 
 ✅ officially supported · ⚠️ community / best-effort · ❌ not supported
 
