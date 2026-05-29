@@ -100,10 +100,28 @@ jobs:
           name: release-notes
           path: .github/release-notes.md
 
+  # ── Create Release (prevent race conditions) ───────────────────────────────
+  create-release:
+    needs: [setup, notes]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Release Notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: .github
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.setup.outputs.tag }}
+          body_path: .github/release-notes.md
+          prerelease: ${{ needs.setup.outputs.prerelease == 'true' }}
+
   # ── Linux Binaries Matrix ──────────────────────────────────────────────────
   build-linux:
     if: ${{ github.event_name == 'push' || github.event.inputs.run_linux == 'true' }}
-    needs: [setup, notes]
+    needs: [setup, notes, create-release]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -280,7 +298,7 @@ jobs:
 
   # ── Publish Packages to Release (Out of Matrix) ────────────────────────────
   publish-dexoron-packages:
-    needs: [setup, notes, build-linux-packages]
+    needs: [setup, notes, build-linux-packages, create-release]
     runs-on: ubuntu-latest
     steps:
       - name: Download Release Notes
@@ -309,7 +327,7 @@ jobs:
   # ── macOS Matrix ───────────────────────────────────────────────────────────
   build-macos:
     if: ${{ github.event_name == 'push' || github.event.inputs.run_macos == 'true' }}
-    needs: [setup, notes]
+    needs: [setup, notes, create-release]
     strategy:
       fail-fast: false
       matrix:
@@ -355,7 +373,7 @@ jobs:
   # ── BSD Systems Matrix ─────────────────────────────────────────────────────
   build-bsd:
     if: ${{ github.event_name == 'push' || github.event.inputs.run_bsd == 'true' }}
-    needs: [setup, notes]
+    needs: [setup, notes, create-release]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -457,7 +475,7 @@ jobs:
   # ── Windows Matrix ─────────────────────────────────────────────────────────
   build-windows:
     if: ${{ github.event_name == 'push' || github.event.inputs.run_windows == 'true' }}
-    needs: [setup, notes]
+    needs: [setup, notes, create-release]
     runs-on: windows-latest
     strategy:
       fail-fast: false
