@@ -316,6 +316,31 @@ pub fn needs_rebuild(source: &str, object: &str) -> bool {
     false
 }
 
+pub fn needs_link(objects: &[String], output_path: &str) -> bool {
+    let out_meta = match fs::metadata(output_path) {
+        Ok(m) => m,
+        Err(_) => return true,
+    };
+    let out_time = match out_meta.modified() {
+        Ok(t) => t,
+        Err(_) => return true,
+    };
+    for obj in objects {
+        let obj_meta = match fs::metadata(obj) {
+            Ok(m) => m,
+            Err(_) => return true,
+        };
+        let obj_time = match obj_meta.modified() {
+            Ok(t) => t,
+            Err(_) => return true,
+        };
+        if obj_time > out_time {
+            return true;
+        }
+    }
+    false
+}
+
 fn parse_d_file(content: &str) -> Vec<String> {
     let mut deps = Vec::new();
     let text = content.replace("\\\n", " ").replace("\\\r\n", " ");
@@ -416,6 +441,55 @@ mod tests {
         let obj_dir = Path::new("target/debug/obj");
         let result = object_path(obj_dir, "./src/main.c", "obj");
         assert_eq!(result, "target/debug/obj/main.c.obj");
+    }
+
+    #[test]
+    fn needs_link_no_output() {
+        let dir = temp_dir("link_no_out");
+        let obj1 = dir.join("test1.o");
+        let obj2 = dir.join("test2.o");
+        let out = dir.join("app");
+        fs::write(&obj1, "").unwrap();
+        fs::write(&obj2, "").unwrap();
+        let objs = vec![
+            obj1.to_string_lossy().to_string(),
+            obj2.to_string_lossy().to_string(),
+        ];
+        assert!(needs_link(&objs, &out.to_string_lossy()));
+    }
+
+    #[test]
+    fn needs_link_fresh() {
+        let dir = temp_dir("link_fresh");
+        let obj1 = dir.join("test1.o");
+        let obj2 = dir.join("test2.o");
+        let out = dir.join("app");
+        fs::write(&obj1, "").unwrap();
+        fs::write(&obj2, "").unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        fs::write(&out, "").unwrap();
+        let objs = vec![
+            obj1.to_string_lossy().to_string(),
+            obj2.to_string_lossy().to_string(),
+        ];
+        assert!(!needs_link(&objs, &out.to_string_lossy()));
+    }
+
+    #[test]
+    fn needs_link_stale() {
+        let dir = temp_dir("link_stale");
+        let obj1 = dir.join("test1.o");
+        let obj2 = dir.join("test2.o");
+        let out = dir.join("app");
+        fs::write(&obj1, "").unwrap();
+        fs::write(&out, "").unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        fs::write(&obj2, "").unwrap();
+        let objs = vec![
+            obj1.to_string_lossy().to_string(),
+            obj2.to_string_lossy().to_string(),
+        ];
+        assert!(needs_link(&objs, &out.to_string_lossy()));
     }
 
     #[test]
