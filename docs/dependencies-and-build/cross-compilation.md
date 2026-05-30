@@ -216,4 +216,4 @@ dcr build --target windows --release
 - **Linking errors**: Check `ldflags` and library paths for cross-compilation.
 - **Header issues**: Include paths may differ; use target-specific `cflags`.
 
-For more help, see [Troubleshooting map](troubleshooting-map.md).
+For more help, see [Troubleshooting map](../reference-and-help/troubleshooting-map.md).
