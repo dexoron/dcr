@@ -119,6 +119,8 @@ pub struct BuildConfig {
     #[serde(default)]
     pub target: Option<String>,
     #[serde(default)]
+    pub out_dir: Option<String>,
+    #[serde(default)]
     pub platform: Option<String>,
     #[serde(default)]
     pub cflags: Vec<String>,
@@ -396,6 +398,9 @@ impl Config {
         if let Some(target) = &build.target {
             validate_non_empty_string(target, "build.target")?;
         }
+        if let Some(out_dir) = &build.out_dir {
+            validate_non_empty_string(out_dir, "build.out_dir")?;
+        }
         for profile in ["release", "debug"] {
             if let Some(section) = self
                 .data
@@ -539,7 +544,9 @@ impl Config {
         if let Some(lang) = table.get("language") {
             self.validate_language(lang)?;
         }
-        for key in ["standard", "compiler", "kind", "target", "platform"] {
+        for key in [
+            "standard", "compiler", "kind", "target", "out_dir", "platform",
+        ] {
             if let Some(value) = table.get(key) {
                 let s = value.as_str().unwrap_or("");
                 if s.trim().is_empty() {
@@ -783,6 +790,11 @@ fn format_toml(value: &Value) -> Result<String, ConfigError> {
         && !target.trim().is_empty()
     {
         out.push_str(&format!("target = \"{target}\"\n"));
+    }
+    if let Some(out_dir) = build.get("out_dir").and_then(|v| v.as_str())
+        && !out_dir.trim().is_empty()
+    {
+        out.push_str(&format!("out_dir = \"{out_dir}\"\n"));
     }
     if let Some(cflags) = build.get("cflags") {
         out.push_str(&format!("cflags = {}\n", format_string_array(cflags)));

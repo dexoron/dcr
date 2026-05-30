@@ -83,7 +83,6 @@ pub fn run(args: &[String]) -> i32 {
             return 1;
         }
     };
-
     let flags = match parse_build_run_flags(args) {
         Ok(v) => v,
         Err(_) => return 1,
@@ -188,14 +187,20 @@ fn run_project(
         .or_else(|| config.get("build.kind").and_then(|v| v.as_str()))
         .unwrap_or("");
 
-    let normalized_target_dir = match workspace_root {
-        Some(wr) => target
-            .as_ref()
-            .and_then(|t| crate::cli::build::normalize_target(t, &flags.profile))
-            .map(|rel| wr.join(&rel).to_string_lossy().to_string()),
-        None => target
-            .as_ref()
-            .and_then(|t| crate::cli::build::normalize_target(t, &flags.profile)),
+    let out_dir =
+        crate::cli::build::get_build_string_with_profile(&config, "out_dir", &flags.profile);
+    let normalized_target_dir = if !out_dir.is_empty() {
+        Some(out_dir)
+    } else {
+        match workspace_root {
+            Some(wr) => target
+                .as_ref()
+                .and_then(|t| crate::cli::build::normalize_target(t, &flags.profile))
+                .map(|rel| wr.join(&rel).to_string_lossy().to_string()),
+            None => target
+                .as_ref()
+                .and_then(|t| crate::cli::build::normalize_target(t, &flags.profile)),
+        }
     };
 
     let version = config

@@ -13,7 +13,8 @@ kind = "bin"
 # optional:
 # inherit = true  # Inherit from base (default true)
 # targets = ["linux", "macos"]  # Multiple targets to build
-# target = "./dist"
+# out_dir = "./dist"
+# target = "x86_64-unknown-linux-gnu"
 # platform = "x86_64"
 # cflags = ["-Wall"]
 # ldflags = ["-lm"]
@@ -40,8 +41,8 @@ kind = "bin"
 - `extension` (string, optional): custom file extension without the leading dot (e.g. `BIN`, `efi`, `EFI`). Combined with `filename`.
 - `inherit` (bool, optional): inherit settings from base `[build]` (default `true`). If `false`, only use target/profile specific settings.
 - `targets` (string array, optional): list of targets to build simultaneously. Supports short names (`linux`, `macos`, `windows`).
-- `target` (string, optional): custom output directory for final artifact.
-  When set, DCR automatically injects `--target=<value>` into `cflags` (useful for clang cross-compilation).
+- `target` (string, optional): platform target triple (e.g. `x86_64-unknown-linux-gnu`) or short name (`linux`, `macos`, `windows`). Same as `--target` CLI flag.
+- `out_dir` (string, optional): custom output directory for final artifact (overrides default `target/<target>/<profile>/`).
 - `platform` (string, optional): architecture hint for compiler (used for `-march` or `/arch`).
 - `cflags` (string array, optional): extra compile flags.
   Supports variable substitution — see [Variable substitution](#variable-substitution) below.

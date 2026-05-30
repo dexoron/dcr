@@ -211,7 +211,7 @@ fn get_string_with_profile_and_target(
     }
 }
 
-fn get_build_string_with_profile(config: &Config, field: &str, profile: &str) -> String {
+pub fn get_build_string_with_profile(config: &Config, field: &str, profile: &str) -> String {
     get_string_with_profile_and_target(config, field, profile, None)
 }
 
@@ -712,26 +712,31 @@ fn build_project_at(
         let resolved_linker = resolve_tool("DCR_LD", tc_ld.as_deref());
         let resolved_archiver = resolve_tool("DCR_AR", tc_ar.as_deref());
 
-        let target_dir_binding = match workspace_root {
-            Some(root) => {
-                let target_str = build_target
-                    .map(normalize_target_os)
-                    .filter(|t| !t.is_empty());
-                let rel: PathBuf = match target_str {
-                    Some(ref t) => Path::new("target").join(t).join(profile),
-                    None => {
-                        let default_dir = if cfg!(target_os = "linux") {
-                            let arch = std::env::consts::ARCH;
-                            format!("{arch}-unknown-linux-gnu/{profile}")
-                        } else {
-                            profile.to_string()
-                        };
-                        Path::new("target").join(&default_dir)
-                    }
-                };
-                root.join(&rel).to_string_lossy().to_string()
+        let out_dir_config = get_build_string_with_profile(&config, "out_dir", profile);
+        let target_dir_binding = if !out_dir_config.is_empty() {
+            out_dir_config
+        } else {
+            match workspace_root {
+                Some(root) => {
+                    let target_str = build_target
+                        .map(normalize_target_os)
+                        .filter(|t| !t.is_empty());
+                    let rel: PathBuf = match target_str {
+                        Some(ref t) => Path::new("target").join(t).join(profile),
+                        None => {
+                            let default_dir = if cfg!(target_os = "linux") {
+                                let arch = std::env::consts::ARCH;
+                                format!("{arch}-unknown-linux-gnu/{profile}")
+                            } else {
+                                profile.to_string()
+                            };
+                            Path::new("target").join(&default_dir)
+                        }
+                    };
+                    root.join(&rel).to_string_lossy().to_string()
+                }
+                None => normalize_target(build_target.unwrap_or(""), profile).unwrap_or_default(),
             }
-            None => normalize_target(build_target.unwrap_or(""), profile).unwrap_or_default(),
         };
         let target_dir = if target_dir_binding.is_empty() {
             None
