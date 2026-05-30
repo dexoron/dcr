@@ -61,7 +61,7 @@ select_channel() {
     echo "Choose channel:"
     echo "  1) Latest stable release (default)"
     echo "  2) Latest dev (pre-release)"
-    read -r -p "Enter 1 or 2 [1]: " choice
+    read -r -p "Enter 1 or 2 [1]: " choice < /dev/tty
 
     case "${choice:-1}" in
         1) CHANNEL="stable" ;;
@@ -74,7 +74,7 @@ select_install_mode() {
     echo "Choose installation mode:"
     echo "  1) Download prebuilt binary from GitHub Release (recommended)"
     echo "  2) Build from git"
-    read -r -p "Enter 1 or 2 [1]: " choice
+    read -r -p "Enter 1 or 2 [1]: " choice < /dev/tty
 
     case "${choice:-1}" in
         1) INSTALL_MODE="release" ;;
