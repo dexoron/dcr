@@ -23,11 +23,12 @@ dcr run --debug --clean
 
 ## Restrictions
 
-- If `build.kind` (or `build.{profile}.kind`) is `"staticlib"` or `"sharedlib"`, `run` exits with error.
+- If `build.kind` (or `build.{profile}.kind`) is `"staticlib"`, `"sharedlib"`, `"efi"`, or `"elf"`, `run` exits with error.
 - The profile is selected from the first argument.
-- `--target <triple>` runs the binary for specified target (short names: `linux`, `macos`, `windows`).
+- `--target <triple>` runs the binary for specified target (short names: `linux`, `macos`, `windows`, `freebsd`, `openbsd`, `netbsd`).
 - `--force` skips build cache checks and recompiles.
 - `--clean` removes `target/<profile>` and `build.clean` paths before building.
+- `--workspace <name>` filters build to a specific workspace member.
 
 ## `run.cmd` variables
 

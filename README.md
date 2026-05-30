@@ -33,6 +33,32 @@
 
 <table>
 <tr>
+<td><b>Linux (Dexoron Packages)</b></td>
+<td>
+
+See https://dcr.dexoron.su for settings youre packages manager
+
+**Arch Linux:**
+
+```sh
+sudo pacman -Sy dcr
+```
+
+**Debian/Ubuntu:**
+
+```sh
+sudo apt update && sudo apt install dcr
+```
+
+**Fedora/RHEL:**
+
+```sh
+sudo dnf install dcr
+```
+
+</td>
+</tr>
+<tr>
 <td><b>Arch Linux (AUR)</b></td>
 <td>
 
@@ -78,7 +104,7 @@ curl -fsSL https://dcr.dexoron.su/install.sh | bash
 <td>
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/dexoron/dcr/dev/install_bsd.sh | bash
+curl -fsSL https://dcr.dexoron.su/install_bsd.sh | bash
 ```
 
 </td>
@@ -152,15 +178,21 @@ kind = "bin"
 |---|---|
 | `dcr new <name>` | Create a new project |
 | `dcr init` | Initialize current directory |
+| `dcr add <dep>` | Add a dependency |
 | `dcr build [--release]` | Build the project |
 | `dcr run [--release]` | Build and run |
 | `dcr clean` | Remove build artifacts |
+| `dcr test` | Run project tests |
+| `dcr fmt` | Format C/C++ sources (clang-format) |
+| `dcr tree` | View dependency tree |
+| `dcr gen <vscode\|clion\|compile-commands>` | Generate IDE integration |
+| `dcr setup` | Initialize DCR registry |
 
 other in [docs/](docs/) and `dcr --help`
 
 ---
 
-## Platforms
+## Platforms(pre-build source)
 
 <div align="center">
 
@@ -169,9 +201,9 @@ other in [docs/](docs/) and `dcr --help`
 | Linux   | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ |
 | macOS   | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Windows | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
-| FreeBSD | ✅ | ⚠️ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| OpenBSD | ✅ | ⚠️ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| NetBSD  | ✅ | ⚠️ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| FreeBSD | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| OpenBSD | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| NetBSD  | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 
 ✅ officially supported · ⚠️ community / best-effort · ❌ not supported
 

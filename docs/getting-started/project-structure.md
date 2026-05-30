@@ -37,4 +37,4 @@ project/
 - `target/<target>/<profile>/lib<name>.a` (or `<name>.lib` on Windows): output for `kind = "staticlib"`.
 - `target/<target>/<profile>/lib<name>.so` (or `.dylib` on macOS, `<name>.dll` on Windows): output for `kind = "sharedlib"`.
 
-If `build.target` is set, the final artifact is written to that custom directory, while object cache still stays in `target/<target>/<profile>/obj`.
+If `build.out_dir` is set, the final artifact is written to that custom directory, while object cache still stays in `target/<target>/<profile>/obj`.

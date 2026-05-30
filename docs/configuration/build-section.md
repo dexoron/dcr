@@ -32,11 +32,11 @@ kind = "bin"
 
 - `language` (string or array, required): `c`, `c++`, `cpp`, `cxx`, or `asm`.
   Mixed languages can be specified as an array, for example `["c", "c++", "asm"]`.
-- `standard` (string, required): C language standard passed to compiler (e.g. `c11`, `c17`, `gnu11`).
+- `standard` (string, optional): C language standard passed to compiler (e.g. `c11`, `c17`, `gnu11`). Defaults to `c11`.
 - `cxx_standard` (string, optional): C++ language standard passed to compiler for `.cpp`/`.cxx`/`.cc` files
   (e.g. `c++17`, `gnu++17`, `c++20`). When set, overrides `standard` for C++ sources.
 - `compiler` (string, required): compiler command (for example `clang`, `gcc`, `cl`).
-- `kind` (string, required): `bin`, `staticlib`, `sharedlib`, `efi`, or `elf`.
+- `kind` (string, optional): `bin`, `staticlib`, `sharedlib`, `efi`, `elf`, `none`, or `custom`. Defaults to `bin`.
 - `filename` (string, optional): custom output filename (without extension). Overrides `package.name` for the final artifact.
 - `extension` (string, optional): custom file extension without the leading dot (e.g. `BIN`, `efi`, `EFI`). Combined with `filename`.
 - `inherit` (bool, optional): inherit settings from base `[build]` (default `true`). If `false`, only use target/profile specific settings.

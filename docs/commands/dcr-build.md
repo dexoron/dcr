@@ -30,9 +30,12 @@ dcr build --debug --clean
 - `build.compiler`
 - `build.language`
 - `build.standard`
+- `build.cxx_standard`
 - `build.kind`
 - `build.target`
+- `build.out_dir`
 - `build.platform`
+- `package.type`
 - `build.cflags`
 - `build.ldflags`
 - `build.ldscript`
@@ -58,8 +61,9 @@ dcr build --debug --clean
 
 - Profile flag (`--debug` / `--release`) can appear in any argument position (duplicates are rejected).
 - Unknown profile flags return an error.
-- `--target <triple>` builds for specified target (short names: `linux`, `macos`, `windows`).
+- `--target <triple>` builds for specified target (short names: `linux`, `macos`, `windows`, `freebsd`, `openbsd`, `netbsd`).
 - `--verbose` prints the compiler/linker command lines to stderr (also works via `DCR_DEBUG` env var).
+- `--workspace <name>` filters build to a specific workspace member.
 - If no `--target`, builds for `build.targets` or native.
 - Incremental rebuild checks source/object mtime and tracked header dependencies.
 - `--force` skips build cache checks and recompiles.

@@ -2,7 +2,7 @@
 
 ## What commands are available?
 
-`new`, `init`, `build`, `run`, `clean`, `gen`, `--help`, `--version`, `--update`.
+`new`, `init`, `add`, `build`, `run`, `clean`, `test`, `fmt`, `tree`, `gen`, `setup`, `--help`, `--version`, `--update`.
 
 ## Is `dcr.toml` mandatory?
 

@@ -30,10 +30,13 @@ You can also add `--force` or `--clean` to `build`/`run`.
 
 ## Artifacts
 
-By default:
+By default (for `kind = "bin"`):
 
-- `target/debug/<name>` (or `.exe` on Windows)
-- `target/release/<name>` (or `.exe` on Windows)
+- `target/<target>/debug/<name>` (or `.exe` on Windows)
+- `target/<target>/release/<name>` (or `.exe` on Windows)
+
+Where `<target>` is `native` or a target triple.  
+Use `build.out_dir` to override the output directory.
 
 Default compiler flags:
 
@@ -57,6 +60,14 @@ Shared library mode (`kind = "sharedlib"`):
 - Linux: `lib<name>.so`
 - macOS: `lib<name>.dylib`
 - Windows: `<name>.dll`
+
+UEFI executable mode (`kind = "efi"`):
+
+- All platforms: `<name>.efi`
+
+Bare-metal ELF mode (`kind = "elf"`):
+
+- All platforms: `<name>` (no extension)
 
 ## Profile overrides
 

@@ -27,6 +27,7 @@
 * [dcr clean](commands/dcr-clean.md)
 * [dcr gen](commands/dcr-gen.md)
 * [dcr test](commands/dcr-test.md)
+* [dcr fmt](commands/dcr-fmt.md)
 * [dcr tree](commands/dcr-tree.md)
 
 ## Dependencies & Build

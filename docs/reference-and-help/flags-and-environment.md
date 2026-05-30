@@ -8,8 +8,11 @@ Used with `dcr build` and `dcr run`:
 
 - `--debug`: select debug profile.
 - `--release`: select release profile.
+- `--target <triple>`: build for specified target (short names: `linux`, `macos`, `windows`, `freebsd`, `openbsd`, `netbsd`).
 - `--force`: ignore incremental cache checks and rebuild.
 - `--clean`: remove `target/<profile>` and `build.clean` paths before build.
+- `--verbose`: print compiler/linker command lines to stderr.
+- `--workspace <name>`: filter build to a specific workspace member.
 
 Notes:
 

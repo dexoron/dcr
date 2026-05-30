@@ -18,6 +18,8 @@ frecli = { path = "./lib/frecli", include = ["."], lib = ["."], libs = ["frecli"
 
 ### Registry dependencies
 Defined by name and version string. DCR automatically resolves the package from the configured registry index.
+- `version` (string, required): version requirement.
+- `features` (string array, optional): enable specific features.
 
 ### Git dependencies
 Defined by repository URL and optionally branch, tag, or revision.

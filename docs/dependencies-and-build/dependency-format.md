@@ -26,6 +26,8 @@ json = { git = "https://github.com/nlohmann/json", tag = "v3.11.2" }
 - `include`: optional include subpaths (absolute or relative to dep root).
 - `lib`: optional library subpaths (absolute or relative to dep root).
 - `libs`: optional linker library names.
+- `features`: optional feature flags for registry dependencies.
+- `default-features`: whether to include default features (default `true`).
 
 ## Common valid compact forms
 
@@ -35,6 +37,8 @@ mylib = { path = "./libs/mylib" }
 gitlib = { git = "https://github.com/user/repo" }
 # Shortest form for path
 simple = "./libs/simple"
+# Registry with features
+sdl2 = { version = "2.0.0", features = ["vulkan"] }
 ```
 
 In these forms DCR will try defaults for include/lib dirs and use the dependency name as the linker library name.

@@ -23,6 +23,9 @@ dcr run --target linux --release
 - `linux` → `x86_64-unknown-linux-gnu`
 - `macos` → `x86_64-apple-darwin`
 - `windows` → `x86_64-pc-windows-msvc`
+- `freebsd` → `x86_64-unknown-freebsd`
+- `openbsd` → `x86_64-unknown-openbsd`
+- `netbsd` → `x86_64-unknown-netbsd`
 
 ### Full Target Triples
 DCR supports any valid target triple in the format `<arch>-<vendor>-<os>-<abi>`. Common examples:
@@ -32,6 +35,9 @@ DCR supports any valid target triple in the format `<arch>-<vendor>-<os>-<abi>`.
 - `aarch64-apple-darwin`
 - `x86_64-pc-windows-msvc`
 - `i686-pc-windows-gnu`
+- `x86_64-unknown-freebsd`
+- `x86_64-unknown-openbsd`
+- `x86_64-unknown-netbsd`
 
 ## Configuration
 
@@ -40,11 +46,11 @@ DCR supports any valid target triple in the format `<arch>-<vendor>-<os>-<abi>`.
 Configure multiple targets to build simultaneously:
 
 ```toml
-[build.targets]
+[build]
 targets = ["linux", "macos", "windows"]
 
 # Or per profile
-[build.release.targets]
+[build.release]
 targets = ["linux", "macos"]
 ```
 
@@ -66,6 +72,10 @@ cflags = ["-Wall", "-O2", "-arch", "x86_64"]
 [build.windows]
 compiler = "x86_64-w64-mingw32-gcc"
 ldflags = ["-static"]
+
+[build.freebsd]
+compiler = "clang"
+cflags = ["-Wall", "-O2"]
 ```
 
 ### Target-Specific Toolchain
@@ -99,6 +109,9 @@ cmd = "open ./target/macos/release/myapp.app"
 
 [run.windows]
 cmd = "wine ./target/windows/release/myapp.exe"
+
+[run.freebsd]
+cmd = "./target/freebsd/release/myapp"
 ```
 
 ## Workspace and Dependencies Inheritance
@@ -151,7 +164,10 @@ target/
 ├── x86_64-unknown-linux-gnu/
 │   ├── debug/
 │   └── release/
-└── aarch64-linux-gnu/
+├── aarch64-linux-gnu/
+│   ├── debug/
+│   └── release/
+└── x86_64-unknown-freebsd/
     ├── debug/
     └── release/
 ```

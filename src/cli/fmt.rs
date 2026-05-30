@@ -1,3 +1,20 @@
+// DCR — Cargo-like C/C++ project manager.
+//
+// Copyright (C) 2026 Dexoron (Bezotechestvo Vladimir) <main@dexoron.su>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 use crate::utils::log::error;
 use crate::utils::text::{BOLD_GREEN, colored};
 use glob::glob;
@@ -7,12 +24,20 @@ pub fn fmt(_args: &[String]) -> i32 {
     let patterns = [
         "src/**/*.c",
         "src/**/*.cpp",
+        "src/**/*.cxx",
+        "src/**/*.cc",
         "src/**/*.h",
         "src/**/*.hpp",
+        "src/**/*.hxx",
+        "src/**/*.hh",
         "tests/**/*.c",
         "tests/**/*.cpp",
+        "tests/**/*.cxx",
+        "tests/**/*.cc",
         "tests/**/*.h",
         "tests/**/*.hpp",
+        "tests/**/*.hxx",
+        "tests/**/*.hh",
     ];
 
     let mut files = Vec::new();

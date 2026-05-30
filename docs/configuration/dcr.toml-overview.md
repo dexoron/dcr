@@ -35,17 +35,16 @@ Workspace-only root:
 - `package.name`
 - `package.version`
 - `build.language`
-- `build.standard`
 - `build.compiler`
-- `build.kind`
-
-`build.kind` must be either `bin`, `staticlib`, or `sharedlib`.
 
 ## Optional keys
 
+- `build.standard` (default: `c11`)
+- `build.kind` (default: `bin`; valid: `bin`, `staticlib`, `sharedlib`, `efi`, `elf`, `none`, `custom`)
 - `build.inherit`
 - `build.targets`
 - `build.target`
+- `build.out_dir`
 - `build.platform`
 - `build.cflags`
 - `build.ldflags`

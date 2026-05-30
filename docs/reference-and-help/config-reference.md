@@ -19,13 +19,14 @@ categories  = ["string", "..."]   # optional
 
 [build]
 language     = "c|c++|cpp|cxx|asm"               # required (string or array)
-standard     = "string"                          # required (e.g. "c11", "gnu11")
+standard     = "string"                          # optional (default "c11")
 cxx_standard = "string"                          # optional (e.g. "c++17", "gnu++17")
 compiler     = "string"                          # required (e.g. "clang", "gcc")
-kind         = "bin|staticlib|sharedlib|efi|elf" # required
+kind         = "bin|staticlib|sharedlib|efi|elf|none|custom" # optional (default "bin")
 target       = "string"                          # optional (cross-compilation target triple)
+out_dir      = "string"                          # optional (custom output directory)
 platform     = "string"                          # optional (architecture hint, -march)
-type         = "string"                          # optional
+
 cflags       = ["string", "..."]                 # optional (supports {version} etc.)
 ldflags      = ["string", "..."]                 # optional (supports {version} etc.)
 ldscript     = "string"                          # optional (linker script path)
@@ -121,14 +122,15 @@ rev     = "string"          # optional (git commit)
 include = ["string", "..."] # optional (include dirs)
 lib     = ["string", "..."] # optional (lib dirs)
 libs    = ["string", "..."] # optional (link libs)
-features = ["string", "..."] # optional (registry features)
+features        = ["string", "..."] # optional (registry features)
+default-features = true             # optional (include default features)
 ```
 
 ## Validation rules
 
 - `[package]`, `[build]`, `[dependencies]` must exist.
 - Required string fields must be non-empty.
-- `build.kind` must be `bin`, `staticlib`, `sharedlib`, `efi`, or `elf`.
+- `build.kind` must be `bin`, `staticlib`, `sharedlib`, `efi`, `elf`, `none`, or `custom`.
 - Dependency fields `include/lib/libs` must be string arrays when provided.
 - `build.exclude`/`build.include` must be string arrays when provided.
 - `build.roots` must be a string array when provided.
