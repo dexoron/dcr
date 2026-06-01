@@ -738,6 +738,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: cargo publish
 
   # ── Homebrew tap ───────────────────────────────────────────────────────────
@@ -833,10 +835,20 @@ jobs:
           name: snap-package
           path: dist-packages
 
+      - name: Resolve Snap File
+        id: snap-file
+        run: |
+          snap_file=$(ls dist-packages/*.snap 2>/dev/null | head -1)
+          if [ -z "$snap_file" ]; then
+            echo "No .snap file found in dist-packages/"
+            exit 1
+          fi
+          echo "snap=$snap_file" >> "$GITHUB_OUTPUT"
+
       - name: Publish to Snap Store
         uses: snapcore/action-publish@v1
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAP_STORE_LOGIN }}
         with:
-          snap: dist-packages/*.snap
+          snap: ${{ steps.snap-file.outputs.snap }}
           release: stable
