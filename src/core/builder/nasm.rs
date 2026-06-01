@@ -43,6 +43,10 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
 
     if ctx.kind == "staticlib" {
         let lib_path = platform::lib_path(ctx.profile, ctx.project_name, ctx.target_dir);
+        if !common::needs_link(&objects, &lib_path) {
+            let elapsed = ((start_time.elapsed().as_secs_f64() * 100.0).trunc()) / 100.0;
+            return Ok(elapsed);
+        }
         let archiver = ctx.archiver.unwrap_or(if cfg!(target_os = "windows") {
             "lib"
         } else {
@@ -105,6 +109,11 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     } else {
         platform::bin_path(ctx.profile, &final_name, ctx.target_dir)
     };
+
+    if !common::needs_link(&objects, &out_path) {
+        let elapsed = ((start_time.elapsed().as_secs_f64() * 100.0).trunc()) / 100.0;
+        return Ok(elapsed);
+    }
     cmd.arg("-o").arg(out_path);
 
     if ctx.verbose || std::env::var("DCR_DEBUG").is_ok() {

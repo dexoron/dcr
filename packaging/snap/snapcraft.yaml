@@ -1,4 +1,4 @@
-name: dcr
+name: dcrup
 base: core22
 version: '0.6.9'
 summary: Cargo-like utility to manage C/C++ projects

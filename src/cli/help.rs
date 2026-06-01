@@ -31,6 +31,7 @@ pub fn help() -> i32 {
     println!("    run [--profile]   Build and run the project (default: --debug)");
     println!("    tree              Display the dependency tree");
     println!("    test              Run project tests (alias: tests)");
+    println!("    fmt               Format all C/C++ source files using clang-format");
     println!("    clean             Remove the target directory");
     println!("    gen <subcommand>  Generate IDE integration files");
     printc("FLAGS:", BOLD_GREEN);

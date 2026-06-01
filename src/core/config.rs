@@ -27,7 +27,15 @@ const DEFAULT_LANGUAGE: &str = "c";
 const DEFAULT_STANDARD: &str = "c11";
 const DEFAULT_COMPILER: &str = "clang";
 const DEFAULT_KIND: &str = "bin";
-const VALID_KINDS: &[&str] = &["bin", "staticlib", "sharedlib", "efi", "elf"];
+const VALID_KINDS: &[&str] = &[
+    "bin",
+    "staticlib",
+    "sharedlib",
+    "efi",
+    "elf",
+    "none",
+    "custom",
+];
 
 #[derive(Debug)]
 pub enum ConfigError {
@@ -101,7 +109,8 @@ pub struct PackageConfig {
 #[derive(Debug, Clone, Deserialize)]
 pub struct BuildConfig {
     pub language: LanguageConfig,
-    pub standard: String,
+    #[serde(default)]
+    pub standard: Option<String>,
     #[serde(default)]
     pub cxx_standard: Option<String>,
     pub compiler: String,
@@ -109,6 +118,8 @@ pub struct BuildConfig {
     pub kind: Option<String>,
     #[serde(default)]
     pub target: Option<String>,
+    #[serde(default)]
+    pub out_dir: Option<String>,
     #[serde(default)]
     pub platform: Option<String>,
     #[serde(default)]
@@ -353,7 +364,14 @@ impl Config {
         }
 
         validate_language_config(&build.language, "build.language")?;
-        if build.standard.trim().is_empty() {
+        let lang_is_asm = match &build.language {
+            LanguageConfig::One(s) => s.trim().eq_ignore_ascii_case("asm"),
+            LanguageConfig::Many(v) => v.len() == 1 && v[0].trim().eq_ignore_ascii_case("asm"),
+        };
+        if let Some(ref std) = build.standard
+            && std.trim().is_empty()
+            && !lang_is_asm
+        {
             return Err(ConfigError::Invalid("build.standard is empty".into()));
         }
         if build.compiler.trim().is_empty() {
@@ -379,6 +397,9 @@ impl Config {
         validate_string_list(&build.ldflags, "build.ldflags")?;
         if let Some(target) = &build.target {
             validate_non_empty_string(target, "build.target")?;
+        }
+        if let Some(out_dir) = &build.out_dir {
+            validate_non_empty_string(out_dir, "build.out_dir")?;
         }
         for profile in ["release", "debug"] {
             if let Some(section) = self
@@ -523,7 +544,9 @@ impl Config {
         if let Some(lang) = table.get("language") {
             self.validate_language(lang)?;
         }
-        for key in ["standard", "compiler", "kind", "target", "platform"] {
+        for key in [
+            "standard", "compiler", "kind", "target", "out_dir", "platform",
+        ] {
             if let Some(value) = table.get(key) {
                 let s = value.as_str().unwrap_or("");
                 if s.trim().is_empty() {
@@ -754,7 +777,9 @@ fn format_toml(value: &Value) -> Result<String, ConfigError> {
     } else {
         out.push_str(&format!("language = \"{language}\"\n"));
     }
-    out.push_str(&format!("standard = \"{standard}\"\n"));
+    if !standard.is_empty() {
+        out.push_str(&format!("standard = \"{standard}\"\n"));
+    }
     out.push_str(&format!("compiler = \"{compiler}\"\n"));
     let kind = build
         .get("kind")
@@ -765,6 +790,11 @@ fn format_toml(value: &Value) -> Result<String, ConfigError> {
         && !target.trim().is_empty()
     {
         out.push_str(&format!("target = \"{target}\"\n"));
+    }
+    if let Some(out_dir) = build.get("out_dir").and_then(|v| v.as_str())
+        && !out_dir.trim().is_empty()
+    {
+        out.push_str(&format!("out_dir = \"{out_dir}\"\n"));
     }
     if let Some(cflags) = build.get("cflags") {
         out.push_str(&format!("cflags = {}\n", format_string_array(cflags)));

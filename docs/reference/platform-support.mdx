@@ -1,0 +1,51 @@
+---
+sidebar_label: Platform support
+---
+
+# Platform Support
+
+## Target Triples
+
+DCR normalizes target triples. Short platform names are expanded to full triples.
+
+### Linux
+
+```
+target/<arch>-unknown-linux-gnu/<profile>/
+```
+
+Architectures: `x86_64`, `aarch64` (host-detected).
+
+Artifact type: ELF. Extensions: `.so` (sharedlib), `.a` (staticlib).
+
+### macOS
+
+```
+target/<profile>/
+```
+
+Architectures: `x86_64`, `aarch64` (host-detected).
+
+Extensions: `.dylib` (sharedlib), `.a` (staticlib).
+
+### Windows
+
+```
+target/<profile>/
+```
+
+Architectures: `x86_64`, `aarch64`.
+
+Extensions: `.exe` (bin), `.lib` (staticlib), `.dll` (sharedlib), `.efi` (UEFI).
+
+### BSD
+
+```
+target/<arch>-unknown-<os>/<profile>/
+```
+
+Supported systems: `freebsd`, `openbsd`, `netbsd`, `dragonfly`.
+
+## Host Detection
+
+DCR uses `std::env::consts::ARCH` and `std::env::consts::OS` for host platform detection. Used as fallback when `target` is not specified.

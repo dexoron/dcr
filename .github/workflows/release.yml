@@ -37,6 +37,10 @@ on:
         description: "Publish to crates.io"
         type: boolean
         default: false
+      run_snap:
+        description: "Publish to Snap Store (dcrup)"
+        type: boolean
+        default: false
       run_brew:
         description: "Update Homebrew tap"
         type: boolean
@@ -100,10 +104,28 @@ jobs:
           name: release-notes
           path: .github/release-notes.md
 
+  # ── Create Release (prevent race conditions) ───────────────────────────────
+  create-release:
+    needs: [setup, notes]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Release Notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: .github
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.setup.outputs.tag }}
+          body_path: .github/release-notes.md
+          prerelease: ${{ needs.setup.outputs.prerelease == 'true' }}
+
   # ── Linux Binaries Matrix ──────────────────────────────────────────────────
   build-linux:
     if: ${{ github.event_name == 'push' || github.event.inputs.run_linux == 'true' }}
-    needs: [setup, notes]
+    needs: [setup, notes, create-release]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -128,6 +150,12 @@ jobs:
         run: |
           pip install cargo-zigbuild
           echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Setup Zig
+        if: matrix.target != 'x86_64-unknown-linux-gnu'
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -222,14 +250,15 @@ jobs:
       - name: Build Arch Package inside Container
         if: matrix.package_type == 'arch'
         run: |
-          PKGVER='${{ needs.setup.outputs.version }}'
+          PKGVER_ORIG='${{ needs.setup.outputs.version }}'
+          PKGVER_CLEAN="${PKGVER_ORIG//-/.}"
           TAG='${{ needs.setup.outputs.tag }}'
           SRC_URL="https://github.com/dexoron/dcr/archive/refs/tags/${TAG}.tar.gz"
           SHA256="$(curl -fsSL "$SRC_URL" | sha256sum | awk '{print $1}')"
           mkdir -p arch-build
           cat > arch-build/PKGBUILD <<PKG
           pkgname=dcr
-          pkgver=${PKGVER}
+          pkgver=${PKGVER_CLEAN}
           pkgrel=1
           pkgdesc="Cargo-like utility to manage C/C++ projects"
           arch=('x86_64')
@@ -238,14 +267,14 @@ jobs:
           depends=('gcc-libs')
           makedepends=('cargo')
           options=('!lto')
-          source=("\$pkgname-\$pkgver.tar.gz::\$url/archive/refs/tags/v\$pkgver.tar.gz")
+          source=("\$pkgname-\$pkgver.tar.gz::\$url/archive/refs/tags/${TAG}.tar.gz")
           sha256sums=('${SHA256}')
           build() {
-            cd "\$srcdir/\$pkgname-\$pkgver"
+            cd "\$srcdir/\$pkgname-${PKGVER_ORIG}"
             cargo build --release --locked
           }
           package() {
-            cd "\$srcdir/\$pkgname-\$pkgver"
+            cd "\$srcdir/\$pkgname-${PKGVER_ORIG}"
             install -Dm755 "target/release/dcr" "\$pkgdir/usr/bin/dcr"
             install -Dm644 LICENSE "\$pkgdir/usr/share/licenses/\$pkgname/LICENSE"
           }
@@ -273,7 +302,7 @@ jobs:
 
   # ── Publish Packages to Release (Out of Matrix) ────────────────────────────
   publish-dexoron-packages:
-    needs: [setup, notes, build-linux-packages]
+    needs: [setup, notes, build-linux-packages, create-release]
     runs-on: ubuntu-latest
     steps:
       - name: Download Release Notes
@@ -302,7 +331,7 @@ jobs:
   # ── macOS Matrix ───────────────────────────────────────────────────────────
   build-macos:
     if: ${{ github.event_name == 'push' || github.event.inputs.run_macos == 'true' }}
-    needs: [setup, notes]
+    needs: [setup, notes, create-release]
     strategy:
       fail-fast: false
       matrix:
@@ -348,7 +377,7 @@ jobs:
   # ── BSD Systems Matrix ─────────────────────────────────────────────────────
   build-bsd:
     if: ${{ github.event_name == 'push' || github.event.inputs.run_bsd == 'true' }}
-    needs: [setup, notes]
+    needs: [setup, notes, create-release]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -421,6 +450,8 @@ jobs:
           cp target/release/dcr "$ASSET"
           echo "BSD_ASSET=${ASSET}" >> "$GITHUB_ENV"
 
+
+
       # --- UPLOAD TARGET ---
       - name: Upload BSD Asset to Release
         uses: softprops/action-gh-release@v2
@@ -433,7 +464,7 @@ jobs:
   # ── Windows Matrix ─────────────────────────────────────────────────────────
   build-windows:
     if: ${{ github.event_name == 'push' || github.event.inputs.run_windows == 'true' }}
-    needs: [setup, notes]
+    needs: [setup, notes, create-release]
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -500,14 +531,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PKGVER='${{ needs.setup.outputs.version }}'
+          PKGVER_ORIG='${{ needs.setup.outputs.version }}'
+          PKGVER_CLEAN="${PKGVER_ORIG//-/.}"
           SRC_URL='${{ steps.meta.outputs.source_url }}'
           SHA256='${{ steps.meta.outputs.sha256 }}'
 
           mkdir -p packages/aur/dcr
           cat > packages/aur/dcr/PKGBUILD <<PKG
           pkgname=dcr
-          pkgver=${PKGVER}
+          pkgver=${PKGVER_CLEAN}
           pkgrel=1
           pkgdesc="Cargo-like utility to manage C/C++ projects"
           arch=('x86_64' 'aarch64')
@@ -520,11 +552,11 @@ jobs:
             'gcc: build C/C++ projects with GCC'
             'clang: build C/C++ projects with Clang'
           )
-          source=("\$pkgname-\$pkgver.tar.gz::\$url/archive/refs/tags/v\$pkgver.tar.gz")
+          source=("\$pkgname-\$pkgver.tar.gz::\${SRC_URL}")
           sha256sums=('${SHA256}')
 
           build() {
-            cd "\$srcdir/\$pkgname-\$pkgver"
+            cd "\$srcdir/\$pkgname-${PKGVER_ORIG}"
             export CARGO_PROFILE_RELEASE_LTO=false
             export RUSTFLAGS="\${RUSTFLAGS:-}"
             export RUSTFLAGS="\${RUSTFLAGS/-C link-arg=-fuse-ld=lld/}"
@@ -532,7 +564,7 @@ jobs:
           }
 
           package() {
-            cd "\$srcdir/\$pkgname-\$pkgver"
+            cd "\$srcdir/\$pkgname-${PKGVER_ORIG}"
             install -Dm755 "target/release/dcr" "\$pkgdir/usr/bin/dcr"
             install -Dm644 LICENSE "\$pkgdir/usr/share/licenses/\$pkgname/LICENSE"
           }
@@ -541,7 +573,7 @@ jobs:
           cat > packages/aur/dcr/.SRCINFO <<SRC
           pkgbase = dcr
             pkgdesc = Cargo-like utility to manage C/C++ projects
-            pkgver = ${PKGVER}
+            pkgver = ${PKGVER_CLEAN}
             pkgrel = 1
             url = https://github.com/dexoron/dcr
             arch = x86_64
@@ -552,7 +584,7 @@ jobs:
             optdepends = gcc: build C/C++ projects with GCC
             optdepends = clang: build C/C++ projects with Clang
             options = !lto
-            source = dcr-${PKGVER}.tar.gz::${SRC_URL}
+            source = dcr-${PKGVER_CLEAN}.tar.gz::${SRC_URL}
             sha256sums = ${SHA256}
 
           pkgname = dcr
@@ -612,14 +644,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PKGVER='${{ needs.setup.outputs.version }}'
+          PKGVER_ORIG='${{ needs.setup.outputs.version }}'
+          PKGVER_CLEAN="${PKGVER_ORIG//-/.}"
           BIN_URL='${{ steps.meta.outputs.bin_url }}'
           SHA256='${{ steps.meta.outputs.sha256 }}'
 
           mkdir -p packages/aur/dcr-bin
           cat > packages/aur/dcr-bin/PKGBUILD <<PKG
           pkgname=dcr-bin
-          pkgver=${PKGVER}
+          pkgver=${PKGVER_CLEAN}
           pkgrel=1
           pkgdesc="Cargo-like utility to manage C/C++ projects (pre-compiled musl binary)"
           arch=('x86_64')
@@ -642,7 +675,7 @@ jobs:
           cat > packages/aur/dcr-bin/.SRCINFO <<SRC
           pkgbase = dcr-bin
             pkgdesc = Cargo-like utility to manage C/C++ projects (pre-compiled musl binary)
-            pkgver = ${PKGVER}
+            pkgver = ${PKGVER_CLEAN}
             pkgrel = 1
             url = https://github.com/dexoron/dcr
             arch = x86_64
@@ -651,7 +684,7 @@ jobs:
             conflicts = dcr
             optdepends = gcc: build C/C++ projects with GCC
             optdepends = clang: build C/C++ projects with Clang
-            source_x86_64 = dcr-${PKGVER}::${BIN_URL}
+            source_x86_64 = dcr-${PKGVER_CLEAN}::${BIN_URL}
             sha256sums_x86_64 = ${SHA256}
 
           pkgname = dcr-bin
@@ -785,3 +818,25 @@ jobs:
           git diff --staged --quiet && echo "No changes" && exit 0
           git commit -m "dcr ${{ needs.setup.outputs.version }}"
           git push
+  
+  # ── Snap Store (dcrup) ─────────────────────────────────────────────────────
+  publish-snap:
+    if: |
+      (github.event_name == 'push' && needs.setup.outputs.prerelease == 'false') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.run_snap == 'true')
+    needs: [setup, build-linux-packages]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Built Packages
+        uses: actions/download-artifact@v4
+        with:
+          name: snap-package
+          path: dist-packages
+
+      - name: Publish to Snap Store
+        uses: snapcore/action-publish@v1
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAP_STORE_LOGIN }}
+        with:
+          snap: dist-packages/*.snap
+          release: stable

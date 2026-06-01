@@ -383,6 +383,96 @@ fn registry_dependency_is_built_from_cache() {
     );
 }
 
+fn parse_project_name(toml: &str) -> String {
+    toml.lines()
+        .find(|l| l.trim().starts_with("name ="))
+        .and_then(|l| l.split('=').nth(1))
+        .map(|s| s.trim().trim_matches('"').to_string())
+        .expect("could not parse project name from dcr.toml")
+}
+
+fn default_artifact_path(project_root: &Path, project_name: &str) -> PathBuf {
+    project_root
+        .join("target")
+        .join("x86_64-unknown-linux-gnu")
+        .join("debug")
+        .join(project_name)
+}
+
+#[test]
+fn build_with_target_config() {
+    let Some(compiler) = available_compiler() else {
+        eprintln!("no compiler found; skipping target config test");
+        return;
+    };
+
+    let dir = unique_sandbox_dir("target_cfg");
+    let out = run_dcr(&["init"], &dir);
+    assert!(out.status.success(), "dcr init should succeed");
+
+    let toml_path = dir.join("dcr.toml");
+    let toml = std::fs::read_to_string(&toml_path).expect("failed to read dcr.toml");
+    let project_name = parse_project_name(&toml);
+    let updated = toml.replace("[build]", "[build]\ntarget = \"linux\"");
+    std::fs::write(&toml_path, updated).expect("failed to write dcr.toml");
+
+    let envs = [("DCR_COMPILER", compiler)];
+    let out = run_dcr_env(&["build"], &dir, &envs);
+    assert!(
+        out.status.success(),
+        "dcr build with target = \"linux\" should succeed"
+    );
+
+    let artifact = default_artifact_path(&dir, &project_name);
+    assert!(
+        artifact.is_file(),
+        "artifact should be at default path target/x86_64-unknown-linux-gnu/debug/{}",
+        project_name
+    );
+}
+
+#[test]
+fn build_with_out_dir() {
+    let Some(compiler) = available_compiler() else {
+        eprintln!("no compiler found; skipping out_dir test");
+        return;
+    };
+
+    let dir = unique_sandbox_dir("out_dir");
+    let out = run_dcr(&["init"], &dir);
+    assert!(out.status.success(), "dcr init should succeed");
+
+    let toml_path = dir.join("dcr.toml");
+    let toml = std::fs::read_to_string(&toml_path).expect("failed to read dcr.toml");
+    let project_name = parse_project_name(&toml);
+    let updated = toml.replace("[build]", "[build]\nout_dir = \"./_BUILD\"");
+    std::fs::write(&toml_path, updated).expect("failed to write dcr.toml");
+
+    let envs = [("DCR_COMPILER", compiler)];
+    let out = run_dcr_env(&["build"], &dir, &envs);
+    if !out.status.success() {
+        eprintln!("stdout: {}", String::from_utf8_lossy(&out.stdout));
+        eprintln!("stderr: {}", String::from_utf8_lossy(&out.stderr));
+    }
+    assert!(
+        out.status.success(),
+        "dcr build with out_dir should succeed"
+    );
+
+    let artifact = dir.join("_BUILD").join(&project_name);
+    assert!(
+        artifact.is_file(),
+        "artifact should be at _BUILD/{} (custom out_dir)",
+        project_name
+    );
+
+    let default_path = default_artifact_path(&dir, &project_name);
+    assert!(
+        !default_path.exists(),
+        "artifact should NOT be at default path when out_dir is set"
+    );
+}
+
 #[test]
 fn dcr_test_runs_without_sandbox_dependency() {
     let Some(compiler) = available_compiler() else {

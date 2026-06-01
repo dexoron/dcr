@@ -1,0 +1,51 @@
+---
+sidebar_label: IDE Integration
+---
+
+# IDE Integration
+
+## VS Code
+
+```bash
+dcr gen vscode
+```
+
+Generates in `.vscode/`:
+
+| File | Purpose |
+|------|---------|
+| `tasks.json` | `build` task (dcr build) |
+| `launch.json` | Debug launch configuration |
+| `settings.json` | clangd/IntelliSense: include paths, standard |
+| `extensions.json` | Recommends vscode-clangd, vscode-lldb |
+
+## CLion
+
+```bash
+dcr gen clion
+```
+
+Generates in `.idea/`:
+
+| File | Purpose |
+|------|---------|
+| `externalTools.xml` | Build, Run, Clean, Test as external tools |
+| `customTargets.xml` | Custom build targets |
+| `misc.xml` | C/C++ project settings |
+| `runConfigurations/<name>.xml` | Per-binary run configurations |
+
+## compile_commands.json
+
+```bash
+dcr gen compile-commands
+```
+
+Generates `compile_commands.json` at project root. Standard format for clangd, C/C++ IntelliSense, static analyzers.
+
+## project-info
+
+```bash
+dcr gen project-info
+```
+
+Outputs JSON array with project metadata (see [gen-commands](/docs/commands/gen-commands)).

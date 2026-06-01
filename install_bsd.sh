@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
-set -Eeuo pipefail
+#!/bin/sh
+set -eu
 
 TMPDIR="/tmp/dcr-install"
 INSTALL_PATH="$HOME/.local/share/dcr"
@@ -16,22 +16,19 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 mkdir -p "$(dirname "$LOGFILE")"
-exec > >(tee -a "$LOGFILE") 2>&1
 
-log()     { echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1"; }
-success() { echo -e "${GREEN}✔ $1${NC}"; }
-warn()    { echo -e "${YELLOW}⚠ $1${NC}"; }
-error()   { echo -e "${RED}✖ $1${NC}"; }
-
-trap 'error "Error on line $LINENO"; exit 1' ERR
+log()     { printf "${BLUE}[%s]${NC} %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$1" | tee -a "$LOGFILE"; }
+success() { printf "${GREEN}✔ %s${NC}\n" "$1" | tee -a "$LOGFILE"; }
+warn()    { printf "${YELLOW}⚠ %s${NC}\n" "$1" | tee -a "$LOGFILE"; }
+error()   { printf "${RED}✖ %s${NC}\n" "$1" | tee -a "$LOGFILE" >&2; }
 
 INSTALL_MODE=""
 CHANNEL=""
 
 check_os() {
     case "$(uname -s)" in
-        Linux|Darwin|FreeBSD|OpenBSD|NetBSD) ;;
-        *) error "Only Linux, macOS, and BSD systems are supported"; exit 1 ;;
+        FreeBSD|OpenBSD|NetBSD|DragonFly) ;;
+        *) error "Only BSD systems (FreeBSD, OpenBSD, NetBSD, DragonFly) are supported by this script"; exit 1 ;;
     esac
 }
 
@@ -41,21 +38,17 @@ detect_target() {
     arch="$(uname -m)"
 
     case "$os:$arch" in
-        Linux:x86_64)                      TARGET_TRIPLE="x86_64-unknown-linux-gnu" ;;
-        Linux:aarch64|Linux:arm64)         TARGET_TRIPLE="aarch64-unknown-linux-gnu" ;;
-        Darwin:x86_64)                     TARGET_TRIPLE="x86_64-apple-darwin" ;;
-        Darwin:arm64|Darwin:aarch64)       TARGET_TRIPLE="aarch64-apple-darwin" ;;
         FreeBSD:x86_64|FreeBSD:amd64)      TARGET_TRIPLE="x86_64-unknown-freebsd" ;;
         OpenBSD:x86_64|OpenBSD:amd64)      TARGET_TRIPLE="x86_64-unknown-openbsd" ;;
         NetBSD:x86_64|NetBSD:amd64)        TARGET_TRIPLE="x86_64-unknown-netbsd" ;;
-
-        *) error "Unsupported platform: $os/$arch"; exit 1 ;;
+        DragonFly:x86_64|DragonFly:amd64)  TARGET_TRIPLE="x86_64-unknown-dragonfly" ;;
+        *) error "Unsupported BSD platform: $os/$arch"; exit 1 ;;
     esac
 }
 
 check_common_dependencies() {
     command -v curl >/dev/null 2>&1 || { error "curl is not installed"; exit 1; }
-    if [[ "$CHANNEL" == "dev" ]]; then
+    if [ "$CHANNEL" = "dev" ]; then
         if ! command -v python3 >/dev/null 2>&1 && ! command -v jq >/dev/null 2>&1; then
             error "For dev installations, either 'python3' or 'jq' must be installed to parse GitHub API response."
             exit 1
@@ -72,7 +65,8 @@ select_channel() {
     echo "Choose channel:"
     echo "  1) Latest stable release (default)"
     echo "  2) Latest dev (pre-release)"
-    read -r -p "Enter 1 or 2 [1]: " choice < /dev/tty
+    printf "Enter 1 or 2 [1]: "
+    read -r choice
 
     case "${choice:-1}" in
         1) CHANNEL="stable" ;;
@@ -85,7 +79,8 @@ select_install_mode() {
     echo "Choose installation mode:"
     echo "  1) Download prebuilt binary from GitHub Release (recommended)"
     echo "  2) Build from git"
-    read -r -p "Enter 1 or 2 [1]: " choice < /dev/tty
+    printf "Enter 1 or 2 [1]: "
+    read -r choice
 
     case "${choice:-1}" in
         1) INSTALL_MODE="release" ;;
@@ -94,9 +89,8 @@ select_install_mode() {
     esac
 }
 
-# Returns JSON of the requested release to stdout
 fetch_release_json() {
-    if [[ "$CHANNEL" == "dev" ]]; then
+    if [ "$CHANNEL" = "dev" ]; then
         log "Looking for latest dev (pre-release)..."
         local json result
         json="$(curl -fsSL "$GITHUB_API_ALL")"
@@ -115,7 +109,7 @@ EOF
 )"
         fi
 
-        if [[ -z "$result" || "$result" == "{}" || "$result" == "null" ]]; then
+        if [ -z "$result" ] || [ "$result" = "{}" ] || [ "$result" = "null" ]; then
             error "No dev (pre-release) found on GitHub"
             exit 1
         fi
@@ -132,14 +126,12 @@ download_binary() {
 
     tag="$(printf '%s\n' "$release_json" | \
         sed -n 's/.*"tag_name": "\([^"]*\)".*/\1/p' | head -n1)"
-    if [[ -z "$tag" ]]; then
+    if [ -z "$tag" ]; then
         error "Failed to determine release version"
         exit 1
     fi
 
-    # Version without leading 'v'
     version="${tag#v}"
-    # Binary name: dcr-<triple>-<version>
     asset_name="dcr-${TARGET_TRIPLE}-${version}"
 
     log "Fetching release ${tag} (channel: ${CHANNEL})..."
@@ -147,7 +139,7 @@ download_binary() {
     download_url="$(printf '%s\n' "$release_json" | \
         sed -n "s#.*\"browser_download_url\": \"\([^\"]*/${asset_name}\)\".*#\1#p" | head -n1)"
 
-    if [[ -z "$download_url" ]]; then
+    if [ -z "$download_url" ]; then
         error "Asset ${asset_name} not found in release ${tag}"
         exit 1
     fi
@@ -162,8 +154,7 @@ prepare_sources() {
     log "Fetching sources..."
     rm -rf "$TMPDIR"
     git clone --depth 1 "$REPO_URL" "$TMPDIR"
-    if [[ "$CHANNEL" == "dev" ]]; then
-        # Clone dev branch if it exists
+    if [ "$CHANNEL" = "dev" ]; then
         git clone --depth 1 --branch dev "$REPO_URL" "$TMPDIR" 2>/dev/null || \
         git clone --depth 1 "$REPO_URL" "$TMPDIR"
     fi
@@ -193,7 +184,7 @@ install_link() {
 check_path() {
     if ! echo "$PATH" | grep -q "$BINPATH"; then
         warn "Directory $BINPATH not found in PATH"
-        echo "Add this to ~/.bashrc or ~/.zshrc:"
+        echo "Add this to ~/.bashrc, ~/.zshrc or ~/.profile:"
         echo "export PATH=\"$BINPATH:\$PATH\""
     fi
 }
@@ -203,16 +194,16 @@ cleanup() {
 }
 
 main() {
-    log "Starting DCR installation"
+    log "Starting DCR installation for BSD"
 
     check_os
-    detect_target
     select_channel
     check_common_dependencies
+    detect_target
     select_install_mode
     cleanup
 
-    if [[ "$INSTALL_MODE" == "build" ]]; then
+    if [ "$INSTALL_MODE" = "build" ]; then
         check_build_dependencies
         prepare_sources
         build_binary

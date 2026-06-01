@@ -1,5 +1,51 @@
 # Changelog
 
+## [0.7.0] - 2026-06-02
+
+Added:
+
+- **OpenBSD and NetBSD target support** — full platform routing with dynamically generated target triples using `std::env::consts::ARCH` and `std::env::consts::OS`. Affects `build`, `run`, `clean`, and the platform module.
+- **`src/platform/bsd.rs`** — new dedicated BSD platform module shared by FreeBSD, OpenBSD, NetBSD, providing `bin_path`, `lib_path`, `elf_path`, `efi_path`, and `shared_lib_path`.
+- **`build.out_dir` configuration option** — custom output directory that overrides the default `target/<triple>/<profile>` path for final artifacts. Supported in `build`, `run`, and config validation.
+- **`dcr fmt` command** — new CLI command that formats all C/C++ source files (`*.c`, `*.cpp`, `*.h`, `*.hpp`) in `src/` and `tests/` using `clang-format`.
+- **Incremental linking** — `needs_link()` function in `common.rs` that checks whether any object file is newer than the linked output, skipping unnecessary re-linking. Implemented for all backends (`unix_cc`, `msvc`, `gas`, `nasm`).
+- **`build.kind = "none"` and `"custom"`** — two new project kind types for special build scenarios where no standard artifact is produced.
+- **`install_bsd.sh`** — dedicated POSIX-compliant install script for BSD systems (FreeBSD, OpenBSD, NetBSD) with binary download and source build modes.
+- **Linux ARM64 support in `install.sh`** — added `Linux:aarch64|Linux:arm64` target triple detection for pre-built binary downloads.
+- **BSD OS detection in `install.sh`** — FreeBSD, OpenBSD, NetBSD detection and target triple resolution.
+- **`rust-toolchain.toml`** — explicit `stable` channel toolchain pinning.
+- **Nix support** — `flake.nix` for Nix package manager. Run via `nix run github:dexoron/dcr` or install with `nix profile install github:dexoron/dcr`. Contributed by community contributor.
+- **Snapcraft publish** — `dcrup` published on Snapcraft. Install with `sudo snap install dcrup`.
+- **Integration tests** — `build_with_target_config` (verifies `build.target = "linux"`) and `build_with_out_dir` (verifies custom output directory).
+- **`get_build_string_with_profile` made `pub`** — so `run.rs` can resolve custom output directory configuration.
+
+Changed:
+
+- **`build.target` semantics changed** — now strictly holds the target triple (e.g. `x86_64-unknown-linux-gnu`) or a short name (`linux`, `macos`, `windows`). No longer doubles as a custom output directory — that functionality moved to `build.out_dir`.
+- **`build.standard` made optional** — changed from `String` to `Option<String>`. Validation only enforces non-empty for non-ASM languages. Skipped in `dcr.toml` output when empty.
+- **`dcr run` with `out_dir`** — now resolves target directory respecting `build.out_dir` when configured, via `get_build_string_with_profile()` from `build.rs`.
+- **`collect_sources()` returns empty vec** instead of error when no source files are found, allowing `kind = "none"` or `kind = "custom"` projects to have no source files.
+- **CI/CD release workflow refactored** — `git2` made target-specific (no vendored-openssl on Windows), Zig-based cross-compilation for non-x86_64 Linux targets, Arch Linux package version sanitization (dashes → dots), NetBSD `gmake` symlink.
+- **README compatibility table** — FreeBSD, OpenBSD, NetBSD build/runtime status upgraded from community/best-effort to officially supported.
+- **Documentation rewritten** — available at [dcr.dexoron.su/docs](https://dcr.dexoron.su/docs) or in the `docs/` directory. Installation guides, commands, and reference updated to reflect current CLI and config format.
+- **Site rewritten** — `dcr-site` migrated to Docusaurus with internationalization (i18n) support, improved navigation, and updated content across all sections.
+- **Dev channel dependency check in `install.sh`** — checks for `python3` or `jq` before attempting dev channel installations.
+
+Fixed:
+
+- **`dcr run` stdout/stderr not inherited** — child process output was captured and manually printed, breaking interactive programs. Fixed by switching to `Command::status()`.
+- **Release CI race condition** — build matrix jobs could upload assets to a release that did not yet exist. Fixed by adding a dedicated `create-release` job.
+- **GHA release — stable toolchain override** — resolved Rust toolchain override issues in CI.
+- **Arch Linux package version sanitization** — version strings with dashes (e.g. `0.7.0-dev`) are invalid for Arch Linux `pkgver`. Fixed by replacing dashes with dots.
+- **GPG permissions after Docker** — Docker operations changed GPG directory ownership. Fixed by running `chown` after Docker commands.
+- **RPM package artifact paths** — RPM artifacts placed under `rpm/x86_64/` instead of `fedora/x86_64/`. Corrected in Dexoron Packages Index workflow.
+- **`install.sh` JSON parsing robustness** — added `jq` as primary parser with `python3` fallback for dev channel release lookups.
+
+Removed:
+
+- **`format_roots()` helper** — removed from `common.rs`. Was only used by the old error path in `collect_sources()`.
+- **Individual per-distro artifact download steps** — three separate `actions/download-artifact` steps replaced with unified `gh release download --clobber`.
+
 ## [0.6.9] - 2026-05-28
 
 Added:

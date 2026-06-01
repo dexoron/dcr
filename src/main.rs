@@ -14,7 +14,6 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 use crate::utils::log::error;
 mod cli;
 mod config;
@@ -41,6 +40,7 @@ fn main() {
         "run" => cli::run::run(rest),
         "tree" => cli::tree::tree(rest),
         "test" | "tests" => cli::test::test(rest),
+        "fmt" => cli::fmt::fmt(rest),
         "clean" => cli::clean::clean(rest),
         "gen" => cli::r#gen::r#gen(rest),
         "--version" => {

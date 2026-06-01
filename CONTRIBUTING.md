@@ -33,7 +33,7 @@ DCR supports cross-compilation via `--target <triple>` or short names:
 - Configure multiple targets in `dcr.toml`:
 
   ```toml
-  [build.targets]
+  [build]
   targets = ["linux", "macos"]
 
   [build.linux]

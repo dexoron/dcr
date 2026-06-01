@@ -1,0 +1,59 @@
+---
+sidebar_label: Environment variables
+---
+
+# Environment Variables
+
+## DCR_COMPILER
+
+Overrides the compiler for all languages. **Highest priority.**
+
+```bash
+export DCR_COMPILER=clang
+dcr build
+```
+
+Compiler resolution priority:
+1. `DCR_COMPILER` (env)
+2. `DCR_CC` / `DCR_CXX` / `DCR_AS` (env)
+3. `[toolchain]` (dcr.toml)
+4. `build.compiler` (dcr.toml)
+5. `PATH`
+
+## DCR_CC / DCR_CXX / DCR_AS
+
+Per-language override (lower priority than `DCR_COMPILER`, higher than `[toolchain]`).
+
+```bash
+export DCR_CC=gcc-14
+export DCR_CXX=g++-14
+export DCR_AS=arm-linux-gnueabihf-as
+```
+
+## DCR_LD / DCR_AR
+
+Override linker and archiver.
+
+```bash
+export DCR_LD=ld.lld
+export DCR_AR=llvm-ar
+```
+
+## DCR_DEBUG
+
+Enables debug mode — prints all compilation commands to stderr before execution.
+
+```bash
+export DCR_DEBUG=1
+dcr build
+```
+
+## DCR_INDEX_PATH
+
+Overrides the path to the registry `index.json`.
+
+```bash
+export DCR_INDEX_PATH=/custom/path/index.json
+```
+
+Default: `~/.dcr/index.json`.

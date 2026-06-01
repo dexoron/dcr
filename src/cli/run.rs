@@ -83,7 +83,6 @@ pub fn run(args: &[String]) -> i32 {
             return 1;
         }
     };
-
     let flags = match parse_build_run_flags(args) {
         Ok(v) => v,
         Err(_) => return 1,
@@ -160,15 +159,26 @@ fn run_project(
     let mut target = flags.target.clone();
     if target.is_none() {
         let default_target = if cfg!(target_os = "linux") {
-            "x86_64-unknown-linux-gnu"
+            format!("{}-unknown-linux-gnu", std::env::consts::ARCH)
         } else if cfg!(target_os = "macos") {
-            "x86_64-apple-darwin"
+            "x86_64-apple-darwin".to_string()
         } else if cfg!(target_os = "windows") {
-            "x86_64-pc-windows-msvc"
+            "x86_64-pc-windows-msvc".to_string()
+        } else if cfg!(any(
+            target_os = "freebsd",
+            target_os = "openbsd",
+            target_os = "netbsd",
+            target_os = "dragonfly"
+        )) {
+            format!(
+                "{}-unknown-{}",
+                std::env::consts::ARCH,
+                std::env::consts::OS
+            )
         } else {
-            "unknown"
+            "unknown".to_string()
         };
-        target = Some(default_target.to_string());
+        target = Some(default_target);
     }
 
     let build_kind = config
@@ -177,14 +187,20 @@ fn run_project(
         .or_else(|| config.get("build.kind").and_then(|v| v.as_str()))
         .unwrap_or("");
 
-    let normalized_target_dir = match workspace_root {
-        Some(wr) => target
-            .as_ref()
-            .and_then(|t| crate::cli::build::normalize_target(t, &flags.profile))
-            .map(|rel| wr.join(&rel).to_string_lossy().to_string()),
-        None => target
-            .as_ref()
-            .and_then(|t| crate::cli::build::normalize_target(t, &flags.profile)),
+    let out_dir =
+        crate::cli::build::get_build_string_with_profile(&config, "out_dir", &flags.profile);
+    let normalized_target_dir = if !out_dir.is_empty() {
+        Some(out_dir)
+    } else {
+        match workspace_root {
+            Some(wr) => target
+                .as_ref()
+                .and_then(|t| crate::cli::build::normalize_target(t, &flags.profile))
+                .map(|rel| wr.join(&rel).to_string_lossy().to_string()),
+            None => target
+                .as_ref()
+                .and_then(|t| crate::cli::build::normalize_target(t, &flags.profile)),
+        }
     };
 
     let version = config
