@@ -1,0 +1,47 @@
+---
+sidebar_label: Changelog
+---
+
+# Changelog
+
+## 0.7.0 (2026-06-01)
+
+### Added
+
+- **OpenBSD and NetBSD target support** — full platform routing with dynamic target triples using `std::env::consts::ARCH` and `std::env::consts::OS`. Affects `build`, `run`, `clean` commands and the platform module.
+- **`src/platform/bsd.rs`** — new BSD platform module (shared by FreeBSD, OpenBSD, NetBSD) providing `bin_path`, `lib_path`, `elf_path`, `efi_path`, `shared_lib_path`.
+- **`build.out_dir` config option** — custom output directory that overrides the default `target/<triple>/<profile>` path for final artifacts. Supported in `build`, `run`, and config validation.
+- **`dcr fmt` command** — new CLI command that formats all C/C++ source files (`*.c`, `*.cpp`, `*.h`, `*.hpp`) in `src/` and `tests/` using `clang-format`.
+- **Incremental linking** — `needs_link()` in `common.rs` checks if any object file is newer than the linked output, skipping unnecessary relinking. Implemented for all backends (`unix_cc`, `msvc`, `gas`, `nasm`).
+- **`build.kind = "none"` and `"custom"`** — two new project kinds for special build scenarios that don't produce standard artifacts.
+- **`install_bsd.sh`** — POSIX-compliant installation script for BSD systems (FreeBSD, OpenBSD, NetBSD) with binary download and source build modes.
+- **Linux ARM64 support in `install.sh`** — added `Linux:aarch64|Linux:arm64` target detection for pre-built binary downloads.
+- **BSD OS detection in `install.sh`** — detects FreeBSD, OpenBSD, NetBSD and determines target triple.
+- **`rust-toolchain.toml`** — explicit toolchain pinning to `stable` channel.
+- **Integration tests** — `build_with_target_config` (verifies `build.target = "linux"`) and `build_with_out_dir` (validates custom output directory).
+- **`get_build_string_with_profile` made `pub`** — so `run.rs` can determine custom output directory configuration.
+
+### Changed
+
+- **`build.target` semantics changed** — now strictly contains a target triple (e.g., `x86_64-unknown-linux-gnu`) or short name (`linux`, `macos`, `windows`). No longer used as custom output directory — this functionality moved to `build.out_dir`.
+- **`build.standard` made optional** — changed from `String` to `Option<String>`. Validation only enforces non-empty for non-ASM languages. Skipped in `dcr.toml` output if empty.
+- **`dcr run` with `out_dir`** — now determines target directory respecting `build.out_dir` via `get_build_string_with_profile()` from `build.rs`.
+- **`collect_sources()` returns empty vector** instead of error when no sources are found, allowing `kind = "none"` or `kind = "custom"` projects with no source files.
+- **CI/CD release workflow refactored** — `git2` made target-specific (no vendored-openssl on Windows), Zig-based cross-compilation for non-x86_64 Linux targets, Arch Linux package version cleanup (dashes → dots), `gmake` symlink for NetBSD.
+- **README compatibility table** — FreeBSD, OpenBSD, NetBSD build/run status upgraded from "community/best-effort" to "officially supported".
+- **Documentation updated** — `build-section.md` describes new `build.target` and `build.out_dir` fields. `target-directory.md` rewritten to clarify the distinction.
+
+### Fixed
+
+- **stdout/stderr not inherited in `dcr run`** — child process output was captured and manually printed, breaking interactive programs. Fixed by switching to `Command::status()`.
+- **Race condition in release CI** — matrix build jobs could upload assets to a release that didn't exist yet. Fixed by adding a dedicated `create-release` job.
+- **Release GHA — stable toolchain override** — fixed Rust toolchain override issues in CI.
+- **Arch Linux package version sanitization** — version strings with dashes (e.g., `0.7.0-dev`) are invalid for `pkgver`. Fixed by replacing dashes with dots.
+- **GPG permissions after Docker** — Docker operations changed GPG directory ownership. Fixed by running `chown` after Docker commands.
+- **RPM artifact paths** — RPM artifacts were placed in `rpm/x86_64/` instead of `fedora/x86_64/`. Fixed in Dexoron Packages Index workflow.
+- **JSON parsing reliability in `install.sh`** — added `jq` as primary parser with `python3` fallback for dev channel release lookup.
+
+### Removed
+
+- **`format_roots()` helper function** — removed from `common.rs`. Was only used by the old error handling path in `collect_sources()`.
+- **Per-distribution artifact download steps** — three separate `actions/download-artifact` steps replaced with unified `gh release download --clobber`.

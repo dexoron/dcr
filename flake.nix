@@ -26,7 +26,9 @@
         inherit system;
       };
 
-      packageName = "dcr";
+      cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+      packageName = cargoToml.package.name;
+      packageVersion = cargoToml.package.version;
 
       rustToolchain = fenix.packages.${system}.stable.toolchain;
 
@@ -45,7 +47,7 @@
 
       app = rustPlatform.buildRustPackage {
         pname = packageName;
-        version = "0.6.9";
+        version = packageVersion;
 
         src = ./.;
 

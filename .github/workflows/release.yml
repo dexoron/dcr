@@ -37,6 +37,10 @@ on:
         description: "Publish to crates.io"
         type: boolean
         default: false
+      run_snap:
+        description: "Publish to Snap Store (dcrup)"
+        type: boolean
+        default: false
       run_brew:
         description: "Update Homebrew tap"
         type: boolean
@@ -814,3 +818,25 @@ jobs:
           git diff --staged --quiet && echo "No changes" && exit 0
           git commit -m "dcr ${{ needs.setup.outputs.version }}"
           git push
+  
+  # ── Snap Store (dcrup) ─────────────────────────────────────────────────────
+  publish-snap:
+    if: |
+      (github.event_name == 'push' && needs.setup.outputs.prerelease == 'false') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.run_snap == 'true')
+    needs: [setup, build-linux-packages]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Built Packages
+        uses: actions/download-artifact@v4
+        with:
+          name: snap-package
+          path: dist-packages
+
+      - name: Publish to Snap Store
+        uses: snapcore/action-publish@v1
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAP_STORE_LOGIN }}
+        with:
+          snap: dist-packages/*.snap
+          release: stable

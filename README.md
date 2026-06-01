@@ -80,6 +80,18 @@ brew install dcr
 </td>
 </tr>
 <tr>
+<td><b>Nix (flake)</b></td>
+<td>
+
+```sh
+nix run github:dexoron/dcr
+# or install to profile:
+nix profile install github:dexoron/dcr
+```
+
+</td>
+</tr>
+<tr>
 <td><b>Cargo (crates.io)</b></td>
 <td>
 

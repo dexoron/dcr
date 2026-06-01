@@ -1,0 +1,68 @@
+---
+sidebar_label: Test framework (EXPECT, TEST, ...)
+---
+
+# Test Framework
+
+DCR has a built-in minimal test framework for C.
+
+## Macros
+
+### `EXPECT(expr)`
+
+Asserts that an expression is true.
+
+```c
+EXPECT(1 + 1 == 2);
+EXPECT(ptr != NULL);
+```
+
+### `SKIP(reason)`
+
+Skips a test with a message.
+
+```c
+SKIP("not implemented on Windows");
+```
+
+### `TEST(name)`
+
+Defines a test.
+
+```c
+TEST(addition) {
+    EXPECT(1 + 1 == 2);
+    EXPECT(2 + 2 == 4);
+}
+```
+
+### `TEST_CASE(name)`
+
+Registers a test case.
+
+```c
+TEST_CASE(math) {
+    EXPECT(1 + 1 == 2);
+}
+```
+
+## Initialization
+
+```bash
+dcr test --init
+```
+
+Creates:
+- `tests/dcr_test.h` — framework header (do not edit)
+- `tests/test.c` — template with example test
+
+## Structure
+
+```
+tests/
+├── dcr_test.h      # framework (do not edit)
+├── test.c          # main tests
+└── ...             # additional .c test files
+```
+
+Only `.c` files are compiled (`.cpp` is not supported).

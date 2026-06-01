@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.7.0] - 2026-05-30
+## [0.7.0] - 2026-06-02
 
 Added:
 
@@ -14,6 +14,8 @@ Added:
 - **Linux ARM64 support in `install.sh`** — added `Linux:aarch64|Linux:arm64` target triple detection for pre-built binary downloads.
 - **BSD OS detection in `install.sh`** — FreeBSD, OpenBSD, NetBSD detection and target triple resolution.
 - **`rust-toolchain.toml`** — explicit `stable` channel toolchain pinning.
+- **Nix support** — `flake.nix` for Nix package manager. Run via `nix run github:dexoron/dcr` or install with `nix profile install github:dexoron/dcr`. Contributed by community contributor.
+- **Snapcraft publish** — `dcrup` published on Snapcraft. Install with `sudo snap install dcrup`.
 - **Integration tests** — `build_with_target_config` (verifies `build.target = "linux"`) and `build_with_out_dir` (verifies custom output directory).
 - **`get_build_string_with_profile` made `pub`** — so `run.rs` can resolve custom output directory configuration.
 
@@ -25,7 +27,8 @@ Changed:
 - **`collect_sources()` returns empty vec** instead of error when no source files are found, allowing `kind = "none"` or `kind = "custom"` projects to have no source files.
 - **CI/CD release workflow refactored** — `git2` made target-specific (no vendored-openssl on Windows), Zig-based cross-compilation for non-x86_64 Linux targets, Arch Linux package version sanitization (dashes → dots), NetBSD `gmake` symlink.
 - **README compatibility table** — FreeBSD, OpenBSD, NetBSD build/runtime status upgraded from community/best-effort to officially supported.
-- **Documentation updated** — `build-section.md` documents new `build.target` and `build.out_dir` fields. `target-directory.md` rewritten to clarify the distinction.
+- **Documentation rewritten** — available at [dcr.dexoron.su/docs](https://dcr.dexoron.su/docs) or in the `docs/` directory. Installation guides, commands, and reference updated to reflect current CLI and config format.
+- **Site rewritten** — `dcr-site` migrated to Docusaurus with internationalization (i18n) support, improved navigation, and updated content across all sections.
 - **Dev channel dependency check in `install.sh`** — checks for `python3` or `jq` before attempting dev channel installations.
 
 Fixed:

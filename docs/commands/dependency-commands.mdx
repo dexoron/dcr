@@ -1,0 +1,51 @@
+---
+sidebar_label: Dependency commands (add, tree)
+---
+
+# Dependency Commands
+
+## `dcr add <name> [source]`
+
+Adds a dependency to `dcr.toml`.
+
+```bash
+dcr add fmt                    # registry lookup
+dcr add mylib ../path/to/lib   # path as source
+dcr add mylib path:./lib       # explicit path prefix
+dcr add mylib git:https://github.com/user/repo  # explicit git prefix
+dcr add mylib github:user/repo # GitHub shorthand
+dcr add mylib gitlab:user/repo # GitLab shorthand
+```
+
+Source prefixes:
+- `path:` — local path
+- `git:` — generic git URL
+- `github:` — expands to `https://github.com/<user>/<repo>`
+- `gitlab:` — expands to `https://gitlab.com/<user>/<repo>`
+- `http://` / `https://` / `git@` — full URL
+
+Flags:
+- `--branch <name>` — git branch
+- `--tag <name>` — git tag
+- `--rev <hash>` — git commit
+
+If source is omitted — DCR searches connected registries.
+
+## `dcr tree`
+
+Displays the project dependency tree.
+
+```bash
+dcr tree
+```
+
+Example output:
+
+```
+my-app v0.1.0
+├── fmt (registry)
+│   └── spdlog (registry)
+└── catch2 (registry)
+```
+
+For path dependencies, recursively shows their own dependencies (from their `dcr.toml`).

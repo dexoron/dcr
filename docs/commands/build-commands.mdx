@@ -1,0 +1,42 @@
+---
+sidebar_label: Build commands (build, run, clean)
+---
+
+# Build Commands
+
+## `dcr build`
+
+Builds the project according to `dcr.toml`.
+
+```bash
+dcr build                         # debug profile
+dcr build --release               # release build
+dcr build --debug                 # explicit debug
+dcr build --target aarch64-unknown-linux-gnu
+dcr build --force                 # full rebuild
+dcr build --clean                 # clean + build
+dcr build --verbose               # show compilation commands
+dcr build --workspace pkg-a       # build specific workspace package
+```
+
+Artifacts: `target/<triple>/<profile>/<binary-name>` (Linux with explicit target).
+
+## `dcr run`
+
+Builds (if sources are newer than artifacts) and runs the binary.
+
+```bash
+dcr run
+dcr run --release
+```
+
+## `dcr clean`
+
+Removes `target/` directory (or `target/<target>/<profile>`).
+
+```bash
+dcr clean
+dcr clean --release               # target/release/ only
+dcr clean --target windows        # target/x86_64-pc-windows-msvc/
+dcr clean --all                   # clean all workspace packages
+```

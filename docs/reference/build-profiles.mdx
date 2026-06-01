@@ -1,0 +1,55 @@
+---
+sidebar_label: Build profiles
+---
+
+# Build Profiles
+
+Profiles allow overriding `[build]` fields for specific build modes.
+
+## Configuration
+
+```toml
+[build]
+language = "c"
+standard = "c17"
+cflags = ["-Wall"]
+
+[build.debug]
+cflags = ["-O0", "-g"]
+
+[build.release]
+cflags = ["-O3", "-DNDEBUG"]
+```
+
+## Merge rules
+
+Fields from `[build.<profile>]` are merged on top of `[build]`:
+
+- **Scalar fields** (strings, numbers, bools) — replaced
+- **Arrays** (`cflags`, `ldflags`, ...) — **appended** (extend the `[build]` array)
+
+Set `inherit = false` to disable array inheritance (only profile's own arrays are used).
+
+## Built-in profiles
+
+| Profile | Default cflags |
+|---------|---------------|
+| `debug` | `-O0 -g -Wall -Wextra -fno-omit-frame-pointer -DDCR_DEBUG` |
+| `release` | `-O3 -DNDEBUG` |
+
+## Target-specific profiles
+
+```toml
+[build.linux]
+cflags = ["-DLINUX"]
+
+[build.windows.debug]
+cflags = ["-DWIN32", "-O0", "-g"]
+```
+
+Application order (highest priority first):
+1. `[build.<target>.<profile>]`
+2. `[build.<profile>.<target>]`
+3. `[build.<target>]`
+4. `[build.<profile>]`
+5. `[build]`
