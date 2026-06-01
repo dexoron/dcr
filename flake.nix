@@ -96,10 +96,7 @@
 
         packages = [
           rustToolchain
-
           pkgs.rust-analyzer
-          pkgs.just
-          pkgs.podman-compose
 
           treefmtEval.config.build.wrapper
         ];
