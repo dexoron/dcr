@@ -205,41 +205,73 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - package_type: deb
-            artifact_name: debian-package
-          - package_type: rpm
-            artifact_name: rpm-package
+        package_type: [deb, rpm, arch, snap]
+        target: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, i686-unknown-linux-gnu, armv7-unknown-linux-gnueabihf, riscv64gc-unknown-linux-gnu]
+        exclude:
           - package_type: arch
-            artifact_name: arch-package
+            target: aarch64-unknown-linux-gnu
+          - package_type: arch
+            target: i686-unknown-linux-gnu
+          - package_type: arch
+            target: armv7-unknown-linux-gnueabihf
+          - package_type: arch
+            target: riscv64gc-unknown-linux-gnu
           - package_type: snap
-            artifact_name: snap-package
+            target: aarch64-unknown-linux-gnu
+          - package_type: snap
+            target: i686-unknown-linux-gnu
+          - package_type: snap
+            target: armv7-unknown-linux-gnueabihf
+          - package_type: snap
+            target: riscv64gc-unknown-linux-gnu
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.setup.outputs.tag }}
 
-      - name: Setup Rust (For non-container builds)
+      - name: Install cargo-zigbuild
+        if: matrix.package_type == 'deb' || matrix.package_type == 'rpm'
+        run: |
+          pip install cargo-zigbuild
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Setup Zig
+        if: (matrix.package_type == 'deb' || matrix.package_type == 'rpm') && matrix.target != 'x86_64-unknown-linux-gnu'
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+
+      - name: Setup Rust
         if: matrix.package_type != 'arch'
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
       # ── DEB Build ──
       - name: Build Debian Package
         if: matrix.package_type == 'deb'
         run: |
           cargo install cargo-deb
-          cargo build --release
-          cargo deb --no-build
-          mkdir -p dist-packages && cp target/debian/*.deb dist-packages/
+          if [ "${{ matrix.target }}" != "x86_64-unknown-linux-gnu" ]; then
+            cargo zigbuild --release --target ${{ matrix.target }}
+          else
+            cargo build --release --target ${{ matrix.target }}
+          fi
+          cargo deb --no-build --target ${{ matrix.target }}
+          mkdir -p dist-packages && cp target/${{ matrix.target }}/debian/*.deb dist-packages/
 
       # ── RPM Build ──
       - name: Build RPM Package
         if: matrix.package_type == 'rpm'
         run: |
           cargo install cargo-generate-rpm
-          cargo build --release
-          cargo generate-rpm
-          mkdir -p dist-packages && cp target/generate-rpm/*.rpm dist-packages/
+          if [ "${{ matrix.target }}" != "x86_64-unknown-linux-gnu" ]; then
+            cargo zigbuild --release --target ${{ matrix.target }}
+          else
+            cargo build --release --target ${{ matrix.target }}
+          fi
+          cargo generate-rpm --target ${{ matrix.target }}
+          mkdir -p dist-packages && cp target/${{ matrix.target }}/generate-rpm/*.rpm dist-packages/
 
       # ── Snap Build ──
       - name: Build Snap Package
@@ -311,7 +343,7 @@ jobs:
       - name: Upload Package Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
+          name: ${{ matrix.package_type }}-package-${{ matrix.target }}
           path: dist-packages/*
           if-no-files-found: ignore
 
@@ -336,10 +368,10 @@ jobs:
         with:
           tag_name: ${{ needs.setup.outputs.tag }}
           files: |
-            collected-packages/debian-package/*
-            collected-packages/rpm-package/*
-            collected-packages/arch-package/*
-            collected-packages/snap-package/*
+            collected-packages/deb-package-*/*
+            collected-packages/rpm-package-*/*
+            collected-packages/arch-package-*/*
+            collected-packages/snap-package-*/*
           body_path: .github/release-notes.md
           prerelease: ${{ needs.setup.outputs.prerelease == 'true' }}
 
