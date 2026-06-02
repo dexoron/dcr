@@ -553,7 +553,6 @@ jobs:
           - target: aarch64-pc-windows-msvc
           - target: i686-pc-windows-msvc
           - target: x86_64-pc-windows-gnu
-          - target: i686-pc-windows-gnu
     steps:
       - uses: actions/checkout@v4
         with:
