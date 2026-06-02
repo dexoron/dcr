@@ -106,7 +106,7 @@ cargo install dcr
 <td>
 
 ```sh
-curl -fsSL https://dcr.dexoron.su/install.sh | bash
+curl -fsSL https://dcr.dexoron.su/install.sh | sh
 ```
 
 </td>
@@ -116,7 +116,7 @@ curl -fsSL https://dcr.dexoron.su/install.sh | bash
 <td>
 
 ```sh
-curl -fsSL https://dcr.dexoron.su/install_bsd.sh | bash
+curl -fsSL https://dcr.dexoron.su/install_bsd.sh | sh
 ```
 
 </td>
