@@ -43,6 +43,9 @@ detect_target() {
     case "$os:$arch" in
         Linux:x86_64)                      TARGET_TRIPLE="x86_64-unknown-linux-gnu" ;;
         Linux:aarch64|Linux:arm64)         TARGET_TRIPLE="aarch64-unknown-linux-gnu" ;;
+        Linux:i686|Linux:i386)             TARGET_TRIPLE="i686-unknown-linux-gnu" ;;
+        Linux:armv7l|Linux:armv7)          TARGET_TRIPLE="armv7-unknown-linux-gnueabihf" ;;
+        Linux:riscv64)                     TARGET_TRIPLE="riscv64gc-unknown-linux-gnu" ;;
         Darwin:x86_64)                     TARGET_TRIPLE="x86_64-apple-darwin" ;;
         Darwin:arm64|Darwin:aarch64)       TARGET_TRIPLE="aarch64-apple-darwin" ;;
         FreeBSD:x86_64|FreeBSD:amd64)      TARGET_TRIPLE="x86_64-unknown-freebsd" ;;
