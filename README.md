@@ -223,15 +223,15 @@ other in [docs/](docs/), `dcr --help` and `dcr <command> --help`
 | OS | x86_64 | aarch64 | armv7 | i686 | riscv64 |
 |:---:|:---:|:---:|:---:|:---:|:---:|
 | Linux (GNU)     | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Linux (Musl)    | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Linux (Musl)    | ✅ | ✅ | ✅ | ✅ | 🚧 |
 | macOS           | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Windows (MSVC)  | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Windows (MinGW) | ✅ | ❌ | ❌ | ❌ | ❌ |
-| FreeBSD         | ✅ | ❌ | ❌ | ❌ | ❌ |
-| OpenBSD         | ✅ | ❌ | ❌ | ❌ | ❌ |
-| NetBSD          | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Windows (MSVC)  | ✅ | ✅ | ❌ | ✅ | ❌ |
+| Windows (MinGW) | ✅ | 🚧 | ❌ | ✅ | ❌ |
+| FreeBSD         | ✅ | 🚧 | ❌ | ❌ | ❌ |
+| OpenBSD         | ✅ | 🚧 | ❌ | ❌ | ❌ |
+| NetBSD          | ✅ | 🚧 | ❌ | ❌ | ❌ |
 
-✅ officially supported · ❌ not supported
+✅ pre-built binary · 🚧 planned · ❌ not supported by platform or CI
 
 </div>
 
