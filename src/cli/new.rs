@@ -25,6 +25,16 @@ use std::io::Write;
 use toml::Value;
 
 pub fn new(args: &[String]) -> i32 {
+    if args.first().map_or(false, |a| a == "--help") {
+        printc("USAGE:", BOLD_GREEN);
+        printc("    dcr new <name>", BOLD_CYAN);
+        println!();
+        printc("DESCRIPTION:", BOLD_GREEN);
+        println!("    Creates a new C/C++ project with the given name.");
+        println!("    The name may only contain ASCII letters, digits, '_' and '-'.");
+        return 0;
+    }
+
     let items = check_dir(None).unwrap_or_default();
 
     if args.is_empty() {

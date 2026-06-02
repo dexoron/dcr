@@ -21,12 +21,27 @@ use crate::core::workspace::parse_workspace;
 use crate::utils::build::parse_version_info;
 use crate::utils::fs::{check_dir, find_project_root, with_dir};
 use crate::utils::log::{error, warn};
-use crate::utils::text::{BOLD_GREEN, colored};
+use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
 use glob::glob;
 use std::fs;
 use std::path::Path;
 
 pub fn clean(args: &[String]) -> i32 {
+    if args.first().map_or(false, |a| a == "--help") {
+        printc("USAGE:", BOLD_GREEN);
+        printc("    dcr clean [--debug | --release] [--target <triple>] [--all]", BOLD_CYAN);
+        println!();
+        printc("DESCRIPTION:", BOLD_GREEN);
+        println!("    Removes build artifacts from the target directory.");
+        println!();
+        printc("OPTIONS:", BOLD_GREEN);
+        println!("    --debug              Clean debug artifacts (default)");
+        println!("    --release            Clean release artifacts");
+        println!("    --target <triple>    Clean artifacts for a specific target");
+        println!("    --all                Clean all workspace members");
+        return 0;
+    }
+
     let start_dir = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(_) => {

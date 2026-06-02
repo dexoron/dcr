@@ -11,6 +11,7 @@
 [![AUR](https://img.shields.io/aur/version/dcr)](https://aur.archlinux.org/packages/dcr)
 [![Crates.io](https://img.shields.io/crates/v/dcr)](https://crates.io/crates/dcr)
 [![Homebrew](https://img.shields.io/badge/homebrew-dexoron%2Fdexoron-orange)](https://github.com/dexoron/homebrew-dexoron)
+[![Snap](https://img.shields.io/badge/snap-dcrup-orange)](https://snapcraft.io/dcrup)
 <br/>
 [![GitHub Stars](https://img.shields.io/github/stars/dexoron/dcr?style=flat)](https://github.com/dexoron/dcr/stargazers)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
@@ -22,10 +23,11 @@
 ## Why DCR?
 
 - **No boilerplate** — one config file, predictable structure
-- **Cargo-like workflow** — `build`, `run`, `clean`, `test`, `add`
+- **Cargo-like workflow** — `build`, `run`, `clean`, `test`, `add`, `fmt`
 - **Cross-compilation** — full target triple support with short names
 - **IDE integration** — VS Code, CLion, `compile_commands.json` out of the box
 - **Dependencies** — path, git, and registry-based with lock file
+- **Man pages** — `man dcr` and per-command pages (`man dcr-build`, `man dcr-new`, etc.)
 
 ---
 
@@ -122,6 +124,16 @@ curl -fsSL https://dcr.dexoron.su/install_bsd.sh | sh
 </td>
 </tr>
 <tr>
+<td><b>Snap (Linux)</b></td>
+<td>
+
+```sh
+sudo snap install dcrup
+```
+
+</td>
+</tr>
+<tr>
 <td><b>Windows (PowerShell)</b></td>
 <td>
 
@@ -200,24 +212,26 @@ kind = "bin"
 | `dcr gen <vscode\|clion\|compile-commands>` | Generate IDE integration |
 | `dcr setup` | Initialize DCR registry |
 
-other in [docs/](docs/) and `dcr --help`
+other in [docs/](docs/), `dcr --help` and `dcr <command> --help`
 
 ---
 
-## Platforms(pre-build source)
+## Platforms (pre-built binary)
 
 <div align="center">
 
-| OS | x86_64 | aarch64 | armv7 | i686 | riscv64 | GNU | Musl | MSVC | MinGW |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| Linux   | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ |
-| macOS   | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Windows | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
-| FreeBSD | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| OpenBSD | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| NetBSD  | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| OS | x86_64 | aarch64 | armv7 | i686 | riscv64 |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| Linux (GNU)     | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Linux (Musl)    | ✅ | ✅ | ❌ | ❌ | ❌ |
+| macOS           | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Windows (MSVC)  | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Windows (MinGW) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| FreeBSD         | ✅ | ❌ | ❌ | ❌ | ❌ |
+| OpenBSD         | ✅ | ❌ | ❌ | ❌ | ❌ |
+| NetBSD          | ✅ | ❌ | ❌ | ❌ | ❌ |
 
-✅ officially supported · ⚠️ community / best-effort · ❌ not supported
+✅ officially supported · ❌ not supported
 
 </div>
 

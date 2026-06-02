@@ -16,6 +16,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::utils::log::{error, warn};
+use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, printc};
 use reqwest::blocking::Client;
 use serde::Deserialize;
 use std::fs;
@@ -39,6 +40,15 @@ struct ReleaseAsset {
 }
 
 pub fn flag_update(args: &[String]) -> i32 {
+    if args.first().map_or(false, |a| a == "--help") {
+        printc("USAGE:", BOLD_GREEN);
+        printc("    dcr --update", BOLD_CYAN);
+        println!();
+        printc("DESCRIPTION:", BOLD_GREEN);
+        println!("    Updates DCR to the latest version from GitHub Releases.");
+        return 0;
+    }
+
     if !args.is_empty() {
         warn("Command does not support additional arguments");
         return 1;

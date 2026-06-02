@@ -4,6 +4,7 @@ set -eu
 TMPDIR="/tmp/dcr-install"
 INSTALL_PATH="$HOME/.local/share/dcr"
 BINPATH="$HOME/.local/bin"
+MANPATH="${XDG_DATA_HOME:-$HOME/.local/share}/man"
 LOGFILE="$HOME/.cache/dcr-install.log"
 REPO_URL="https://github.com/dexoron/dcr"
 GITHUB_API_LATEST="https://api.github.com/repos/dexoron/dcr/releases/latest"
@@ -187,6 +188,16 @@ install_link() {
     success "Command 'dcr' added to $BINPATH"
 }
 
+install_man() {
+    log "Installing man pages..."
+    man_src="$TMPDIR/man/man1"
+    if [ -d "$man_src" ]; then
+        mkdir -p "$MANPATH/man1"
+        cp "$man_src"/*.1 "$MANPATH/man1/"
+        success "Man pages installed to $MANPATH/man1"
+    fi
+}
+
 check_path() {
     if ! echo "$PATH" | grep -q "$BINPATH"; then
         warn "Directory $BINPATH not found in PATH"
@@ -219,6 +230,7 @@ main() {
     fi
 
     install_link
+    install_man
     check_path
     cleanup
 

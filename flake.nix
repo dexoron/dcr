@@ -64,6 +64,10 @@
           pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
         ];
 
+        postInstall = ''
+          install -Dm644 man/man1/*.1 -t $out/share/man/man1/
+        '';
+
         # Tests require external services; run separately.
         doCheck = false;
       };

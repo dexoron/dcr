@@ -1,0 +1,204 @@
+.TH DCR 1 "2026-06-02" "dcr 0.7.0" "DCR Manual"
+.SH NAME
+dcr \- Cargo\-like build tool and package manager for C/C++ projects
+.SH SYNOPSIS
+.B dcr
+[\fIcommand\fR] [\fIoptions\fR]
+.SH DESCRIPTION
+DCR is a comprehensive build tool and package manager for C and C++ projects,
+inspired by Cargo from the Rust ecosystem. It handles project creation,
+building, dependency management, testing, formatting, and IDE integration.
+.SH COMMANDS
+.TP
+.B new \fI<name>\fR
+Create a new C/C++ project with the given name. Only ASCII letters, digits,
+underscores and hyphens are allowed.
+.TP
+.B init
+Initialize the current (empty) directory as a DCR project.
+.TP
+.B build [\fIoptions\fR]
+Compile the project. Default profile is \fB\-\-debug\fR.
+.TP
+.B run [\fIoptions\fR]
+Build and run the project. Only available for binary projects.
+.TP
+.B clean [\fIoptions\fR]
+Remove build artifacts from the target directory.
+.TP
+.B test [\fI\-\-init\fR] [\fI\-\-debug\fR|\fI\-\-release\fR]
+Run project tests (alias: \fBdcr tests\fR).
+.TP
+.B add \fI<name>\fR \fI<source>\fR [\fIoptions\fR]
+Add a dependency to the project.
+.TP
+.B tree
+Display the dependency tree of the current project.
+.TP
+.B fmt
+Format all C/C++ source files using clang-format.
+.TP
+.B gen \fI<subcommand>\fR
+Generate IDE integration files (vscode, clion, compile-commands, project-info).
+.TP
+.B setup
+Set up DCR registries for dependency resolution.
+.SH GLOBAL FLAGS
+.TP
+.B \-\-help
+Show this help message and exit.
+.TP
+.B \-\-version
+Print version information and exit.
+.TP
+.B \-\-update
+Update DCR to the latest version from GitHub Releases.
+.SH BUILD OPTIONS
+The following options apply to \fBbuild\fR and \fBrun\fR commands:
+.TP
+.B \-\-debug
+Build with debug profile (default). Enables debug symbols and minimal optimization.
+.TP
+.B \-\-release
+Build with release profile. Enables full optimization without debug symbols.
+.TP
+.B \-\-target \fI<triple>\fR
+Cross-compile for the given target (e.g. \fBaarch64-linux-gnu\fR, \fBx86_64-w64-mingw32\fR).
+Short names like \fBlinux\fR, \fBmacos\fR, \fBwindows\fR are also supported.
+.TP
+.B \-\-force
+Force a full rebuild, ignoring cached build artifacts.
+.TP
+.B \-\-clean
+Clean build artifacts before building.
+.TP
+.B \-\-verbose
+Print detailed build output including compiler commands.
+.TP
+.B \-\-workspace \fI<name>\fR
+Build a specific workspace member.
+.SH CLEAN OPTIONS
+.TP
+.B \-\-debug
+Clean debug artifacts (default).
+.TP
+.B \-\-release
+Clean release artifacts.
+.TP
+.B \-\-target \fI<triple>\fR
+Clean artifacts for a specific target.
+.TP
+.B \-\-all
+Clean all workspace members.
+.SH ADD OPTIONS
+.TP
+.B \-\-branch \fI<name>\fR
+Use a specific branch when adding a git dependency.
+.TP
+.B \-\-tag \fI<name>\fR
+Use a specific tag when adding a git dependency.
+.TP
+.B \-\-rev \fI<hash>\fR
+Use a specific commit hash when adding a git dependency.
+.SH DEPENDENCY SOURCES
+.TP
+.B user/repo
+GitHub shorthand (e.g. \fBuser/repo\fR).
+.TP
+.B github:user/repo
+Full GitHub repository URL shorthand.
+.TP
+.B gitlab:user/repo
+GitLab repository URL shorthand.
+.TP
+.B git:host.com/user/repo
+Generic git repository.
+.TP
+.B path:./path/to/lib
+Local path dependency.
+.TP
+.B \fI<version>\fR
+Version from registry (e.g. \fB1.2.3\fR).
+.SH GEN SUBCOMMANDS
+.TP
+.B project-info
+Print project metadata as JSON to stdout.
+.TP
+.B compile-commands
+Generate \fBcompile_commands.json\fR for IDE tooling.
+.TP
+.B vscode
+Generate \fB.vscode/\fR integration files (tasks, launch configurations).
+.TP
+.B clion
+Generate \fB.idea/\fR integration files for CLion.
+.SH TEST OPTIONS
+.TP
+.B \-\-init
+Create \fBtests/dcr_test.h\fR in the current project.
+.TP
+.B \-\-debug
+Build and run tests with debug profile (default).
+.TP
+.B \-\-release
+Build and run tests with release profile.
+.SH PROJECT CONFIGURATION
+DCR uses \fBdcr.toml\fR for project configuration. Key settings include:
+.TP
+.B package.name
+Project name (required).
+.TP
+.B package.version
+Project version (default: \fB0.1.0\fR).
+.TP
+.B build.language
+Programming language: \fBc\fR or \fBc++\fR (default: \fBc\fR).
+.TP
+.B build.standard
+Language standard (e.g. \fBc11\fR, \fBc17\fR, \fBc++20\fR; default: \fBc11\fR).
+.TP
+.B build.compiler
+Compiler to use: \fBclang\fR, \fBgcc\fR, \fBcl\fR, \fBclang-cl\fR (default: \fBclang\fR).
+.TP
+.B build.kind
+Output type: \fBbin\fR, \fBlib\fR (static or dynamic), \fBstaticlib\fR, \fBsharedlib\fR (default: \fBbin\fR).
+.SH FILES
+.TP
+.I dcr.toml
+Project manifest file.
+.TP
+.I ~/.dcr/config.toml
+User-level DCR configuration.
+.TP
+.I ~/.dcr/index.json
+Local registry index.
+.SH ENVIRONMENT
+.TP
+.B DCR_COMPILER
+Override the compiler used for building.
+.TP
+.B DCR_CC
+Alternative way to override the compiler.
+.SH EXAMPLES
+.TP
+Create a new project:
+.B dcr new hello
+.TP
+Initialize from current directory:
+.B dcr init
+.TP
+Build with release profile:
+.B dcr build \-\-release
+.TP
+Cross-compile for Windows:
+.B dcr build \-\-target windows
+.TP
+Add a dependency:
+.BR "dcr add curl git:https://github.com/curl/curl" .
+.TP
+Generate VS Code integration:
+.B dcr gen vscode
+.SH SEE ALSO
+.IR https://dcr.dexoron.su ", " https://github.com/dexoron/dcr
+.SH AUTHORS
+Dexoron (Bezotechestvo Vladimir) <main@dexoron.su>

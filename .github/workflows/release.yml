@@ -129,6 +129,36 @@ jobs:
           body_path: .github/release-notes.md
           prerelease: ${{ needs.setup.outputs.prerelease == 'true' }}
 
+  # ── Man Pages Archive ──────────────────────────────────────────────────────
+  man-pages:
+    if: ${{ github.event_name == 'push' || github.event.inputs.run_linux == 'true' }}
+    needs: [setup, notes, create-release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.setup.outputs.tag }}
+
+      - name: Download Release Notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: .github
+
+      - name: Create Man Pages Archive
+        run: |
+          tar czf "dcr-man-pages-${{ needs.setup.outputs.version }}.tar.gz" \
+            --transform 's/^man\/man1\//usr\/share\/man\/man1\//' \
+            man/man1/*.1
+
+      - name: Upload Man Pages to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.setup.outputs.tag }}
+          files: dcr-man-pages-${{ needs.setup.outputs.version }}.tar.gz
+          body_path: .github/release-notes.md
+          prerelease: ${{ needs.setup.outputs.prerelease == 'true' }}
+
   # ── Linux Binaries Matrix ──────────────────────────────────────────────────
   build-linux:
     if: ${{ github.event_name == 'push' || github.event.inputs.run_linux == 'true' }}
@@ -280,6 +310,7 @@ jobs:
           cargo build --release
           mkdir -p packaging/snap/dist/bin
           cp target/release/dcr packaging/snap/dist/bin/
+          cp -r man packaging/snap/dist/man
 
       - name: Snapcraft Build Action
         if: matrix.package_type == 'snap'
@@ -321,9 +352,12 @@ jobs:
             cargo build --release --locked
           }
           package() {
-            cd "\$srcdir/\$pkgname-${PKGVER_ORIG}"
+            cd "\$srcdir/dcr-${PKGVER_ORIG}"
             install -Dm755 "target/release/dcr" "\$pkgdir/usr/bin/dcr"
             install -Dm644 LICENSE "\$pkgdir/usr/share/licenses/\$pkgname/LICENSE"
+            for manpage in man/man1/*.1; do
+              install -Dm644 "\$manpage" "\$pkgdir/usr/share/man/man1/\$(basename "\$manpage")"
+            done
           }
           PKG
           docker run --rm \
@@ -613,10 +647,11 @@ jobs:
             cd "\$srcdir/\$pkgname-${PKGVER_ORIG}"
             install -Dm755 "target/release/dcr" "\$pkgdir/usr/bin/dcr"
             install -Dm644 LICENSE "\$pkgdir/usr/share/licenses/\$pkgname/LICENSE"
+            for manpage in man/man1/*.1; do
+              install -Dm644 "\$manpage" "\$pkgdir/usr/share/man/man1/\$(basename "\$manpage")"
+            done
           }
           PKG
-
-          cat > packages/aur/dcr/.SRCINFO <<SRC
           pkgbase = dcr
             pkgdesc = Cargo-like utility to manage C/C++ projects
             pkgver = ${PKGVER_CLEAN}
@@ -872,9 +907,12 @@ jobs:
           }
 
           package() {
-            cd "\$srcdir/dcr-${PKGVER_ORIG}"
+            cd "\$srcdir/\$pkgname-${PKGVER_ORIG}"
             install -Dm755 "target/release/dcr" "\$pkgdir/usr/bin/dcr"
             install -Dm644 LICENSE "\$pkgdir/usr/share/licenses/\$pkgname/LICENSE"
+            for manpage in man/man1/*.1; do
+              install -Dm644 "\$manpage" "\$pkgdir/usr/share/man/man1/\$(basename "\$manpage")"
+            done
           }
           PKG
 
@@ -1122,6 +1160,7 @@ jobs:
           echo "linux_arm=$(download_sha "dcr-aarch64-unknown-linux-gnu-${VERSION}")"    >> "$GITHUB_OUTPUT"
           echo "macos_x86=$(download_sha "dcr-x86_64-apple-darwin-${VERSION}")"          >> "$GITHUB_OUTPUT"
           echo "macos_arm=$(download_sha "dcr-aarch64-apple-darwin-${VERSION}")"         >> "$GITHUB_OUTPUT"
+          echo "man_pages=$(download_sha "dcr-man-pages-${VERSION}.tar.gz")"             >> "$GITHUB_OUTPUT"
 
       - name: Checkout homebrew-dexoron
         uses: actions/checkout@v4
@@ -1162,6 +1201,18 @@ jobs:
 
             def install
               bin.install Dir["dcr*"].first => "dcr"
+            end
+
+            resource "man-pages" do
+              url "https://github.com/dexoron/dcr/releases/download/v#{version}/dcr-man-pages-#{version}.tar.gz"
+              sha256 "${{ steps.sha.outputs.man_pages }}"
+            end
+
+            def install
+              bin.install Dir["dcr*"].first => "dcr"
+              resource("man-pages").stage do
+                man1.install Dir["usr/share/man/man1/*.1"]
+              end
             end
 
             test do

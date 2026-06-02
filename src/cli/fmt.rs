@@ -16,11 +16,21 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::utils::log::error;
-use crate::utils::text::{BOLD_GREEN, colored};
+use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
 use glob::glob;
 use std::process::Command;
 
-pub fn fmt(_args: &[String]) -> i32 {
+pub fn fmt(args: &[String]) -> i32 {
+    if args.first().map_or(false, |a| a == "--help") {
+        printc("USAGE:", BOLD_GREEN);
+        printc("    dcr fmt", BOLD_CYAN);
+        println!();
+        printc("DESCRIPTION:", BOLD_GREEN);
+        println!("    Formats all C/C++ source files using clang-format.");
+        println!("    Scans src/ and tests/ directories recursively.");
+        return 0;
+    }
+
     let patterns = [
         "src/**/*.c",
         "src/**/*.cpp",

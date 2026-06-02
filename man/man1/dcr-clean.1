@@ -1,0 +1,26 @@
+.TH DCR-CLEAN 1 "2026-06-02" "dcr 0.7.0" "DCR Manual"
+.SH NAME
+dcr-clean \- Remove build artifacts
+.SH SYNOPSIS
+.B dcr clean
+[\fB\-\-debug\fR | \fB\-\-release\fR]
+[\fB\-\-target\fR \fI<triple>\fR]
+[\fB\-\-all\fR]
+.SH DESCRIPTION
+Removes build artifacts from the target directory.
+.SH OPTIONS
+.TP
+.B \-\-debug
+Clean debug artifacts (default).
+.TP
+.B \-\-release
+Clean release artifacts.
+.TP
+.B \-\-target \fI<triple>\fR
+Clean artifacts for a specific target.
+.TP
+.B \-\-all
+Clean all workspace members.
+.SH SEE ALSO
+.BR dcr (1),
+.BR dcr-build (1)

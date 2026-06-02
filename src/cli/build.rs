@@ -29,7 +29,7 @@ use crate::utils::build::{
 };
 use crate::utils::fs::{check_dir, find_project_root, with_dir};
 use crate::utils::log::error;
-use crate::utils::text::{BOLD_GREEN, colored};
+use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
 use glob::glob;
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -42,6 +42,24 @@ static BUILD_INTERRUPTED: AtomicBool = AtomicBool::new(false);
 static SIGNAL_HANDLER: Once = Once::new();
 
 pub fn build(args: &[String]) -> i32 {
+    if args.first().map_or(false, |a| a == "--help") {
+        printc("USAGE:", BOLD_GREEN);
+        printc("    dcr build [--debug | --release] [--target <triple>] [--force] [--clean] [--verbose]", BOLD_CYAN);
+        println!();
+        printc("DESCRIPTION:", BOLD_GREEN);
+        println!("    Compiles the project. Default profile is --debug.");
+        println!();
+        printc("OPTIONS:", BOLD_GREEN);
+        println!("    --debug              Build with debug profile (default)");
+        println!("    --release            Build with release profile");
+        println!("    --target <triple>    Cross-compile for the given target");
+        println!("    --force              Force a full rebuild");
+        println!("    --clean              Clean before building");
+        println!("    --verbose            Print detailed build output");
+        println!("    --workspace <name>   Build a specific workspace member");
+        return 0;
+    }
+
     install_signal_handler();
     BUILD_INTERRUPTED.store(false, Ordering::SeqCst);
     let start_dir = match std::env::current_dir() {

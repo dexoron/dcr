@@ -17,12 +17,21 @@
 
 use crate::core::config::Config;
 use crate::utils::log::error;
-use crate::utils::text::{BOLD_CYAN, printc};
+use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, printc};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use toml::Value;
 
-pub fn tree(_args: &[String]) -> i32 {
+pub fn tree(args: &[String]) -> i32 {
+    if args.first().map_or(false, |a| a == "--help") {
+        printc("USAGE:", BOLD_GREEN);
+        printc("    dcr tree", BOLD_CYAN);
+        println!();
+        printc("DESCRIPTION:", BOLD_GREEN);
+        println!("    Displays the dependency tree of the current project.");
+        return 0;
+    }
+
     let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let config = match Config::open("dcr.toml") {
         Ok(c) => c,

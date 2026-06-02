@@ -25,6 +25,16 @@ use std::io::Write;
 use toml::Value;
 
 pub fn init(args: &[String]) -> i32 {
+    if args.first().map_or(false, |a| a == "--help") {
+        printc("USAGE:", BOLD_GREEN);
+        printc("    dcr init", BOLD_CYAN);
+        println!();
+        printc("DESCRIPTION:", BOLD_GREEN);
+        println!("    Initializes the current directory as a DCR project.");
+        println!("    The directory must be empty.");
+        return 0;
+    }
+
     if !args.is_empty() {
         warn("Command does not support additional arguments");
         return 1;

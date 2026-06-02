@@ -27,6 +27,7 @@ use crate::utils::build::{
 };
 use crate::utils::fs::find_project_root;
 use crate::utils::log::error;
+use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, printc};
 use std::path::{Path, PathBuf};
 
 /// Like `deps::resolve_deps` but does NOT require lib directories to exist.
@@ -186,13 +187,30 @@ pub struct ProjectInfo {
 
 pub fn r#gen(args: &[String]) -> i32 {
     let subcommand = match args.first() {
+        Some(s) if s == "--help" => {
+            printc("USAGE:", BOLD_GREEN);
+            printc("    dcr gen <subcommand>", BOLD_CYAN);
+            println!();
+            printc("DESCRIPTION:", BOLD_GREEN);
+            println!("    Generates IDE and tooling integration files.");
+            println!();
+            printc("SUBCOMMANDS:", BOLD_GREEN);
+            println!("    project-info      Print project metadata as JSON");
+            println!("    compile-commands  Generate compile_commands.json");
+            println!("    vscode            Generate .vscode/ integration files");
+            println!("    clion             Generate .idea/ integration files");
+            return 0;
+        }
         Some(s) => s.as_str(),
         None => {
-            eprintln!("Usage: dcr gen <subcommand>");
-            eprintln!("  project-info      Print project metadata as JSON");
-            eprintln!("  compile-commands  Generate compile_commands.json");
-            eprintln!("  vscode            Generate .vscode/ integration files");
-            eprintln!("  clion             Generate .idea/ integration files");
+            printc("USAGE:", BOLD_GREEN);
+            printc("    dcr gen <subcommand>", BOLD_CYAN);
+            println!();
+            printc("SUBCOMMANDS:", BOLD_GREEN);
+            println!("    project-info      Print project metadata as JSON");
+            println!("    compile-commands  Generate compile_commands.json");
+            println!("    vscode            Generate .vscode/ integration files");
+            println!("    clion             Generate .idea/ integration files");
             return 1;
         }
     };

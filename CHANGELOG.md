@@ -1,5 +1,55 @@
 # Changelog
 
+## [0.7.1] - 2026-06-02
+
+Added:
+
+- **`--help` for all commands** — `dcr build --help`, `dcr run --help`, `dcr new --help`,
+  `dcr init --help`, `dcr clean --help`, `dcr add --help`, `dcr fmt --help`,
+  `dcr setup --help`, `dcr tree --help`, `dcr gen --help`, `dcr --update --help`,
+  `dcr test --help`. All output uses styled headers (green) and usage lines (cyan).
+- **Man pages** — 12 troff man pages in `man/man1/`: `dcr.1`, `dcr-build.1`,
+  `dcr-run.1`, `dcr-new.1`, `dcr-init.1`, `dcr-clean.1`, `dcr-add.1`, `dcr-test.1`,
+  `dcr-gen.1`, `dcr-fmt.1`, `dcr-tree.1`, `dcr-setup.1`. Viewable via `man dcr`,
+  `man dcr-build`, etc.
+- **Man page installation in all packaging** — install.sh, install_bsd.sh, AUR PKGBUILD,
+  Debian (cargo-deb), RPM (cargo-generate-rpm), Nix flake (postInstall), Homebrew
+  (resource + man1.install), Snap, and GitHub Release (dcr-man-pages-*.tar.gz).
+- **`dcr init` and `dcr new` name validation** — project names are validated before
+  directory or file creation. Only ASCII letters, digits, `_` and `-` are allowed.
+  Invalid names produce a clear error instead of "Failed to write dcr.toml".
+- **`documentation` and `homepage` metadata** — added to `Cargo.toml` for docs.rs
+  and crate listing.
+- **Release profile optimizations** — `opt-level = "z"`, LTO, `codegen-units = 1`,
+  `panic = "abort"`, `strip = true` for smaller binaries.
+- **Linux i686, armv7, riscv64 architecture support** — new target triples in release
+  workflow and installation scripts.
+- **AUR packages** — `dcr-dev` and `dcr-dev-bin` publishing workflow for dev releases.
+- **Snap publishing support** — automated Snapcraft publishing in CI.
+- **`parse_d_file` rewrite** — now handles CRLF, mixed line endings, and Windows
+  drive letters more robustly.
+
+Changed:
+
+- **`validate_package_name` made public** — now callable from CLI commands directly.
+- **`--help` output now coloured** — all commands use `printc` with `BOLD_GREEN`/`BOLD_CYAN`
+  matching the style of `dcr --help`.
+- **`gen.rs` no-args output** — now uses styled output instead of raw `eprintln!`.
+- **`tree.rs` and `fmt.rs`** — no longer ignore arguments (`_args` → `args`).
+- **`setup.rs`** — no longer ignores arguments (`_args` → `args`).
+- **README install instructions** — changed `| bash` to `| sh` for POSIX compatibility.
+
+Fixed:
+
+- **`dcr new <invalid-name>` creates directory then fails** — validation now happens
+  before any file operations.
+- **`dcr init` creates dcr.toml then fails on invalid directory name** — same fix.
+- **Man pages missing after installation** — now installed via install scripts,
+  package managers, and Homebrew.
+- **Windows drive letter false positive** — in dependency file parsing.
+- **CRLF `\r\n` breaks dependency parser** — now handles mixed line endings.
+- **Newline after backslash not consumed** — in `parse_d_file` escape handling.
+
 ## [0.7.0] - 2026-06-02
 
 Added:

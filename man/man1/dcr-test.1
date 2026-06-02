@@ -1,0 +1,24 @@
+.TH DCR-TEST 1 "2026-06-02" "dcr 0.7.0" "DCR Manual"
+.SH NAME
+dcr-test \- Run project tests
+.SH SYNOPSIS
+.B dcr test
+[\fB\-\-init\fR]
+[\fB\-\-debug\fR | \fB\-\-release\fR]
+.SH ALIASES
+.B dcr tests
+.SH DESCRIPTION
+Runs project tests and prints a unified testsuite report.
+.SH OPTIONS
+.TP
+.B \-\-init
+Create \fBtests/dcr_test.h\fR in the current project.
+.TP
+.B \-\-debug
+Build and run tests with debug profile (default).
+.TP
+.B \-\-release
+Build and run tests with release profile.
+.SH SEE ALSO
+.BR dcr (1),
+.BR dcr-build (1)

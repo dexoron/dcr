@@ -6,6 +6,8 @@ build = "build.rs"
 description = "DCR is a utility for managing C/C++ projects in a Cargo-like style."
 license = "GPL-3.0-or-later"
 repository = "https://github.com/dexoron/dcr"
+documentation = "https://dcr.dexoron.su/docs"
+homepage = "https://dcr.dexoron.su"
 
 [package.metadata.binstall]
 pkg-fmt = "bin"
@@ -21,6 +23,18 @@ section = "devel"
 priority = "optional"
 assets = [
     ["target/release/dcr", "usr/bin/dcr", "755"],
+    ["man/man1/dcr.1", "usr/share/man/man1/dcr.1", "644"],
+    ["man/man1/dcr-add.1", "usr/share/man/man1/dcr-add.1", "644"],
+    ["man/man1/dcr-build.1", "usr/share/man/man1/dcr-build.1", "644"],
+    ["man/man1/dcr-clean.1", "usr/share/man/man1/dcr-clean.1", "644"],
+    ["man/man1/dcr-fmt.1", "usr/share/man/man1/dcr-fmt.1", "644"],
+    ["man/man1/dcr-gen.1", "usr/share/man/man1/dcr-gen.1", "644"],
+    ["man/man1/dcr-init.1", "usr/share/man/man1/dcr-init.1", "644"],
+    ["man/man1/dcr-new.1", "usr/share/man/man1/dcr-new.1", "644"],
+    ["man/man1/dcr-run.1", "usr/share/man/man1/dcr-run.1", "644"],
+    ["man/man1/dcr-setup.1", "usr/share/man/man1/dcr-setup.1", "644"],
+    ["man/man1/dcr-test.1", "usr/share/man/man1/dcr-test.1", "644"],
+    ["man/man1/dcr-tree.1", "usr/share/man/man1/dcr-tree.1", "644"],
 ]
 
 [package.metadata.generate-rpm]
@@ -30,7 +44,19 @@ Cargo-like utility to manage C/C++ projects.
 """
 
 assets = [
-    { source = "target/release/dcr", dest = "/usr/bin/dcr", mode = "755" }
+    { source = "target/release/dcr", dest = "/usr/bin/dcr", mode = "755" },
+    { source = "man/man1/dcr.1", dest = "/usr/share/man/man1/dcr.1", mode = "644" },
+    { source = "man/man1/dcr-add.1", dest = "/usr/share/man/man1/dcr-add.1", mode = "644" },
+    { source = "man/man1/dcr-build.1", dest = "/usr/share/man/man1/dcr-build.1", mode = "644" },
+    { source = "man/man1/dcr-clean.1", dest = "/usr/share/man/man1/dcr-clean.1", mode = "644" },
+    { source = "man/man1/dcr-fmt.1", dest = "/usr/share/man/man1/dcr-fmt.1", mode = "644" },
+    { source = "man/man1/dcr-gen.1", dest = "/usr/share/man/man1/dcr-gen.1", mode = "644" },
+    { source = "man/man1/dcr-init.1", dest = "/usr/share/man/man1/dcr-init.1", mode = "644" },
+    { source = "man/man1/dcr-new.1", dest = "/usr/share/man/man1/dcr-new.1", mode = "644" },
+    { source = "man/man1/dcr-run.1", dest = "/usr/share/man/man1/dcr-run.1", mode = "644" },
+    { source = "man/man1/dcr-setup.1", dest = "/usr/share/man/man1/dcr-setup.1", mode = "644" },
+    { source = "man/man1/dcr-test.1", dest = "/usr/share/man/man1/dcr-test.1", mode = "644" },
+    { source = "man/man1/dcr-tree.1", dest = "/usr/share/man/man1/dcr-tree.1", mode = "644" },
 ]
 
 [dependencies]
