@@ -271,6 +271,8 @@ jobs:
           sha256sums=('${SHA256}')
           build() {
             cd "\$srcdir/\$pkgname-${PKGVER_ORIG}"
+            unset CFLAGS CXXFLAGS LDFLAGS
+            export RUSTFLAGS="-C linker=cc"
             cargo build --release --locked
           }
           package() {
@@ -552,14 +554,13 @@ jobs:
             'gcc: build C/C++ projects with GCC'
             'clang: build C/C++ projects with Clang'
           )
-          source=("\$pkgname-\$pkgver.tar.gz::\${SRC_URL}")
+          source=("\$pkgname-\$pkgver.tar.gz::${SRC_URL}")
           sha256sums=('${SHA256}')
 
           build() {
             cd "\$srcdir/\$pkgname-${PKGVER_ORIG}"
-            export CARGO_PROFILE_RELEASE_LTO=false
-            export RUSTFLAGS="\${RUSTFLAGS:-}"
-            export RUSTFLAGS="\${RUSTFLAGS/-C link-arg=-fuse-ld=lld/}"
+            unset CFLAGS CXXFLAGS LDFLAGS
+            export RUSTFLAGS="-C linker=cc"
             cargo build --release --locked
           }
 
@@ -603,22 +604,31 @@ jobs:
           ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
 
           export GIT_SSH_COMMAND='ssh -i ~/.ssh/aur -o IdentitiesOnly=yes'
-          git clone "ssh://aur@aur.archlinux.org/${AUR_PACKAGE}.git" aur-repo
-          cp packages/aur/dcr/PKGBUILD aur-repo/PKGBUILD
-          cp packages/aur/dcr/.SRCINFO aur-repo/.SRCINFO
-
+          
+          mkdir -p aur-repo
           cd aur-repo
+          git init
+          git remote add origin "ssh://aur@aur.archlinux.org/${AUR_PACKAGE}.git"
+          
+          git fetch origin master || true
+          git checkout master || git checkout -b master
+          
+          cp ../packages/aur/dcr/PKGBUILD .
+          cp ../packages/aur/dcr/.SRCINFO .
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          if git diff --quiet; then
-            echo "No AUR changes"
-            exit 0
+          if git rev-parse --verify HEAD >/dev/null 2>&1; then
+            if git diff --quiet; then
+              echo "No AUR changes"
+              exit 0
+            fi
           fi
 
           git add PKGBUILD .SRCINFO
           git commit -m "dcr ${{ needs.setup.outputs.version }}"
-          git push
+          git push -u origin master
 
   # ── Arch User Repository (dcr-bin) ────────────────────────────────
   publish-aur-bin:
@@ -703,22 +713,31 @@ jobs:
           ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
 
           export GIT_SSH_COMMAND='ssh -i ~/.ssh/aur -o IdentitiesOnly=yes'
-          git clone "ssh://aur@aur.archlinux.org/${AUR_PACKAGE}.git" aur-repo
-          cp packages/aur/dcr-bin/PKGBUILD aur-repo/PKGBUILD
-          cp packages/aur/dcr-bin/.SRCINFO aur-repo/.SRCINFO
-
+          
+          mkdir -p aur-repo
           cd aur-repo
+          git init
+          git remote add origin "ssh://aur@aur.archlinux.org/${AUR_PACKAGE}.git"
+          
+          git fetch origin master || true
+          git checkout master || git checkout -b master
+          
+          cp ../packages/aur/dcr-bin/PKGBUILD .
+          cp ../packages/aur/dcr-bin/.SRCINFO .
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          if git diff --quiet; then
-            echo "No AUR changes"
-            exit 0
+          if git rev-parse --verify HEAD >/dev/null 2>&1; then
+            if git diff --quiet; then
+              echo "No AUR changes"
+              exit 0
+            fi
           fi
 
           git add PKGBUILD .SRCINFO
           git commit -m "dcr-bin ${{ needs.setup.outputs.version }}"
-          git push
+          git push -u origin master
 
   # ── crates.io ──────────────────────────────────────────────────────────────
   publish-crates:
