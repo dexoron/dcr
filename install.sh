@@ -49,8 +49,14 @@ detect_target() {
         Darwin:x86_64)                     TARGET_TRIPLE="x86_64-apple-darwin" ;;
         Darwin:arm64|Darwin:aarch64)       TARGET_TRIPLE="aarch64-apple-darwin" ;;
         FreeBSD:x86_64|FreeBSD:amd64)      TARGET_TRIPLE="x86_64-unknown-freebsd" ;;
+        FreeBSD:aarch64|FreeBSD:arm64)     TARGET_TRIPLE="aarch64-unknown-freebsd" ;;
+        FreeBSD:i686|FreeBSD:i386)         TARGET_TRIPLE="i686-unknown-freebsd" ;;
         OpenBSD:x86_64|OpenBSD:amd64)      TARGET_TRIPLE="x86_64-unknown-openbsd" ;;
+        OpenBSD:aarch64|OpenBSD:arm64)     TARGET_TRIPLE="aarch64-unknown-openbsd" ;;
+        OpenBSD:i686|OpenBSD:i386)         TARGET_TRIPLE="i686-unknown-openbsd" ;;
         NetBSD:x86_64|NetBSD:amd64)        TARGET_TRIPLE="x86_64-unknown-netbsd" ;;
+        NetBSD:aarch64|NetBSD:arm64)       TARGET_TRIPLE="aarch64-unknown-netbsd" ;;
+        NetBSD:i686|NetBSD:i386)           TARGET_TRIPLE="i686-unknown-netbsd" ;;
 
         *) error "Unsupported platform: $os/$arch"; exit 1 ;;
     esac

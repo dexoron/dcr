@@ -485,7 +485,9 @@ jobs:
         include:
           - target: x86_64-pc-windows-msvc
           - target: aarch64-pc-windows-msvc
+          - target: i686-pc-windows-msvc
           - target: x86_64-pc-windows-gnu
+          - target: i686-pc-windows-gnu
     steps:
       - uses: actions/checkout@v4
         with:
@@ -656,10 +658,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BIN_URL="https://github.com/dexoron/dcr/releases/download/${{ needs.setup.outputs.tag }}/dcr-x86_64-unknown-linux-musl-${{ needs.setup.outputs.version }}"
-          SHA256="$(curl -fsSL "$BIN_URL" | sha256sum | awk '{print $1}')"
-          echo "bin_url=$BIN_URL" >> "$GITHUB_OUTPUT"
-          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          TAG="${{ needs.setup.outputs.tag }}"
+          VER="${{ needs.setup.outputs.version }}"
+          BASE_URL="https://github.com/dexoron/dcr/releases/download/${TAG}"
+          for arch in x86_64 aarch64 i686 armv7h riscv64; do
+            case "$arch" in
+              x86_64)  triple="x86_64-unknown-linux-musl" ;;
+              aarch64) triple="aarch64-unknown-linux-musl" ;;
+              i686)    triple="i686-unknown-linux-musl" ;;
+              armv7h)  triple="armv7-unknown-linux-musleabihf" ;;
+              riscv64) triple="riscv64gc-unknown-linux-musl" ;;
+            esac
+            url="${BASE_URL}/dcr-${triple}-${VER}"
+            sha256="$(curl -fsSL "$url" | sha256sum | awk '{print $1}')"
+            echo "${arch}_url=${url}" >> "$GITHUB_OUTPUT"
+            echo "${arch}_sha256=${sha256}" >> "$GITHUB_OUTPUT"
+          done
 
       - name: Render AUR Metadata
         shell: bash
@@ -667,16 +681,13 @@ jobs:
           set -euo pipefail
           PKGVER_ORIG='${{ needs.setup.outputs.version }}'
           PKGVER_CLEAN="${PKGVER_ORIG//-/.}"
-          BIN_URL='${{ steps.meta.outputs.bin_url }}'
-          SHA256='${{ steps.meta.outputs.sha256 }}'
-
           mkdir -p packages/aur/dcr-bin
           cat > packages/aur/dcr-bin/PKGBUILD <<PKG
           pkgname=dcr-bin
           pkgver=${PKGVER_CLEAN}
           pkgrel=1
           pkgdesc="Cargo-like utility to manage C/C++ projects (pre-compiled musl binary)"
-          arch=('x86_64')
+          arch=('x86_64' 'aarch64' 'i686' 'armv7h' 'riscv64')
           url="https://github.com/dexoron/dcr"
           license=('GPL-3.0-or-later')
           provides=('dcr')
@@ -685,8 +696,16 @@ jobs:
             'gcc: build C/C++ projects with GCC'
             'clang: build C/C++ projects with Clang'
           )
-          source_x86_64=("dcr-\$pkgver::${BIN_URL}")
-          sha256sums_x86_64=('${SHA256}')
+          source_x86_64=("dcr-\$pkgver::${{ steps.meta.outputs.x86_64_url }}")
+          sha256sums_x86_64=('${{ steps.meta.outputs.x86_64_sha256 }}')
+          source_aarch64=("dcr-\$pkgver::${{ steps.meta.outputs.aarch64_url }}")
+          sha256sums_aarch64=('${{ steps.meta.outputs.aarch64_sha256 }}')
+          source_i686=("dcr-\$pkgver::${{ steps.meta.outputs.i686_url }}")
+          sha256sums_i686=('${{ steps.meta.outputs.i686_sha256 }}')
+          source_armv7h=("dcr-\$pkgver::${{ steps.meta.outputs.armv7h_url }}")
+          sha256sums_armv7h=('${{ steps.meta.outputs.armv7h_sha256 }}')
+          source_riscv64=("dcr-\$pkgver::${{ steps.meta.outputs.riscv64_url }}")
+          sha256sums_riscv64=('${{ steps.meta.outputs.riscv64_sha256 }}')
 
           package() {
             install -Dm755 "\$srcdir/dcr-\$pkgver" "\$pkgdir/usr/bin/dcr"
@@ -700,13 +719,25 @@ jobs:
             pkgrel = 1
             url = https://github.com/dexoron/dcr
             arch = x86_64
+            arch = aarch64
+            arch = i686
+            arch = armv7h
+            arch = riscv64
             license = GPL-3.0-or-later
             provides = dcr
             conflicts = dcr
             optdepends = gcc: build C/C++ projects with GCC
             optdepends = clang: build C/C++ projects with Clang
-            source_x86_64 = dcr-${PKGVER_CLEAN}::${BIN_URL}
-            sha256sums_x86_64 = ${SHA256}
+            source_x86_64 = dcr-${PKGVER_CLEAN}::${{ steps.meta.outputs.x86_64_url }}
+            sha256sums_x86_64 = ${{ steps.meta.outputs.x86_64_sha256 }}
+            source_aarch64 = dcr-${PKGVER_CLEAN}::${{ steps.meta.outputs.aarch64_url }}
+            sha256sums_aarch64 = ${{ steps.meta.outputs.aarch64_sha256 }}
+            source_i686 = dcr-${PKGVER_CLEAN}::${{ steps.meta.outputs.i686_url }}
+            sha256sums_i686 = ${{ steps.meta.outputs.i686_sha256 }}
+            source_armv7h = dcr-${PKGVER_CLEAN}::${{ steps.meta.outputs.armv7h_url }}
+            sha256sums_armv7h = ${{ steps.meta.outputs.armv7h_sha256 }}
+            source_riscv64 = dcr-${PKGVER_CLEAN}::${{ steps.meta.outputs.riscv64_url }}
+            sha256sums_riscv64 = ${{ steps.meta.outputs.riscv64_sha256 }}
 
           pkgname = dcr-bin
           SRC
@@ -891,10 +922,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BIN_URL="https://github.com/dexoron/dcr/releases/download/${{ needs.setup.outputs.tag }}/dcr-x86_64-unknown-linux-musl-${{ needs.setup.outputs.version }}"
-          SHA256="$(curl -fsSL "$BIN_URL" | sha256sum | awk '{print $1}')"
-          echo "bin_url=$BIN_URL" >> "$GITHUB_OUTPUT"
-          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          TAG="${{ needs.setup.outputs.tag }}"
+          VER="${{ needs.setup.outputs.version }}"
+          BASE_URL="https://github.com/dexoron/dcr/releases/download/${TAG}"
+          for arch in x86_64 aarch64 i686 armv7h riscv64; do
+            case "$arch" in
+              x86_64)  triple="x86_64-unknown-linux-musl" ;;
+              aarch64) triple="aarch64-unknown-linux-musl" ;;
+              i686)    triple="i686-unknown-linux-musl" ;;
+              armv7h)  triple="armv7-unknown-linux-musleabihf" ;;
+              riscv64) triple="riscv64gc-unknown-linux-musl" ;;
+            esac
+            url="${BASE_URL}/dcr-${triple}-${VER}"
+            sha256="$(curl -fsSL "$url" | sha256sum | awk '{print $1}')"
+            echo "${arch}_url=${url}" >> "$GITHUB_OUTPUT"
+            echo "${arch}_sha256=${sha256}" >> "$GITHUB_OUTPUT"
+          done
 
       - name: Render AUR Metadata
         shell: bash
@@ -902,16 +945,13 @@ jobs:
           set -euo pipefail
           PKGVER_ORIG='${{ needs.setup.outputs.version }}'
           PKGVER_CLEAN='${{ needs.setup.outputs.clean_version }}'
-          BIN_URL='${{ steps.meta.outputs.bin_url }}'
-          SHA256='${{ steps.meta.outputs.sha256 }}'
-
           mkdir -p packages/aur/dcr-dev-bin
           cat > packages/aur/dcr-dev-bin/PKGBUILD <<PKG
           pkgname=dcr-dev-bin
           pkgver=${PKGVER_CLEAN}
           pkgrel=1
           pkgdesc="Cargo-like utility to manage C/C++ projects (pre-compiled musl binary dev release)"
-          arch=('x86_64')
+          arch=('x86_64' 'aarch64' 'i686' 'armv7h' 'riscv64')
           url="https://github.com/dexoron/dcr"
           license=('GPL-3.0-or-later')
           provides=('dcr')
@@ -920,8 +960,16 @@ jobs:
             'gcc: build C/C++ projects with GCC'
             'clang: build C/C++ projects with Clang'
           )
-          source_x86_64=("dcr-\$pkgver::${BIN_URL}")
-          sha256sums_x86_64=('${SHA256}')
+          source_x86_64=("dcr-\$pkgver::${{ steps.meta.outputs.x86_64_url }}")
+          sha256sums_x86_64=('${{ steps.meta.outputs.x86_64_sha256 }}')
+          source_aarch64=("dcr-\$pkgver::${{ steps.meta.outputs.aarch64_url }}")
+          sha256sums_aarch64=('${{ steps.meta.outputs.aarch64_sha256 }}')
+          source_i686=("dcr-\$pkgver::${{ steps.meta.outputs.i686_url }}")
+          sha256sums_i686=('${{ steps.meta.outputs.i686_sha256 }}')
+          source_armv7h=("dcr-\$pkgver::${{ steps.meta.outputs.armv7h_url }}")
+          sha256sums_armv7h=('${{ steps.meta.outputs.armv7h_sha256 }}')
+          source_riscv64=("dcr-\$pkgver::${{ steps.meta.outputs.riscv64_url }}")
+          sha256sums_riscv64=('${{ steps.meta.outputs.riscv64_sha256 }}')
 
           package() {
             install -Dm755 "\$srcdir/dcr-\$pkgver" "\$pkgdir/usr/bin/dcr"
@@ -935,13 +983,25 @@ jobs:
             pkgrel = 1
             url = https://github.com/dexoron/dcr
             arch = x86_64
+            arch = aarch64
+            arch = i686
+            arch = armv7h
+            arch = riscv64
             license = GPL-3.0-or-later
             provides = dcr
             conflicts = dcr
             optdepends = gcc: build C/C++ projects with GCC
             optdepends = clang: build C/C++ projects with Clang
-            source_x86_64 = dcr-${PKGVER_CLEAN}::${BIN_URL}
-            sha256sums_x86_64 = ${SHA256}
+            source_x86_64 = dcr-${PKGVER_CLEAN}::${{ steps.meta.outputs.x86_64_url }}
+            sha256sums_x86_64 = ${{ steps.meta.outputs.x86_64_sha256 }}
+            source_aarch64 = dcr-${PKGVER_CLEAN}::${{ steps.meta.outputs.aarch64_url }}
+            sha256sums_aarch64 = ${{ steps.meta.outputs.aarch64_sha256 }}
+            source_i686 = dcr-${PKGVER_CLEAN}::${{ steps.meta.outputs.i686_url }}
+            sha256sums_i686 = ${{ steps.meta.outputs.i686_sha256 }}
+            source_armv7h = dcr-${PKGVER_CLEAN}::${{ steps.meta.outputs.armv7h_url }}
+            sha256sums_armv7h = ${{ steps.meta.outputs.armv7h_sha256 }}
+            source_riscv64 = dcr-${PKGVER_CLEAN}::${{ steps.meta.outputs.riscv64_url }}
+            sha256sums_riscv64 = ${{ steps.meta.outputs.riscv64_sha256 }}
 
           pkgname = dcr-dev-bin
           SRC
