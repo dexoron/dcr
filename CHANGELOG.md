@@ -1,43 +1,42 @@
 # Changelog
 
-## [0.7.1] - 2026-06-02
+## [0.7.1] - 2026-06-02 "Мультиархитектурное расширение / The Multi-Arch Expansion"
 
-Added:
+### RU
 
-- **`--help` for all commands** — `dcr build --help`, `dcr run --help`, `dcr new --help`,
-  `dcr init --help`, `dcr clean --help`, `dcr add --help`, `dcr fmt --help`,
-  `dcr setup --help`, `dcr tree --help`, `dcr gen --help`, `dcr --update --help`,
-  `dcr test --help`. All output uses styled headers (green) and usage lines (cyan).
-- **Man pages** — 12 troff man pages in `man/man1/`: `dcr.1`, `dcr-build.1`,
-  `dcr-run.1`, `dcr-new.1`, `dcr-init.1`, `dcr-clean.1`, `dcr-add.1`, `dcr-test.1`,
-  `dcr-gen.1`, `dcr-fmt.1`, `dcr-tree.1`, `dcr-setup.1`. Viewable via `man dcr`,
-  `man dcr-build`, etc.
-- **Man page installation in all packaging** — install.sh, install_bsd.sh, AUR PKGBUILD,
-  Debian (cargo-deb), RPM (cargo-generate-rpm), Nix flake (postInstall), Homebrew
-  (resource + man1.install), Snap, and GitHub Release (dcr-man-pages-*.tar.gz).
-- **`dcr init` and `dcr new` name validation** — project names are validated before
-  directory or file creation. Only ASCII letters, digits, `_` and `-` are allowed.
-  Invalid names produce a clear error instead of "Failed to write dcr.toml".
-- **`documentation` and `homepage` metadata** — added to `Cargo.toml` for docs.rs
-  and crate listing.
-- **Release profile optimizations** — `opt-level = "z"`, LTO, `codegen-units = 1`,
-  `panic = "abort"`, `strip = true` for smaller binaries.
-- **Linux i686, armv7, riscv64 architecture support** — new target triples in release
-  workflow and installation scripts.
-- **AUR packages** — `dcr-dev` and `dcr-dev-bin` publishing workflow for dev releases.
-- **Snap publishing support** — automated Snapcraft publishing in CI.
-- **`parse_d_file` rewrite** — now handles CRLF, mixed line endings, and Windows
-  drive letters more robustly.
+**Добавлено:**
+- Вывод `--help` для всех команд с цветным форматированием.
+- man-страницы (12 штук в `man/man1/`) и их установка во всех пакетах.
+- Валидация имен проектов в `dcr init` и `dcr new` (только ASCII буквы, цифры, `_` и `-`).
+- Метаданные `documentation` и `homepage` в `Cargo.toml`.
+- Оптимизация сборки: `opt-level = "z"`, LTO, `codegen-units = 1`, `panic = "abort"`, `strip = true`.
+- Поддержка новых архитектур (i686, armv7, riscv64gc, aarch64) в рабочих процессах и установочных скриптах.
+- Сборка пакетов `deb` и `rpm` для всех 5 архитектур Linux через `cargo-zigbuild`.
+- Пакеты AUR (`dcr-dev`, `dcr-dev-bin`) и публикация Snap в CI.
 
-Changed:
+**Изменено:**
+- Функция `validate_package_name` стала публичной.
+- Команды `gen`, `tree`, `fmt`, `setup` больше не игнорируют аргументы и используют цветной вывод.
+- Инструкция в README изменена с `| bash` на `| sh` для POSIX.
+- Отключена архитектура Windows 32-bit (GNU) из-за проблем со сборкой.
 
-- **`validate_package_name` made public** — now callable from CLI commands directly.
-- **`--help` output now coloured** — all commands use `printc` with `BOLD_GREEN`/`BOLD_CYAN`
-  matching the style of `dcr --help`.
-- **`gen.rs` no-args output** — now uses styled output instead of raw `eprintln!`.
-- **`tree.rs` and `fmt.rs`** — no longer ignore arguments (`_args` → `args`).
-- **`setup.rs`** — no longer ignores arguments (`_args` → `args`).
-- **README install instructions** — changed `| bash` to `| sh` for POSIX compatibility.
+### EN
+
+**Added:**
+- `--help` for all commands with styled headers and usage lines.
+- Man pages (12 troff man pages in `man/man1/`) and their installation across all packaging formats.
+- Project name validation in `dcr init` and `dcr new` (ASCII letters, digits, `_`, `-` only).
+- `documentation` and `homepage` metadata in `Cargo.toml`.
+- Release profile optimizations (`opt-level = "z"`, LTO, `codegen-units = 1`, `panic = "abort"`, `strip = true`).
+- Linux i686, armv7, riscv64gc, aarch64 architecture support in release workflows and installation scripts.
+- Multi-arch `deb` and `rpm` package builds for all 5 Linux architectures via `cargo-zigbuild`.
+- AUR packages (`dcr-dev`, `dcr-dev-bin`) and automated Snapcraft publishing in CI.
+
+**Changed:**
+- `validate_package_name` made public and callable from CLI commands directly.
+- `gen.rs`, `tree.rs`, `fmt.rs`, `setup.rs` no longer ignore arguments and use styled output.
+- README install instructions changed from `| bash` to `| sh` for POSIX compatibility.
+- Disabled Windows 32-bit (GNU) target due to build issues.
 
 Fixed:
 
