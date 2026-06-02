@@ -329,17 +329,16 @@ pub fn needs_link(objects: &[String], output_path: &str) -> bool {
 
 fn parse_d_file(content: &str) -> Vec<String> {
     let mut deps = Vec::new();
-    let text = content.replace("\\\n", " ").replace("\\\r\n", " ");
     let mut target_end = 0;
-    let chars: Vec<char> = text.chars().collect();
-    for i in 0..chars.len() {
-        if chars[i] == ':' {
+    let bytes = content.as_bytes();
+    for (i, &b) in bytes.iter().enumerate() {
+        if b == b':' {
             if i == 1
-                && chars[0].is_ascii_alphabetic()
-                && i + 1 < chars.len()
-                && (chars[i + 1] == '\\' || chars[i + 1] == '/')
+                && bytes[0].is_ascii_alphabetic()
+                && i + 1 < bytes.len()
+                && (bytes[i + 1] == b'\\' || bytes[i + 1] == b'/')
             {
-                continue; // Windows drive letter
+                continue;
             }
             target_end = i + 1;
             break;
@@ -347,17 +346,23 @@ fn parse_d_file(content: &str) -> Vec<String> {
     }
 
     let deps_str = if target_end > 0 {
-        &text[target_end..]
+        &content[target_end..]
     } else {
-        &text
+        content
     };
 
     let mut current_path = String::new();
     let mut in_escape = false;
+    let mut chars = deps_str.chars().peekable();
 
-    for c in deps_str.chars() {
+    while let Some(c) = chars.next() {
         if in_escape {
-            if c != '\n' && c != '\r' {
+            if c == '\n' {
+            } else if c == '\r' {
+                if chars.peek() == Some(&'\n') {
+                    chars.next();
+                }
+            } else {
                 current_path.push(c);
             }
             in_escape = false;
