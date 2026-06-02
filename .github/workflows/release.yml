@@ -744,6 +744,7 @@ jobs:
           git commit -m "dcr-bin ${{ needs.setup.outputs.version }}"
           git push -u origin master
 
+
   # ── Arch User Repository (dcr-dev) ────────────────────────────────
   publish-aur-dev:
     if: ${{ (github.event_name == 'push' && needs.setup.outputs.prerelease == 'true') || github.event.inputs.run_aur_dev == 'true' }}
@@ -977,6 +978,7 @@ jobs:
           git add PKGBUILD .SRCINFO
           git commit -m "dcr-dev-bin ${{ needs.setup.outputs.version }}"
           git push -u origin master
+
 
   # ── crates.io ──────────────────────────────────────────────────────────────
   publish-crates:
