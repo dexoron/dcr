@@ -16,7 +16,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::config::FILE_MAIN_C;
-use crate::core::config::Config;
+use crate::core::config::{validate_package_name, Config};
 use crate::utils::fs::check_dir;
 use crate::utils::log::{error, warn};
 use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
@@ -38,6 +38,15 @@ pub fn init(args: &[String]) -> i32 {
 
     if !items.is_empty() {
         error("Directory not empty");
+        return 1;
+    }
+
+    if let Err(e) = validate_package_name(&project_name) {
+        error(&format!(
+            "Invalid project name `{}`: {}",
+            colored(&project_name, BOLD_CYAN),
+            e
+        ));
         return 1;
     }
 

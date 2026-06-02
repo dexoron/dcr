@@ -447,7 +447,7 @@ fn parse_typed_config(value: &Value) -> Result<DcrConfig, ConfigError> {
     value.clone().try_into().map_err(ConfigError::TomlDe)
 }
 
-fn validate_package_name(name: &str) -> Result<(), ConfigError> {
+pub fn validate_package_name(name: &str) -> Result<(), ConfigError> {
     let trimmed = name.trim();
     if trimmed != name {
         return Err(ConfigError::Invalid(

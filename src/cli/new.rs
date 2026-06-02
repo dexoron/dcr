@@ -16,7 +16,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::config::FILE_MAIN_C;
-use crate::core::config::Config;
+use crate::core::config::{validate_package_name, Config};
 use crate::utils::fs::check_dir;
 use crate::utils::log::{error, warn};
 use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
@@ -41,6 +41,15 @@ pub fn new(args: &[String]) -> i32 {
         "Creating a Project `{}`...",
         colored(project_name, BOLD_CYAN)
     );
+
+    if let Err(e) = validate_package_name(project_name) {
+        error(&format!(
+            "Invalid project name `{}`: {}",
+            colored(project_name, BOLD_CYAN),
+            e
+        ));
+        return 1;
+    }
 
     if items.contains(project_name) {
         error(&format!(
