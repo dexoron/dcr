@@ -42,9 +42,12 @@ static BUILD_INTERRUPTED: AtomicBool = AtomicBool::new(false);
 static SIGNAL_HANDLER: Once = Once::new();
 
 pub fn build(args: &[String]) -> i32 {
-    if args.first().map_or(false, |a| a == "--help") {
+    if args.first().is_some_and(|a| a == "--help") {
         printc("USAGE:", BOLD_GREEN);
-        printc("    dcr build [--debug | --release] [--target <triple>] [--force] [--clean] [--verbose]", BOLD_CYAN);
+        printc(
+            "    dcr build [--debug | --release] [--target <triple>] [--force] [--clean] [--verbose]",
+            BOLD_CYAN,
+        );
         println!();
         printc("DESCRIPTION:", BOLD_GREEN);
         println!("    Compiles the project. Default profile is --debug.");

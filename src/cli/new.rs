@@ -16,7 +16,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::config::FILE_MAIN_C;
-use crate::core::config::{validate_package_name, Config};
+use crate::core::config::{Config, validate_package_name};
 use crate::utils::fs::check_dir;
 use crate::utils::log::{error, warn};
 use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
@@ -25,7 +25,7 @@ use std::io::Write;
 use toml::Value;
 
 pub fn new(args: &[String]) -> i32 {
-    if args.first().map_or(false, |a| a == "--help") {
+    if args.first().is_some_and(|a| a == "--help") {
         printc("USAGE:", BOLD_GREEN);
         printc("    dcr new <name>", BOLD_CYAN);
         println!();

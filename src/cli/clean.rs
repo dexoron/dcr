@@ -27,9 +27,12 @@ use std::fs;
 use std::path::Path;
 
 pub fn clean(args: &[String]) -> i32 {
-    if args.first().map_or(false, |a| a == "--help") {
+    if args.first().is_some_and(|a| a == "--help") {
         printc("USAGE:", BOLD_GREEN);
-        printc("    dcr clean [--debug | --release] [--target <triple>] [--all]", BOLD_CYAN);
+        printc(
+            "    dcr clean [--debug | --release] [--target <triple>] [--all]",
+            BOLD_CYAN,
+        );
         println!();
         printc("DESCRIPTION:", BOLD_GREEN);
         println!("    Removes build artifacts from the target directory.");

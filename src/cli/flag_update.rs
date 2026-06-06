@@ -40,7 +40,7 @@ struct ReleaseAsset {
 }
 
 pub fn flag_update(args: &[String]) -> i32 {
-    if args.first().map_or(false, |a| a == "--help") {
+    if args.first().is_some_and(|a| a == "--help") {
         printc("USAGE:", BOLD_GREEN);
         printc("    dcr --update", BOLD_CYAN);
         println!();

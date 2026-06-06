@@ -34,9 +34,12 @@ pub struct AddArgs {
 }
 
 pub fn add(args: &[String]) -> i32 {
-    if args.first().map_or(false, |a| a == "--help") {
+    if args.first().is_some_and(|a| a == "--help") {
         printc("USAGE:", BOLD_GREEN);
-        printc("    dcr add <name> <source> [--branch <b>] [--tag <t>] [--rev <r>]", BOLD_CYAN);
+        printc(
+            "    dcr add <name> <source> [--branch <b>] [--tag <t>] [--rev <r>]",
+            BOLD_CYAN,
+        );
         println!();
         printc("DESCRIPTION:", BOLD_GREEN);
         println!("    Adds a dependency to the project.");
