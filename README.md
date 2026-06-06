@@ -271,6 +271,7 @@ cargo test
 <div align="center">
 
 GPL-3.0 — see [LICENSE](LICENSE)<br/>
+DCR is a build tool, not a library. The GPL applies only to DCR's own source code, not to projects built with it.<br/>
 Made with ❤️ by [Dexoron](https://github.com/dexoron) and contributors.
 
 </div>

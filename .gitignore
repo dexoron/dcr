@@ -2,6 +2,7 @@ target/
 sandbox/**
 .idea/
 .vscode/
+.cargo/
 .env
 
 personal/
