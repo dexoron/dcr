@@ -19,7 +19,7 @@ use crate::cli::build::build;
 use crate::cli::flags::parse_build_run_flags;
 use crate::core::config::Config;
 use crate::core::runner::run_binary;
-use crate::utils::build::{normalize_target_os, parse_version_info};
+use crate::utils::build::{default_target_triple, normalize_target_os, parse_version_info};
 use crate::utils::fs::find_project_root;
 use crate::utils::fs::with_dir;
 use crate::utils::log::error;
@@ -178,27 +178,7 @@ fn run_project(
     // If no target specified, use default host target for target-specific config
     let mut target = flags.target.clone();
     if target.is_none() {
-        let default_target = if cfg!(target_os = "linux") {
-            format!("{}-unknown-linux-gnu", std::env::consts::ARCH)
-        } else if cfg!(target_os = "macos") {
-            "x86_64-apple-darwin".to_string()
-        } else if cfg!(target_os = "windows") {
-            "x86_64-pc-windows-msvc".to_string()
-        } else if cfg!(any(
-            target_os = "freebsd",
-            target_os = "openbsd",
-            target_os = "netbsd",
-            target_os = "dragonfly"
-        )) {
-            format!(
-                "{}-unknown-{}",
-                std::env::consts::ARCH,
-                std::env::consts::OS
-            )
-        } else {
-            "unknown".to_string()
-        };
-        target = Some(default_target);
+        target = Some(default_target_triple());
     }
 
     let build_kind = config
