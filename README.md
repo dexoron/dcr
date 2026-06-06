@@ -11,7 +11,7 @@
 [![AUR](https://img.shields.io/aur/version/dcr)](https://aur.archlinux.org/packages/dcr)
 [![Crates.io](https://img.shields.io/crates/v/dcr)](https://crates.io/crates/dcr)
 [![Homebrew](https://img.shields.io/badge/homebrew-dexoron%2Fdexoron-orange)](https://github.com/dexoron/homebrew-dexoron)
-[![Snap](https://img.shields.io/badge/snap-dcrup-orange)](https://snapcraft.io/dcrup)
+<!-- Snap badge removed — classic confinement was denied for this project. -->
 <br/>
 [![GitHub Stars](https://img.shields.io/github/stars/dexoron/dcr?style=flat)](https://github.com/dexoron/dcr/stargazers)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
@@ -127,8 +127,11 @@ curl -fsSL https://dcr.dexoron.su/install_bsd.sh | sh
 <td><b>Snap (Linux)</b></td>
 <td>
 
+> Snap Store publishing temporarily disabled — see [#51671](https://forum.snapcraft.io/t/classic-confinement-request-for-dcrup/51671).
+> Download the `.snap` from [GitHub Releases](https://github.com/dexoron/dcr/releases/latest) and install manually:
+
 ```sh
-sudo snap install dcrup
+sudo snap install --classic --dangerous dcrup_*.snap
 ```
 
 </td>
