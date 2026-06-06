@@ -226,7 +226,7 @@ other in [docs/](docs/), `dcr --help` and `dcr <command> --help`
 | Linux (Musl)    | ✅ | ✅ | ✅ | ✅ | 🚧 |
 | macOS           | ✅ | ✅ | ❌ | ❌ | ❌ |
 | Windows (MSVC)  | ✅ | ✅ | ❌ | ✅ | ❌ |
-| Windows (MinGW) | ✅ | 🚧 | ❌ | ✅ | ❌ |
+| Windows (MinGW) | ✅ | 🚧 | ❌ | ❌ | ❌ |
 | FreeBSD         | ✅ | 🚧 | ❌ | ❌ | ❌ |
 | OpenBSD         | ✅ | 🚧 | ❌ | ❌ | ❌ |
 | NetBSD          | ✅ | 🚧 | ❌ | ❌ | ❌ |
