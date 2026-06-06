@@ -1,22 +1,21 @@
-<div align="center">
+<h1 align="center">DCR — Dexoron Cargo Realization</h1>
 
-# DCR — Dexoron Cargo Realization
+<p align="center"><strong>A Cargo-style build tool for C/C++ projects</strong></p>
 
-**A Cargo-style build tool for C/C++ projects**
+<p align="center">
+  <a href="https://github.com/dexoron/dcr/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/dexoron/dcr/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/dexoron/dcr/releases/latest"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/dexoron/dcr"></a>
+  <a href="https://github.com/dexoron/dcr/releases"><img alt="Platform" src="https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20windows-lightgrey"></a>
+  <br>
+  <a href="https://aur.archlinux.org/packages/dcr"><img alt="AUR" src="https://img.shields.io/aur/version/dcr"></a>
+  <a href="https://crates.io/crates/dcr"><img alt="Crates.io" src="https://img.shields.io/crates/v/dcr"></a>
+  <a href="https://github.com/dexoron/homebrew-dexoron"><img alt="Homebrew" src="https://img.shields.io/badge/homebrew-dexoron%2Fdexoron-orange"></a>
+  <br>
+  <a href="https://github.com/dexoron/dcr/stargazers"><img alt="GitHub Stars" src="https://img.shields.io/github/stars/dexoron/dcr?style=flat"></a>
+  <a href="LICENSE"><img alt="License: GPL-3.0" src="https://img.shields.io/badge/License-GPL--3.0-blue.svg"></a>
+</p>
 
-[![CI](https://github.com/dexoron/dcr/actions/workflows/ci.yml/badge.svg)](https://github.com/dexoron/dcr/actions/workflows/ci.yml)
-[![GitHub Release](https://img.shields.io/github/v/release/dexoron/dcr)](https://github.com/dexoron/dcr/releases/latest)
-[![Platform](https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20windows-lightgrey)](https://github.com/dexoron/dcr/releases)
-<br/>
-[![AUR](https://img.shields.io/aur/version/dcr)](https://aur.archlinux.org/packages/dcr)
-[![Crates.io](https://img.shields.io/crates/v/dcr)](https://crates.io/crates/dcr)
-[![Homebrew](https://img.shields.io/badge/homebrew-dexoron%2Fdexoron-orange)](https://github.com/dexoron/homebrew-dexoron)
-<!-- Snap badge removed — classic confinement was denied for this project. -->
-<br/>
-[![GitHub Stars](https://img.shields.io/github/stars/dexoron/dcr?style=flat)](https://github.com/dexoron/dcr/stargazers)
-[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
-
-</div>
+<!-- Snap badge removed: classic confinement was denied for this project. -->
 
 ---
 
