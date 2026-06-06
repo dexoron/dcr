@@ -651,6 +651,8 @@ jobs:
             done
           }
           PKG
+
+          cat > packages/aur/dcr/.SRCINFO <<SRC
           pkgbase = dcr
             pkgdesc = Cargo-like utility to manage C/C++ projects
             pkgver = ${PKGVER_CLEAN}
