@@ -8,6 +8,8 @@ sidebar_label: Project commands (new, init)
 
 Creates a new project with a standard structure and `dcr.toml`. The `name` argument is required.
 
+Only ASCII letters, digits, underscores `_` and hyphens `-` are allowed in the project name.
+
 ```bash
 dcr new my-app
 ```
@@ -25,4 +27,4 @@ mkdir app && cd app
 dcr init
 ```
 
-The project name is taken from the current directory name.
+The project name is taken from the current directory name. The directory name must follow the same naming rules as `dcr new`.

@@ -21,6 +21,10 @@ on:
         description: "Update AUR packages (dcr & dcr-bin)"
         type: boolean
         default: false 
+      run_aur_dev:
+        description: "Update Dev AUR packages (dcr-dev, dcr-dev-bin)"
+        type: boolean
+        default: false
       run_bsd:
         description: "Build BSD"
         type: boolean
@@ -56,6 +60,7 @@ jobs:
     outputs:
       tag: ${{ steps.tag.outputs.value }}
       version: ${{ steps.tag.outputs.version }}
+      clean_version: ${{ steps.tag.outputs.clean_version }}
       prerelease: ${{ steps.tag.outputs.prerelease }}
     steps:
       - name: Resolve tag
@@ -67,9 +72,11 @@ jobs:
             TAG="${GITHUB_REF_NAME}"
           fi
           VERSION="${TAG#v}"
+          CLEAN_VERSION="${VERSION%-dev}"
           [[ "$TAG" == *"-"* ]] && PRERELEASE="true" || PRERELEASE="false"
           echo "value=${TAG}"             >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}"       >> "$GITHUB_OUTPUT"
+          echo "clean_version=${CLEAN_VERSION}" >> "$GITHUB_OUTPUT"
           echo "prerelease=${PRERELEASE}" >> "$GITHUB_OUTPUT"
 
   # ── Release Notes ──────────────────────────────────────────────────────────
@@ -122,6 +129,36 @@ jobs:
           body_path: .github/release-notes.md
           prerelease: ${{ needs.setup.outputs.prerelease == 'true' }}
 
+  # ── Man Pages Archive ──────────────────────────────────────────────────────
+  man-pages:
+    if: ${{ github.event_name == 'push' || github.event.inputs.run_linux == 'true' }}
+    needs: [setup, notes, create-release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.setup.outputs.tag }}
+
+      - name: Download Release Notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: .github
+
+      - name: Create Man Pages Archive
+        run: |
+          tar czf "dcr-man-pages-${{ needs.setup.outputs.version }}.tar.gz" \
+            --transform 's/^man\/man1\//usr\/share\/man\/man1\//' \
+            man/man1/*.1
+
+      - name: Upload Man Pages to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.setup.outputs.tag }}
+          files: dcr-man-pages-${{ needs.setup.outputs.version }}.tar.gz
+          body_path: .github/release-notes.md
+          prerelease: ${{ needs.setup.outputs.prerelease == 'true' }}
+
   # ── Linux Binaries Matrix ──────────────────────────────────────────────────
   build-linux:
     if: ${{ github.event_name == 'push' || github.event.inputs.run_linux == 'true' }}
@@ -135,6 +172,12 @@ jobs:
           - target: aarch64-unknown-linux-gnu
           - target: x86_64-unknown-linux-musl
           - target: aarch64-unknown-linux-musl
+          - target: i686-unknown-linux-gnu
+          - target: i686-unknown-linux-musl
+          - target: armv7-unknown-linux-gnueabihf
+          - target: armv7-unknown-linux-musleabihf
+          - target: riscv64gc-unknown-linux-gnu
+          - target: riscv64gc-unknown-linux-musl
     steps:
       - uses: actions/checkout@v4
         with:
@@ -192,41 +235,73 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - package_type: deb
-            artifact_name: debian-package
-          - package_type: rpm
-            artifact_name: rpm-package
+        package_type: [deb, rpm, arch, snap]
+        target: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, i686-unknown-linux-gnu, armv7-unknown-linux-gnueabihf, riscv64gc-unknown-linux-gnu]
+        exclude:
           - package_type: arch
-            artifact_name: arch-package
+            target: aarch64-unknown-linux-gnu
+          - package_type: arch
+            target: i686-unknown-linux-gnu
+          - package_type: arch
+            target: armv7-unknown-linux-gnueabihf
+          - package_type: arch
+            target: riscv64gc-unknown-linux-gnu
           - package_type: snap
-            artifact_name: snap-package
+            target: aarch64-unknown-linux-gnu
+          - package_type: snap
+            target: i686-unknown-linux-gnu
+          - package_type: snap
+            target: armv7-unknown-linux-gnueabihf
+          - package_type: snap
+            target: riscv64gc-unknown-linux-gnu
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.setup.outputs.tag }}
 
-      - name: Setup Rust (For non-container builds)
+      - name: Install cargo-zigbuild
+        if: matrix.package_type == 'deb' || matrix.package_type == 'rpm'
+        run: |
+          pip install cargo-zigbuild
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Setup Zig
+        if: (matrix.package_type == 'deb' || matrix.package_type == 'rpm') && matrix.target != 'x86_64-unknown-linux-gnu'
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+
+      - name: Setup Rust
         if: matrix.package_type != 'arch'
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
       # ── DEB Build ──
       - name: Build Debian Package
         if: matrix.package_type == 'deb'
         run: |
           cargo install cargo-deb
-          cargo build --release
-          cargo deb --no-build
-          mkdir -p dist-packages && cp target/debian/*.deb dist-packages/
+          if [ "${{ matrix.target }}" != "x86_64-unknown-linux-gnu" ]; then
+            cargo zigbuild --release --target ${{ matrix.target }}
+          else
+            cargo build --release --target ${{ matrix.target }}
+          fi
+          cargo deb --no-build --target ${{ matrix.target }}
+          mkdir -p dist-packages && cp target/${{ matrix.target }}/debian/*.deb dist-packages/
 
       # ── RPM Build ──
       - name: Build RPM Package
         if: matrix.package_type == 'rpm'
         run: |
           cargo install cargo-generate-rpm
-          cargo build --release
-          cargo generate-rpm
-          mkdir -p dist-packages && cp target/generate-rpm/*.rpm dist-packages/
+          if [ "${{ matrix.target }}" != "x86_64-unknown-linux-gnu" ]; then
+            cargo zigbuild --release --target ${{ matrix.target }}
+          else
+            cargo build --release --target ${{ matrix.target }}
+          fi
+          cargo generate-rpm --target ${{ matrix.target }}
+          mkdir -p dist-packages && cp target/${{ matrix.target }}/generate-rpm/*.rpm dist-packages/
 
       # ── Snap Build ──
       - name: Build Snap Package
@@ -235,6 +310,7 @@ jobs:
           cargo build --release
           mkdir -p packaging/snap/dist/bin
           cp target/release/dcr packaging/snap/dist/bin/
+          cp -r man packaging/snap/dist/man
 
       - name: Snapcraft Build Action
         if: matrix.package_type == 'snap'
@@ -276,9 +352,12 @@ jobs:
             cargo build --release --locked
           }
           package() {
-            cd "\$srcdir/\$pkgname-${PKGVER_ORIG}"
+            cd "\$srcdir/dcr-${PKGVER_ORIG}"
             install -Dm755 "target/release/dcr" "\$pkgdir/usr/bin/dcr"
             install -Dm644 LICENSE "\$pkgdir/usr/share/licenses/\$pkgname/LICENSE"
+            for manpage in man/man1/*.1; do
+              install -Dm644 "\$manpage" "\$pkgdir/usr/share/man/man1/\$(basename "\$manpage")"
+            done
           }
           PKG
           docker run --rm \
@@ -298,7 +377,7 @@ jobs:
       - name: Upload Package Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
+          name: ${{ matrix.package_type }}-package-${{ matrix.target }}
           path: dist-packages/*
           if-no-files-found: ignore
 
@@ -323,10 +402,10 @@ jobs:
         with:
           tag_name: ${{ needs.setup.outputs.tag }}
           files: |
-            collected-packages/debian-package/*
-            collected-packages/rpm-package/*
-            collected-packages/arch-package/*
-            collected-packages/snap-package/*
+            collected-packages/deb-package-*/*
+            collected-packages/rpm-package-*/*
+            collected-packages/arch-package-*/*
+            collected-packages/snap-package-*/*
           body_path: .github/release-notes.md
           prerelease: ${{ needs.setup.outputs.prerelease == 'true' }}
 
@@ -452,8 +531,6 @@ jobs:
           cp target/release/dcr "$ASSET"
           echo "BSD_ASSET=${ASSET}" >> "$GITHUB_ENV"
 
-
-
       # --- UPLOAD TARGET ---
       - name: Upload BSD Asset to Release
         uses: softprops/action-gh-release@v2
@@ -474,6 +551,7 @@ jobs:
         include:
           - target: x86_64-pc-windows-msvc
           - target: aarch64-pc-windows-msvc
+          - target: i686-pc-windows-msvc
           - target: x86_64-pc-windows-gnu
     steps:
       - uses: actions/checkout@v4
@@ -568,10 +646,11 @@ jobs:
             cd "\$srcdir/\$pkgname-${PKGVER_ORIG}"
             install -Dm755 "target/release/dcr" "\$pkgdir/usr/bin/dcr"
             install -Dm644 LICENSE "\$pkgdir/usr/share/licenses/\$pkgname/LICENSE"
+            for manpage in man/man1/*.1; do
+              install -Dm644 "\$manpage" "\$pkgdir/usr/share/man/man1/\$(basename "\$manpage")"
+            done
           }
           PKG
-
-          cat > packages/aur/dcr/.SRCINFO <<SRC
           pkgbase = dcr
             pkgdesc = Cargo-like utility to manage C/C++ projects
             pkgver = ${PKGVER_CLEAN}
@@ -645,10 +724,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BIN_URL="https://github.com/dexoron/dcr/releases/download/${{ needs.setup.outputs.tag }}/dcr-x86_64-unknown-linux-musl-${{ needs.setup.outputs.version }}"
-          SHA256="$(curl -fsSL "$BIN_URL" | sha256sum | awk '{print $1}')"
-          echo "bin_url=$BIN_URL" >> "$GITHUB_OUTPUT"
-          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          TAG="${{ needs.setup.outputs.tag }}"
+          VER="${{ needs.setup.outputs.version }}"
+          BASE_URL="https://github.com/dexoron/dcr/releases/download/${TAG}"
+          for arch in x86_64 aarch64 i686 armv7h riscv64; do
+            case "$arch" in
+              x86_64)  triple="x86_64-unknown-linux-musl" ;;
+              aarch64) triple="aarch64-unknown-linux-musl" ;;
+              i686)    triple="i686-unknown-linux-musl" ;;
+              armv7h)  triple="armv7-unknown-linux-musleabihf" ;;
+              riscv64) triple="riscv64gc-unknown-linux-musl" ;;
+            esac
+            url="${BASE_URL}/dcr-${triple}-${VER}"
+            sha256="$(curl -fsSL "$url" | sha256sum | awk '{print $1}')"
+            echo "${arch}_url=${url}" >> "$GITHUB_OUTPUT"
+            echo "${arch}_sha256=${sha256}" >> "$GITHUB_OUTPUT"
+          done
 
       - name: Render AUR Metadata
         shell: bash
@@ -656,16 +747,13 @@ jobs:
           set -euo pipefail
           PKGVER_ORIG='${{ needs.setup.outputs.version }}'
           PKGVER_CLEAN="${PKGVER_ORIG//-/.}"
-          BIN_URL='${{ steps.meta.outputs.bin_url }}'
-          SHA256='${{ steps.meta.outputs.sha256 }}'
-
           mkdir -p packages/aur/dcr-bin
           cat > packages/aur/dcr-bin/PKGBUILD <<PKG
           pkgname=dcr-bin
           pkgver=${PKGVER_CLEAN}
           pkgrel=1
           pkgdesc="Cargo-like utility to manage C/C++ projects (pre-compiled musl binary)"
-          arch=('x86_64')
+          arch=('x86_64' 'aarch64' 'i686' 'armv7h' 'riscv64')
           url="https://github.com/dexoron/dcr"
           license=('GPL-3.0-or-later')
           provides=('dcr')
@@ -674,8 +762,16 @@ jobs:
             'gcc: build C/C++ projects with GCC'
             'clang: build C/C++ projects with Clang'
           )
-          source_x86_64=("dcr-\$pkgver::${BIN_URL}")
-          sha256sums_x86_64=('${SHA256}')
+          source_x86_64=("dcr-\$pkgver::${{ steps.meta.outputs.x86_64_url }}")
+          sha256sums_x86_64=('${{ steps.meta.outputs.x86_64_sha256 }}')
+          source_aarch64=("dcr-\$pkgver::${{ steps.meta.outputs.aarch64_url }}")
+          sha256sums_aarch64=('${{ steps.meta.outputs.aarch64_sha256 }}')
+          source_i686=("dcr-\$pkgver::${{ steps.meta.outputs.i686_url }}")
+          sha256sums_i686=('${{ steps.meta.outputs.i686_sha256 }}')
+          source_armv7h=("dcr-\$pkgver::${{ steps.meta.outputs.armv7h_url }}")
+          sha256sums_armv7h=('${{ steps.meta.outputs.armv7h_sha256 }}')
+          source_riscv64=("dcr-\$pkgver::${{ steps.meta.outputs.riscv64_url }}")
+          sha256sums_riscv64=('${{ steps.meta.outputs.riscv64_sha256 }}')
 
           package() {
             install -Dm755 "\$srcdir/dcr-\$pkgver" "\$pkgdir/usr/bin/dcr"
@@ -689,13 +785,25 @@ jobs:
             pkgrel = 1
             url = https://github.com/dexoron/dcr
             arch = x86_64
+            arch = aarch64
+            arch = i686
+            arch = armv7h
+            arch = riscv64
             license = GPL-3.0-or-later
             provides = dcr
             conflicts = dcr
             optdepends = gcc: build C/C++ projects with GCC
             optdepends = clang: build C/C++ projects with Clang
-            source_x86_64 = dcr-${PKGVER_CLEAN}::${BIN_URL}
-            sha256sums_x86_64 = ${SHA256}
+            source_x86_64 = dcr-${PKGVER_CLEAN}::${{ steps.meta.outputs.x86_64_url }}
+            sha256sums_x86_64 = ${{ steps.meta.outputs.x86_64_sha256 }}
+            source_aarch64 = dcr-${PKGVER_CLEAN}::${{ steps.meta.outputs.aarch64_url }}
+            sha256sums_aarch64 = ${{ steps.meta.outputs.aarch64_sha256 }}
+            source_i686 = dcr-${PKGVER_CLEAN}::${{ steps.meta.outputs.i686_url }}
+            sha256sums_i686 = ${{ steps.meta.outputs.i686_sha256 }}
+            source_armv7h = dcr-${PKGVER_CLEAN}::${{ steps.meta.outputs.armv7h_url }}
+            sha256sums_armv7h = ${{ steps.meta.outputs.armv7h_sha256 }}
+            source_riscv64 = dcr-${PKGVER_CLEAN}::${{ steps.meta.outputs.riscv64_url }}
+            sha256sums_riscv64 = ${{ steps.meta.outputs.riscv64_sha256 }}
 
           pkgname = dcr-bin
           SRC
@@ -738,6 +846,274 @@ jobs:
           git add PKGBUILD .SRCINFO
           git commit -m "dcr-bin ${{ needs.setup.outputs.version }}"
           git push -u origin master
+
+
+  # ── Arch User Repository (dcr-dev) ────────────────────────────────
+  publish-aur-dev:
+    if: ${{ (github.event_name == 'push' && needs.setup.outputs.prerelease == 'true') || github.event.inputs.run_aur_dev == 'true' }}
+    needs: [setup]
+    runs-on: ubuntu-latest
+    environment: aur
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Derive checksum
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC_URL="https://github.com/dexoron/dcr/archive/refs/tags/${{ needs.setup.outputs.tag }}.tar.gz"
+          SHA256="$(curl -fsSL "$SRC_URL" | sha256sum | awk '{print $1}')"
+          echo "source_url=$SRC_URL" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+
+      - name: Render AUR metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          PKGVER_ORIG='${{ needs.setup.outputs.version }}'
+          PKGVER_CLEAN='${{ needs.setup.outputs.clean_version }}'
+          SRC_URL='${{ steps.meta.outputs.source_url }}'
+          SHA256='${{ steps.meta.outputs.sha256 }}'
+
+          mkdir -p packages/aur/dcr-dev
+          cat > packages/aur/dcr-dev/PKGBUILD <<PKG
+          pkgname=dcr-dev
+          pkgver=${PKGVER_CLEAN}
+          pkgrel=1
+          pkgdesc="Cargo-like utility to manage C/C++ projects (development release)"
+          arch=('x86_64' 'aarch64')
+          url="https://github.com/dexoron/dcr"
+          license=('GPL-3.0-or-later')
+          depends=('gcc-libs')
+          makedepends=('cargo')
+          options=('!lto')
+          provides=('dcr')
+          conflicts=('dcr')
+          optdepends=(
+            'gcc: build C/C++ projects with GCC'
+            'clang: build C/C++ projects with Clang'
+          )
+          source=("\$pkgname-\$pkgver.tar.gz::${SRC_URL}")
+          sha256sums=('${SHA256}')
+
+          build() {
+            cd "\$srcdir/dcr-${PKGVER_ORIG}"
+            unset CFLAGS CXXFLAGS LDFLAGS
+            export RUSTFLAGS="-C linker=cc"
+            cargo build --release --locked
+          }
+
+          package() {
+            cd "\$srcdir/\$pkgname-${PKGVER_ORIG}"
+            install -Dm755 "target/release/dcr" "\$pkgdir/usr/bin/dcr"
+            install -Dm644 LICENSE "\$pkgdir/usr/share/licenses/\$pkgname/LICENSE"
+            for manpage in man/man1/*.1; do
+              install -Dm644 "\$manpage" "\$pkgdir/usr/share/man/man1/\$(basename "\$manpage")"
+            done
+          }
+          PKG
+
+          cat > packages/aur/dcr-dev/.SRCINFO <<SRC
+          pkgbase = dcr-dev
+            pkgdesc = Cargo-like utility to manage C/C++ projects (development release)
+            pkgver = ${PKGVER_CLEAN}
+            pkgrel = 1
+            url = https://github.com/dexoron/dcr
+            arch = x86_64
+            arch = aarch64
+            license = GPL-3.0-or-later
+            makedepends = cargo
+            depends = gcc-libs
+            provides = dcr
+            conflicts = dcr
+            optdepends = gcc: build C/C++ projects with GCC
+            optdepends = clang: build C/C++ projects with Clang
+            options = !lto
+            source = dcr-${PKGVER_CLEAN}.tar.gz::${SRC_URL}
+            sha256sums = ${SHA256}
+
+          pkgname = dcr-dev
+          SRC
+
+      - name: Push to AUR
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          AUR_PACKAGE: dcr-dev
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
+
+          export GIT_SSH_COMMAND='ssh -i ~/.ssh/aur -o IdentitiesOnly=yes'
+          
+          mkdir -p aur-repo
+          cd aur-repo
+          git init
+          git remote add origin "ssh://aur@aur.archlinux.org/${AUR_PACKAGE}.git"
+          
+          git fetch origin master || true
+          git checkout master || git checkout -b master
+          
+          cp ../packages/aur/dcr-dev/PKGBUILD .
+          cp ../packages/aur/dcr-dev/.SRCINFO .
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git rev-parse --verify HEAD >/dev/null 2>&1; then
+            if git diff --quiet; then
+              echo "No AUR changes"
+              exit 0
+            fi
+          fi
+
+          git add PKGBUILD .SRCINFO
+          git commit -m "dcr-dev ${{ needs.setup.outputs.version }}"
+          git push -u origin master
+
+  # ── Arch User Repository (dcr-dev-bin) ────────────────────────────
+  publish-aur-dev-bin:
+    if: ${{ (github.event_name == 'push' && needs.setup.outputs.prerelease == 'true') || github.event.inputs.run_aur_dev == 'true' }}
+    needs: [setup, build-linux]
+    runs-on: ubuntu-latest
+    environment: aur
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Derive checksum
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.setup.outputs.tag }}"
+          VER="${{ needs.setup.outputs.version }}"
+          BASE_URL="https://github.com/dexoron/dcr/releases/download/${TAG}"
+          for arch in x86_64 aarch64 i686 armv7h riscv64; do
+            case "$arch" in
+              x86_64)  triple="x86_64-unknown-linux-musl" ;;
+              aarch64) triple="aarch64-unknown-linux-musl" ;;
+              i686)    triple="i686-unknown-linux-musl" ;;
+              armv7h)  triple="armv7-unknown-linux-musleabihf" ;;
+              riscv64) triple="riscv64gc-unknown-linux-musl" ;;
+            esac
+            url="${BASE_URL}/dcr-${triple}-${VER}"
+            sha256="$(curl -fsSL "$url" | sha256sum | awk '{print $1}')"
+            echo "${arch}_url=${url}" >> "$GITHUB_OUTPUT"
+            echo "${arch}_sha256=${sha256}" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Render AUR Metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          PKGVER_ORIG='${{ needs.setup.outputs.version }}'
+          PKGVER_CLEAN='${{ needs.setup.outputs.clean_version }}'
+          mkdir -p packages/aur/dcr-dev-bin
+          cat > packages/aur/dcr-dev-bin/PKGBUILD <<PKG
+          pkgname=dcr-dev-bin
+          pkgver=${PKGVER_CLEAN}
+          pkgrel=1
+          pkgdesc="Cargo-like utility to manage C/C++ projects (pre-compiled musl binary dev release)"
+          arch=('x86_64' 'aarch64' 'i686' 'armv7h' 'riscv64')
+          url="https://github.com/dexoron/dcr"
+          license=('GPL-3.0-or-later')
+          provides=('dcr')
+          conflicts=('dcr')
+          optdepends=(
+            'gcc: build C/C++ projects with GCC'
+            'clang: build C/C++ projects with Clang'
+          )
+          source_x86_64=("dcr-\$pkgver::${{ steps.meta.outputs.x86_64_url }}")
+          sha256sums_x86_64=('${{ steps.meta.outputs.x86_64_sha256 }}')
+          source_aarch64=("dcr-\$pkgver::${{ steps.meta.outputs.aarch64_url }}")
+          sha256sums_aarch64=('${{ steps.meta.outputs.aarch64_sha256 }}')
+          source_i686=("dcr-\$pkgver::${{ steps.meta.outputs.i686_url }}")
+          sha256sums_i686=('${{ steps.meta.outputs.i686_sha256 }}')
+          source_armv7h=("dcr-\$pkgver::${{ steps.meta.outputs.armv7h_url }}")
+          sha256sums_armv7h=('${{ steps.meta.outputs.armv7h_sha256 }}')
+          source_riscv64=("dcr-\$pkgver::${{ steps.meta.outputs.riscv64_url }}")
+          sha256sums_riscv64=('${{ steps.meta.outputs.riscv64_sha256 }}')
+
+          package() {
+            install -Dm755 "\$srcdir/dcr-\$pkgver" "\$pkgdir/usr/bin/dcr"
+          }
+          PKG
+
+          cat > packages/aur/dcr-dev-bin/.SRCINFO <<SRC
+          pkgbase = dcr-dev-bin
+            pkgdesc = Cargo-like utility to manage C/C++ projects (pre-compiled musl binary dev release)
+            pkgver = ${PKGVER_CLEAN}
+            pkgrel = 1
+            url = https://github.com/dexoron/dcr
+            arch = x86_64
+            arch = aarch64
+            arch = i686
+            arch = armv7h
+            arch = riscv64
+            license = GPL-3.0-or-later
+            provides = dcr
+            conflicts = dcr
+            optdepends = gcc: build C/C++ projects with GCC
+            optdepends = clang: build C/C++ projects with Clang
+            source_x86_64 = dcr-${PKGVER_CLEAN}::${{ steps.meta.outputs.x86_64_url }}
+            sha256sums_x86_64 = ${{ steps.meta.outputs.x86_64_sha256 }}
+            source_aarch64 = dcr-${PKGVER_CLEAN}::${{ steps.meta.outputs.aarch64_url }}
+            sha256sums_aarch64 = ${{ steps.meta.outputs.aarch64_sha256 }}
+            source_i686 = dcr-${PKGVER_CLEAN}::${{ steps.meta.outputs.i686_url }}
+            sha256sums_i686 = ${{ steps.meta.outputs.i686_sha256 }}
+            source_armv7h = dcr-${PKGVER_CLEAN}::${{ steps.meta.outputs.armv7h_url }}
+            sha256sums_armv7h = ${{ steps.meta.outputs.armv7h_sha256 }}
+            source_riscv64 = dcr-${PKGVER_CLEAN}::${{ steps.meta.outputs.riscv64_url }}
+            sha256sums_riscv64 = ${{ steps.meta.outputs.riscv64_sha256 }}
+
+          pkgname = dcr-dev-bin
+          SRC
+
+      - name: Push to AUR
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          AUR_PACKAGE: dcr-dev-bin
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
+
+          export GIT_SSH_COMMAND='ssh -i ~/.ssh/aur -o IdentitiesOnly=yes'
+          
+          mkdir -p aur-repo
+          cd aur-repo
+          git init
+          git remote add origin "ssh://aur@aur.archlinux.org/${AUR_PACKAGE}.git"
+          
+          git fetch origin master || true
+          git checkout master || git checkout -b master
+          
+          cp ../packages/aur/dcr-dev-bin/PKGBUILD .
+          cp ../packages/aur/dcr-dev-bin/.SRCINFO .
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git rev-parse --verify HEAD >/dev/null 2>&1; then
+            if git diff --quiet; then
+              echo "No AUR changes"
+              exit 0
+            fi
+          fi
+
+          git add PKGBUILD .SRCINFO
+          git commit -m "dcr-dev-bin ${{ needs.setup.outputs.version }}"
+          git push -u origin master
+
 
   # ── crates.io ──────────────────────────────────────────────────────────────
   publish-crates:
@@ -783,6 +1159,7 @@ jobs:
           echo "linux_arm=$(download_sha "dcr-aarch64-unknown-linux-gnu-${VERSION}")"    >> "$GITHUB_OUTPUT"
           echo "macos_x86=$(download_sha "dcr-x86_64-apple-darwin-${VERSION}")"          >> "$GITHUB_OUTPUT"
           echo "macos_arm=$(download_sha "dcr-aarch64-apple-darwin-${VERSION}")"         >> "$GITHUB_OUTPUT"
+          echo "man_pages=$(download_sha "dcr-man-pages-${VERSION}.tar.gz")"             >> "$GITHUB_OUTPUT"
 
       - name: Checkout homebrew-dexoron
         uses: actions/checkout@v4
@@ -823,6 +1200,18 @@ jobs:
 
             def install
               bin.install Dir["dcr*"].first => "dcr"
+            end
+
+            resource "man-pages" do
+              url "https://github.com/dexoron/dcr/releases/download/v#{version}/dcr-man-pages-#{version}.tar.gz"
+              sha256 "${{ steps.sha.outputs.man_pages }}"
+            end
+
+            def install
+              bin.install Dir["dcr*"].first => "dcr"
+              resource("man-pages").stage do
+                man1.install Dir["usr/share/man/man1/*.1"]
+              end
             end
 
             test do

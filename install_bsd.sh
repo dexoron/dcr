@@ -4,6 +4,7 @@ set -eu
 TMPDIR="/tmp/dcr-install"
 INSTALL_PATH="$HOME/.local/share/dcr"
 BINPATH="$HOME/.local/bin"
+MANPATH="${XDG_DATA_HOME:-$HOME/.local/share}/man"
 LOGFILE="$HOME/.cache/dcr-install.log"
 REPO_URL="https://github.com/dexoron/dcr"
 GITHUB_API_LATEST="https://api.github.com/repos/dexoron/dcr/releases/latest"
@@ -39,8 +40,14 @@ detect_target() {
 
     case "$os:$arch" in
         FreeBSD:x86_64|FreeBSD:amd64)      TARGET_TRIPLE="x86_64-unknown-freebsd" ;;
+        FreeBSD:aarch64|FreeBSD:arm64)     TARGET_TRIPLE="aarch64-unknown-freebsd" ;;
+        FreeBSD:i686|FreeBSD:i386)         TARGET_TRIPLE="i686-unknown-freebsd" ;;
         OpenBSD:x86_64|OpenBSD:amd64)      TARGET_TRIPLE="x86_64-unknown-openbsd" ;;
+        OpenBSD:aarch64|OpenBSD:arm64)     TARGET_TRIPLE="aarch64-unknown-openbsd" ;;
+        OpenBSD:i686|OpenBSD:i386)         TARGET_TRIPLE="i686-unknown-openbsd" ;;
         NetBSD:x86_64|NetBSD:amd64)        TARGET_TRIPLE="x86_64-unknown-netbsd" ;;
+        NetBSD:aarch64|NetBSD:arm64)       TARGET_TRIPLE="aarch64-unknown-netbsd" ;;
+        NetBSD:i686|NetBSD:i386)           TARGET_TRIPLE="i686-unknown-netbsd" ;;
         DragonFly:x86_64|DragonFly:amd64)  TARGET_TRIPLE="x86_64-unknown-dragonfly" ;;
         *) error "Unsupported BSD platform: $os/$arch"; exit 1 ;;
     esac
@@ -181,6 +188,16 @@ install_link() {
     success "Command 'dcr' added to $BINPATH"
 }
 
+install_man() {
+    log "Installing man pages..."
+    man_src="$TMPDIR/man/man1"
+    if [ -d "$man_src" ]; then
+        mkdir -p "$MANPATH/man1"
+        cp "$man_src"/*.1 "$MANPATH/man1/"
+        success "Man pages installed to $MANPATH/man1"
+    fi
+}
+
 check_path() {
     if ! echo "$PATH" | grep -q "$BINPATH"; then
         warn "Directory $BINPATH not found in PATH"
@@ -213,6 +230,7 @@ main() {
     fi
 
     install_link
+    install_man
     check_path
     cleanup
 

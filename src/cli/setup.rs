@@ -15,7 +15,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-pub fn setup(_args: &[String]) -> i32 {
+use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, printc};
+
+pub fn setup(args: &[String]) -> i32 {
+    if args.first().is_some_and(|a| a == "--help") {
+        printc("USAGE:", BOLD_GREEN);
+        printc("    dcr setup", BOLD_CYAN);
+        println!();
+        printc("DESCRIPTION:", BOLD_GREEN);
+        println!("    Sets up DCR registries. Downloads and indexes");
+        println!("    package registries for dependency resolution.");
+        return 0;
+    }
+
     println!("Setting up DCR registries...");
     match crate::core::registry::RegistryManager::load() {
         Ok(manager) => {

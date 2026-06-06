@@ -1,0 +1,23 @@
+.TH DCR-GEN 1 "2026-06-02" "dcr 0.7.0" "DCR Manual"
+.SH NAME
+dcr-gen \- Generate IDE and tooling integration files
+.SH SYNOPSIS
+.B dcr gen \fI<subcommand>\fR
+.SH DESCRIPTION
+Generates IDE and tooling integration files for DCR projects.
+.SH SUBCOMMANDS
+.TP
+.B project-info
+Print project metadata as JSON to stdout.
+.TP
+.B compile-commands
+Generate \fBcompile_commands.json\fR for IDE tooling.
+.TP
+.B vscode
+Generate \fB.vscode/\fR integration files (tasks, launch configurations).
+.TP
+.B clion
+Generate \fB.idea/\fR integration files for CLion.
+.SH SEE ALSO
+.BR dcr (1),
+.BR dcr-build (1)

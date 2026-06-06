@@ -16,7 +16,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::config::FILE_MAIN_C;
-use crate::core::config::Config;
+use crate::core::config::{Config, validate_package_name};
 use crate::utils::fs::check_dir;
 use crate::utils::log::{error, warn};
 use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
@@ -25,6 +25,16 @@ use std::io::Write;
 use toml::Value;
 
 pub fn new(args: &[String]) -> i32 {
+    if args.first().is_some_and(|a| a == "--help") {
+        printc("USAGE:", BOLD_GREEN);
+        printc("    dcr new <name>", BOLD_CYAN);
+        println!();
+        printc("DESCRIPTION:", BOLD_GREEN);
+        println!("    Creates a new C/C++ project with the given name.");
+        println!("    The name may only contain ASCII letters, digits, '_' and '-'.");
+        return 0;
+    }
+
     let items = check_dir(None).unwrap_or_default();
 
     if args.is_empty() {
@@ -41,6 +51,15 @@ pub fn new(args: &[String]) -> i32 {
         "Creating a Project `{}`...",
         colored(project_name, BOLD_CYAN)
     );
+
+    if let Err(e) = validate_package_name(project_name) {
+        error(&format!(
+            "Invalid project name `{}`: {}",
+            colored(project_name, BOLD_CYAN),
+            e
+        ));
+        return 1;
+    }
 
     if items.contains(project_name) {
         error(&format!(

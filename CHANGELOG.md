@@ -1,5 +1,54 @@
 # Changelog
 
+## [0.7.1] - 2026-06-02 "Мультиархитектурное расширение / The Multi-Arch Expansion"
+
+### RU
+
+**Добавлено:**
+- Вывод `--help` для всех команд с цветным форматированием.
+- man-страницы (12 штук в `man/man1/`) и их установка во всех пакетах.
+- Валидация имен проектов в `dcr init` и `dcr new` (только ASCII буквы, цифры, `_` и `-`).
+- Метаданные `documentation` и `homepage` в `Cargo.toml`.
+- Оптимизация сборки: `opt-level = "z"`, LTO, `codegen-units = 1`, `panic = "abort"`, `strip = true`.
+- Поддержка новых архитектур (i686, armv7, riscv64gc, aarch64) в рабочих процессах и установочных скриптах.
+- Сборка пакетов `deb` и `rpm` для всех 5 архитектур Linux через `cargo-zigbuild`.
+- Пакеты AUR (`dcr-dev`, `dcr-dev-bin`) и публикация Snap в CI.
+
+**Изменено:**
+- Функция `validate_package_name` стала публичной.
+- Команды `gen`, `tree`, `fmt`, `setup` больше не игнорируют аргументы и используют цветной вывод.
+- Инструкция в README изменена с `| bash` на `| sh` для POSIX.
+- Отключена архитектура Windows 32-bit (GNU) из-за проблем со сборкой.
+
+### EN
+
+**Added:**
+- `--help` for all commands with styled headers and usage lines.
+- Man pages (12 troff man pages in `man/man1/`) and their installation across all packaging formats.
+- Project name validation in `dcr init` and `dcr new` (ASCII letters, digits, `_`, `-` only).
+- `documentation` and `homepage` metadata in `Cargo.toml`.
+- Release profile optimizations (`opt-level = "z"`, LTO, `codegen-units = 1`, `panic = "abort"`, `strip = true`).
+- Linux i686, armv7, riscv64gc, aarch64 architecture support in release workflows and installation scripts.
+- Multi-arch `deb` and `rpm` package builds for all 5 Linux architectures via `cargo-zigbuild`.
+- AUR packages (`dcr-dev`, `dcr-dev-bin`) and automated Snapcraft publishing in CI.
+
+**Changed:**
+- `validate_package_name` made public and callable from CLI commands directly.
+- `gen.rs`, `tree.rs`, `fmt.rs`, `setup.rs` no longer ignore arguments and use styled output.
+- README install instructions changed from `| bash` to `| sh` for POSIX compatibility.
+- Disabled Windows 32-bit (GNU) target due to build issues.
+
+Fixed:
+
+- **`dcr new <invalid-name>` creates directory then fails** — validation now happens
+  before any file operations.
+- **`dcr init` creates dcr.toml then fails on invalid directory name** — same fix.
+- **Man pages missing after installation** — now installed via install scripts,
+  package managers, and Homebrew.
+- **Windows drive letter false positive** — in dependency file parsing.
+- **CRLF `\r\n` breaks dependency parser** — now handles mixed line endings.
+- **Newline after backslash not consumed** — in `parse_d_file` escape handling.
+
 ## [0.7.0] - 2026-06-02
 
 Added:

@@ -1,0 +1,35 @@
+.TH DCR-RUN 1 "2026-06-02" "dcr 0.7.0" "DCR Manual"
+.SH NAME
+dcr-run \- Build and run a DCR project
+.SH SYNOPSIS
+.B dcr run
+[\fB\-\-debug\fR | \fB\-\-release\fR]
+[\fB\-\-target\fR \fI<triple>\fR]
+[\fB\-\-force\fR]
+[\fB\-\-clean\fR]
+[\fB\-\-verbose\fR]
+.SH DESCRIPTION
+Builds and runs the project. Only available for projects with
+\fBkind = "bin"\fR.
+.SH OPTIONS
+.TP
+.B \-\-debug
+Run with debug profile (default).
+.TP
+.B \-\-release
+Run with release profile.
+.TP
+.B \-\-target \fI<triple>\fR
+Cross-compile for the given target.
+.TP
+.B \-\-force
+Force a full rebuild.
+.TP
+.B \-\-clean
+Clean before building.
+.TP
+.B \-\-verbose
+Print detailed build output.
+.SH SEE ALSO
+.BR dcr (1),
+.BR dcr-build (1)

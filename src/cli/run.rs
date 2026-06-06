@@ -23,7 +23,7 @@ use crate::utils::build::{normalize_target_os, parse_version_info};
 use crate::utils::fs::find_project_root;
 use crate::utils::fs::with_dir;
 use crate::utils::log::error;
-use crate::utils::text::{BOLD_GREEN, colored};
+use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
 use std::path::Path;
 use std::process::Command;
 
@@ -56,6 +56,26 @@ fn get_run_cmd(
 }
 
 pub fn run(args: &[String]) -> i32 {
+    if args.first().is_some_and(|a| a == "--help") {
+        printc("USAGE:", BOLD_GREEN);
+        printc(
+            "    dcr run [--debug | --release] [--target <triple>] [--force] [--clean] [--verbose]",
+            BOLD_CYAN,
+        );
+        println!();
+        printc("DESCRIPTION:", BOLD_GREEN);
+        println!("    Builds and runs the project. Only available for kind = \"bin\".");
+        println!();
+        printc("OPTIONS:", BOLD_GREEN);
+        println!("    --debug              Run with debug profile (default)");
+        println!("    --release            Run with release profile");
+        println!("    --target <triple>    Cross-compile for the given target");
+        println!("    --force              Force a full rebuild");
+        println!("    --clean              Clean before building");
+        println!("    --verbose            Print detailed build output");
+        return 0;
+    }
+
     let start_dir = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(_) => {

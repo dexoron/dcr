@@ -1,0 +1,37 @@
+.TH DCR-BUILD 1 "2026-06-02" "dcr 0.7.0" "DCR Manual"
+.SH NAME
+dcr-build \- Compile a DCR project
+.SH SYNOPSIS
+.B dcr build
+[\fB\-\-debug\fR | \fB\-\-release\fR]
+[\fB\-\-target\fR \fI<triple>\fR]
+[\fB\-\-force\fR]
+[\fB\-\-clean\fR]
+[\fB\-\-verbose\fR]
+[\fB\-\-workspace\fR \fI<name>\fR]
+.SH DESCRIPTION
+Compiles the project. Default profile is \fB\-\-debug\fR.
+.SH OPTIONS
+.TP
+.B \-\-debug
+Build with debug profile (default). Enables debug symbols.
+.TP
+.B \-\-release
+Build with release profile. Enables full optimization.
+.TP
+.B \-\-target \fI<triple>\fR
+Cross-compile for the given target.
+.TP
+.B \-\-force
+Force a full rebuild, ignoring cached artifacts.
+.TP
+.B \-\-clean
+Clean before building.
+.TP
+.B \-\-verbose
+Print detailed build output including compiler commands.
+.TP
+.B \-\-workspace \fI<name>\fR
+Build a specific workspace member.
+.SH SEE ALSO
+.BR dcr (1)

@@ -1,0 +1,42 @@
+.TH DCR-ADD 1 "2026-06-02" "dcr 0.7.0" "DCR Manual"
+.SH NAME
+dcr-add \- Add a dependency to a DCR project
+.SH SYNOPSIS
+.B dcr add \fI<name>\fR \fI<source>\fR
+[\fB\-\-branch\fR \fI<b>\fR]
+[\fB\-\-tag\fR \fI<t>\fR]
+[\fB\-\-rev\fR \fI<r>\fR]
+.SH DESCRIPTION
+Adds a dependency to the project.
+.SH SOURCES
+.TP
+.B user/repo
+GitHub shorthand.
+.TP
+.B github:user/repo
+Full GitHub repository.
+.TP
+.B gitlab:user/repo
+GitLab repository.
+.TP
+.B git:host.com/user/repo
+Generic git repository.
+.TP
+.B path:./path/to/lib
+Local path dependency.
+.TP
+.B <version>
+Version from registry.
+.SH OPTIONS
+.TP
+.B \-\-branch \fI<name>\fR
+Use a specific branch.
+.TP
+.B \-\-tag \fI<name>\fR
+Use a specific tag.
+.TP
+.B \-\-rev \fI<hash>\fR
+Use a specific commit hash.
+.SH SEE ALSO
+.BR dcr (1),
+.BR dcr-tree (1)

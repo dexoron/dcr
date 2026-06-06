@@ -36,6 +36,12 @@ brew tap dexoron/dexoron
 brew install dcr
 ```
 
+## Snap (Linux)
+
+```sh
+sudo snap install dcrup
+```
+
 ## Nix (flake)
 
 ```sh
@@ -53,13 +59,13 @@ cargo install dcr
 ## Linux / macOS (script)
 
 ```sh
-curl -fsSL https://dcr.dexoron.su/install.sh | bash
+curl -fsSL https://dcr.dexoron.su/install.sh | sh
 ```
 
 ## BSD (script)
 
 ```sh
-curl -fsSL https://dcr.dexoron.su/install_bsd.sh | bash
+curl -fsSL https://dcr.dexoron.su/install_bsd.sh | sh
 ```
 
 ## Windows (PowerShell)
@@ -82,6 +88,13 @@ Verify the installation:
 
 ```bash
 dcr --version
+```
+
+Man pages are available after installation:
+
+```bash
+man dcr
+man dcr-build
 ```
 
 To use the registry, create `~/.dcr/config.toml`:

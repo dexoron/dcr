@@ -24,7 +24,7 @@ use crate::utils::build::{
 };
 use crate::utils::fs::{find_project_root, with_dir};
 use crate::utils::log::error;
-use crate::utils::text::{BOLD_GREEN, BOLD_RED, RESET, colored};
+use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, BOLD_RED, RESET, colored, printc};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -36,16 +36,16 @@ pub fn test(args: &[String]) -> i32 {
     let mut profile = "debug";
     for arg in args {
         if arg == "--help" {
-            println!("USAGE:");
-            println!("    dcr test [--init] [--debug | --release]");
+            printc("USAGE:", BOLD_GREEN);
+            printc("    dcr test [--init] [--debug | --release]", BOLD_CYAN);
             println!();
-            println!("ALIASES:");
+            printc("ALIASES:", BOLD_GREEN);
             println!("    dcr tests");
             println!();
-            println!("DESCRIPTION:");
+            printc("DESCRIPTION:", BOLD_GREEN);
             println!("    Runs project tests and prints a unified testsuite report.");
             println!();
-            println!("OPTIONS:");
+            printc("OPTIONS:", BOLD_GREEN);
             println!("    --init            Create tests/dcr_test.h in current project");
             println!("    --debug           Build and run tests with debug profile (default)");
             println!("    --release         Build and run tests with release profile");

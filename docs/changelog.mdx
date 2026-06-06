@@ -4,6 +4,50 @@ sidebar_label: Changelog
 
 # Changelog
 
+## 0.7.1 (2026-06-02)
+
+### Added
+
+- **`--help` for all commands** — `dcr build --help`, `dcr run --help`, `dcr new --help`,
+  `dcr init --help`, `dcr clean --help`, `dcr add --help`, `dcr fmt --help`,
+  `dcr setup --help`, `dcr tree --help`, `dcr gen --help`, `dcr --update --help`,
+  `dcr test --help`. All output uses styled headers (green) and usage lines (cyan).
+- **Man pages** — 12 troff pages in `man/man1/`: `dcr.1`, `dcr-build.1`,
+  `dcr-run.1`, `dcr-new.1`, `dcr-init.1`, `dcr-clean.1`, `dcr-add.1`, `dcr-test.1`,
+  `dcr-gen.1`, `dcr-fmt.1`, `dcr-tree.1`, `dcr-setup.1`.
+- **Man pages in all packaging** — install.sh, install_bsd.sh, AUR PKGBUILD,
+  Debian (cargo-deb), RPM (cargo-generate-rpm), Nix (postInstall), Homebrew
+  (resource), Snap, GitHub Release assets.
+- **Project name validation** — `dcr init` and `dcr new` now validate names before
+  creating files. Only ASCII letters, digits, `_` and `-` are allowed.
+- **`documentation` and `homepage` fields** — added to `Cargo.toml`.
+- **Release profile optimizations** — `opt-level = "z"`, LTO, `codegen-units = 1`,
+  `panic = "abort"`, `strip = true` for smaller binaries.
+- **Linux i686, armv7, riscv64 targets** — added to release workflow and install scripts.
+- **Linux musl i686, armv7 targets** — cross-compiled via zigbuild in CI.
+- **AUR packages** — `dcr-dev`, `dcr-dev-bin` publishing workflow.
+- **Snap publishing** — automated Snapcraft publishing in CI.
+- **Snap badge** — in README.
+
+### Changed
+
+- **`validate_package_name` made public** — callable from CLI commands.
+- **README platform table** — reorganized: libc variants as separate OS rows,
+  removed extra columns. Linux architecture list updated.
+- **`gen.rs` no-args output** — now uses styled output instead of raw `eprintln!`.
+- **`tree.rs`, `fmt.rs`, and `setup.rs`** — now accept arguments for `--help`.
+- **README install commands** — `| bash` → `| sh` for POSIX compatibility.
+
+### Fixed
+
+- **`dcr new <invalid-name>` creates directory then fails** — validation now
+  happens before any file operations.
+- **`dcr init` on invalid directory name** — same fix.
+- **Man pages missing in installed packages** — now shipped in all formats.
+- **Windows drive letter false positive** — in dependency file parser.
+- **CRLF (`\r\n`) breaks dependency parser** — now handles mixed line endings.
+- **Newline after backslash not consumed** — in `parse_d_file` escape handling.
+
 ## 0.7.0 (2026-06-01)
 
 ### Added

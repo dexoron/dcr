@@ -47,10 +47,16 @@ function Select-Mode {
 }
 
 function Get-Target {
-    if ($env:PROCESSOR_ARCHITECTURE -ne 'AMD64') {
-        Fail "Only x86_64 Windows is supported, current architecture: $env:PROCESSOR_ARCHITECTURE"
+    $arch = $env:PROCESSOR_ARCHITECTURE
+    if ($env:PROCESSOR_ARCHITEW6432) {
+        $arch = $env:PROCESSOR_ARCHITEW6432
     }
-    return 'x86_64-pc-windows-msvc'
+    switch ($arch) {
+        'AMD64' { return 'x86_64-pc-windows-msvc' }
+        'ARM64' { return 'aarch64-pc-windows-msvc' }
+        'x86'   { return 'i686-pc-windows-msvc' }
+        default { Fail "Unsupported Windows architecture: $arch" }
+    }
 }
 
 function Fetch-ReleaseJson($channel) {

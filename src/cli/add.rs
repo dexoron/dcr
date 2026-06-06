@@ -19,7 +19,7 @@ use crate::core::config::Config;
 use crate::core::deps::register;
 use crate::utils::fs::find_project_root;
 use crate::utils::log::error;
-use crate::utils::text::{BOLD_GREEN, colored};
+use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
 use toml::Value;
 use toml::map::Map;
 
@@ -34,6 +34,31 @@ pub struct AddArgs {
 }
 
 pub fn add(args: &[String]) -> i32 {
+    if args.first().is_some_and(|a| a == "--help") {
+        printc("USAGE:", BOLD_GREEN);
+        printc(
+            "    dcr add <name> <source> [--branch <b>] [--tag <t>] [--rev <r>]",
+            BOLD_CYAN,
+        );
+        println!();
+        printc("DESCRIPTION:", BOLD_GREEN);
+        println!("    Adds a dependency to the project.");
+        println!();
+        printc("SOURCES:", BOLD_GREEN);
+        println!("    user/repo                 GitHub shorthand");
+        println!("    github:user/repo          GitHub repository");
+        println!("    gitlab:user/repo          GitLab repository");
+        println!("    git:host.com/user/repo    Generic git repository");
+        println!("    path:./path/to/lib        Local path dependency");
+        println!("    <version>                 Version from registry");
+        println!();
+        printc("OPTIONS:", BOLD_GREEN);
+        println!("    --branch <b>    Use a specific branch");
+        println!("    --tag <t>       Use a specific tag");
+        println!("    --rev <r>       Use a specific commit hash");
+        return 0;
+    }
+
     let add_args = match parse_add_args(args) {
         Ok(a) => a,
         Err(code) => return code,
