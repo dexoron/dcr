@@ -83,24 +83,40 @@ jobs:
   notes:
     needs: setup
     runs-on: ubuntu-latest
+    outputs:
+      release_name: ${{ steps.extract.outputs.release_name }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.setup.outputs.tag }}
 
       - name: Prepare Release Notes
+        id: extract
         shell: bash
         run: |
           set -euo pipefail
           tag="${{ needs.setup.outputs.version }}"
           notes_file=".github/release-notes.md"
           if grep -q "^## \\[${tag}\\]" CHANGELOG.md; then
+            # Extract release name from header: ## [0.7.1] - 2026-06-02 "Title"
+            release_name=$(awk -v ver="$tag" '
+              $0 ~ "^## \\[" ver "\\]" {
+                match($0, /"([^"]+)"/, arr)
+                if (arr[1] != "") {
+                  print "v" ver " - " arr[1]
+                } else {
+                  print "v" ver
+                }
+              }
+            ' CHANGELOG.md)
+            echo "release_name=${release_name}" >> "$GITHUB_OUTPUT"
             awk -v ver="$tag" '
               $0 ~ "^## \\[" ver "\\]" {found=1; next}
               found && $0 ~ "^## \\[" {exit}
               found {print}
             ' CHANGELOG.md | sed -e '${/^$/d;}' > "$notes_file"
           else
+            echo "release_name=v${tag}" >> "$GITHUB_OUTPUT"
             echo "No CHANGELOG section for $tag." > "$notes_file"
             git log -1 --pretty=format:"%s%n%n%b" >> "$notes_file"
           fi
@@ -126,6 +142,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.setup.outputs.tag }}
+          name: ${{ needs.notes.outputs.release_name }}
           body_path: .github/release-notes.md
           prerelease: ${{ needs.setup.outputs.prerelease == 'true' }}
 
