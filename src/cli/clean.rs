@@ -18,7 +18,7 @@
 use crate::config::flags;
 use crate::core::config::Config;
 use crate::core::workspace::parse_workspace;
-use crate::utils::build::parse_version_info;
+use crate::utils::build::{default_target_triple, parse_version_info};
 use crate::utils::fs::{check_dir, find_project_root, with_dir};
 use crate::utils::log::{error, warn};
 use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
@@ -136,28 +136,7 @@ fn clean_from_root(root: &Path, flags: &CleanFlags) -> Result<(), String> {
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
         })
-        .or_else(|| {
-            Some(if cfg!(target_os = "linux") {
-                format!("{}-unknown-linux-gnu", std::env::consts::ARCH)
-            } else if cfg!(target_os = "macos") {
-                "x86_64-apple-darwin".to_string()
-            } else if cfg!(target_os = "windows") {
-                "x86_64-pc-windows-msvc".to_string()
-            } else if cfg!(any(
-                target_os = "freebsd",
-                target_os = "openbsd",
-                target_os = "netbsd",
-                target_os = "dragonfly"
-            )) {
-                format!(
-                    "{}-unknown-{}",
-                    std::env::consts::ARCH,
-                    std::env::consts::OS
-                )
-            } else {
-                "unknown".to_string()
-            })
-        });
+        .or_else(|| Some(default_target_triple()));
 
     if flags.all
         && let Some(workspace) = parse_workspace(
