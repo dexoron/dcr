@@ -73,23 +73,30 @@ pub fn normalize_target_os(target: &str) -> &str {
 }
 
 pub fn default_target_triple() -> String {
+    let arch = std::env::consts::ARCH;
     if cfg!(target_os = "linux") {
-        format!("{}-unknown-linux-gnu", std::env::consts::ARCH)
+        let env = if cfg!(target_env = "musl") {
+            "musl"
+        } else {
+            "gnu"
+        };
+        format!("{arch}-unknown-linux-{env}")
     } else if cfg!(target_os = "macos") {
-        format!("{}-apple-darwin", std::env::consts::ARCH)
+        format!("{arch}-apple-darwin")
     } else if cfg!(target_os = "windows") {
-        format!("{}-pc-windows-msvc", std::env::consts::ARCH)
+        let env = if cfg!(target_env = "gnu") {
+            "gnu"
+        } else {
+            "msvc"
+        };
+        format!("{arch}-pc-windows-{env}")
     } else if cfg!(any(
         target_os = "freebsd",
         target_os = "openbsd",
         target_os = "netbsd",
         target_os = "dragonfly"
     )) {
-        format!(
-            "{}-unknown-{}",
-            std::env::consts::ARCH,
-            std::env::consts::OS
-        )
+        format!("{arch}-unknown-{}", std::env::consts::OS)
     } else {
         "unknown".to_string()
     }
