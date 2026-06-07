@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.7.2] - 2026-06-07 "Исправление Таргетов и Линковки / Target & Linker Fixes"
+
+### RU
+
+**Добавлено:**
+- Учтён `target_env` в `default_target_triple()` — Linux (gnu/musl) и Windows (msvc/gnu) теперь используют правильное окружение, а не хардкод.
+
+**Исправлено:**
+- **Сборка на macOS Apple Silicon падала с `_main` undefined** — `--target=` теперь передаётся и в ldflags, не только в cflags. `default_target_triple()` на macOS использует `std::env::consts::ARCH` вместо хардкода `x86_64`.
+- **Бейджи GitHub Stars и GPL-3.0 не рендерились в README** — блок бейджей переведён на чистый HTML.
+
+**Изменено:**
+- Вычисление таргета по умолчанию вынесено в общую функцию `default_target_triple()` — устранено дублирование в build, run, clean.
+
+### EN
+
+**Added:**
+- `default_target_triple()` now respects `target_env` — Linux (gnu/musl) and Windows (msvc/gnu) use the correct environment instead of hardcoded values.
+
+**Fixed:**
+- **macOS Apple Silicon builds failed with `_main` undefined** — `--target=` is now passed to ldflags, not just cflags. `default_target_triple()` uses `std::env::consts::ARCH` on macOS instead of hardcoded `x86_64`.
+- **GitHub Stars and GPL-3.0 badges not rendering in README** — badge block converted to pure HTML.
+
+**Changed:**
+- Default target resolution extracted into shared `default_target_triple()` — removed duplication across build, run, clean.
+
 ## [0.7.1] - 2026-06-02 "Мультиархитектурное расширение / The Multi-Arch Expansion"
 
 ### RU
