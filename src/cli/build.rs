@@ -23,9 +23,9 @@ use crate::core::config::Config;
 use crate::core::deps::{register, resolve_deps};
 use crate::core::workspace::parse_workspace;
 use crate::utils::build::{
-    get_bool_with_profile, get_config_opt, get_config_str, get_language_with_profile,
-    normalize_target_os, parse_version_info, profile_table, resolve_compiler,
-    resolve_pkg_config_flags, resolve_tool,
+    default_target_triple, get_bool_with_profile, get_config_opt, get_config_str,
+    get_language_with_profile, normalize_target_os, parse_version_info, prepend_clang_target_flag,
+    profile_table, resolve_compiler, resolve_pkg_config_flags, resolve_tool,
 };
 use crate::utils::fs::{check_dir, find_project_root, with_dir};
 use crate::utils::log::error;
@@ -100,27 +100,7 @@ pub fn build(args: &[String]) -> i32 {
         }
     }
     if flags.target.is_none() {
-        let default_target = if cfg!(target_os = "linux") {
-            format!("{}-unknown-linux-gnu", std::env::consts::ARCH)
-        } else if cfg!(target_os = "macos") {
-            "x86_64-apple-darwin".to_string()
-        } else if cfg!(target_os = "windows") {
-            "x86_64-pc-windows-msvc".to_string()
-        } else if cfg!(any(
-            target_os = "freebsd",
-            target_os = "openbsd",
-            target_os = "netbsd",
-            target_os = "dragonfly"
-        )) {
-            format!(
-                "{}-unknown-{}",
-                std::env::consts::ARCH,
-                std::env::consts::OS
-            )
-        } else {
-            "unknown".to_string()
-        };
-        flags.target = Some(default_target);
+        flags.target = Some(default_target_triple());
     }
     if flags.clean {
         let mut clean_args = Vec::new();
@@ -718,19 +698,13 @@ fn build_project_at(
             tc_cxx.as_deref(),
             tc_as.as_deref(),
         );
-        if let Some(t) = build_target
-            && !t.trim().is_empty()
-            && resolved_compiler.to_lowercase().contains("clang")
-        {
-            let target_flag = format!("--target={}", t.trim());
-            if !build_cflags
-                .iter()
-                .any(|f| f == &target_flag || f.starts_with("--target="))
-            {
-                build_cflags.insert(0, target_flag);
-            }
-        }
         let resolved_linker = resolve_tool("DCR_LD", tc_ld.as_deref());
+        prepend_clang_target_flag(&mut build_cflags, build_target, &resolved_compiler);
+        prepend_clang_target_flag(
+            &mut build_ldflags,
+            build_target,
+            resolved_linker.as_deref().unwrap_or(&resolved_compiler),
+        );
         let resolved_archiver = resolve_tool("DCR_AR", tc_ar.as_deref());
 
         let out_dir_config = get_build_string_with_profile(&config, "out_dir", profile);

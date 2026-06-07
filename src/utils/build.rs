@@ -72,6 +72,53 @@ pub fn normalize_target_os(target: &str) -> &str {
     }
 }
 
+pub fn default_target_triple() -> String {
+    let arch = std::env::consts::ARCH;
+    if cfg!(target_os = "linux") {
+        let env = if cfg!(target_env = "musl") {
+            "musl"
+        } else {
+            "gnu"
+        };
+        format!("{arch}-unknown-linux-{env}")
+    } else if cfg!(target_os = "macos") {
+        format!("{arch}-apple-darwin")
+    } else if cfg!(target_os = "windows") {
+        let env = if cfg!(target_env = "gnu") {
+            "gnu"
+        } else {
+            "msvc"
+        };
+        format!("{arch}-pc-windows-{env}")
+    } else if cfg!(any(
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    )) {
+        format!("{arch}-unknown-{}", std::env::consts::OS)
+    } else {
+        "unknown".to_string()
+    }
+}
+
+pub fn prepend_clang_target_flag(flags: &mut Vec<String>, target: Option<&str>, tool: &str) {
+    let Some(target) = target.map(str::trim).filter(|t| !t.is_empty()) else {
+        return;
+    };
+    if !tool.to_lowercase().contains("clang") {
+        return;
+    }
+
+    let target_flag = format!("--target={target}");
+    if !flags
+        .iter()
+        .any(|f| f == &target_flag || f.starts_with("--target="))
+    {
+        flags.insert(0, target_flag);
+    }
+}
+
 pub fn get_config_str(config: &Config, key: &str) -> String {
     config
         .get(key)
@@ -378,6 +425,61 @@ mod tests {
             "x86_64-unknown-linux-gnu"
         );
         assert_eq!(normalize_target_os("unknown"), "unknown");
+    }
+
+    #[test]
+    fn default_target_triple_uses_host_arch() {
+        let target = default_target_triple();
+        if cfg!(target_os = "linux") {
+            assert_eq!(
+                target,
+                format!("{}-unknown-linux-gnu", std::env::consts::ARCH)
+            );
+        } else if cfg!(target_os = "macos") {
+            assert_eq!(target, format!("{}-apple-darwin", std::env::consts::ARCH));
+        } else if cfg!(target_os = "windows") {
+            assert_eq!(
+                target,
+                format!("{}-pc-windows-msvc", std::env::consts::ARCH)
+            );
+        } else if cfg!(any(
+            target_os = "freebsd",
+            target_os = "openbsd",
+            target_os = "netbsd",
+            target_os = "dragonfly"
+        )) {
+            assert_eq!(
+                target,
+                format!(
+                    "{}-unknown-{}",
+                    std::env::consts::ARCH,
+                    std::env::consts::OS
+                )
+            );
+        } else {
+            assert_eq!(target, "unknown");
+        }
+    }
+
+    #[test]
+    fn prepend_clang_target_flag_adds_once_for_clang() {
+        let mut flags = vec!["-O2".to_string()];
+        prepend_clang_target_flag(&mut flags, Some("aarch64-apple-darwin"), "clang");
+        prepend_clang_target_flag(&mut flags, Some("aarch64-apple-darwin"), "clang");
+        assert_eq!(
+            flags,
+            vec![
+                "--target=aarch64-apple-darwin".to_string(),
+                "-O2".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn prepend_clang_target_flag_ignores_non_clang_tools() {
+        let mut flags = vec!["-O2".to_string()];
+        prepend_clang_target_flag(&mut flags, Some("aarch64-apple-darwin"), "gcc");
+        assert_eq!(flags, vec!["-O2".to_string()]);
     }
 
     #[test]
