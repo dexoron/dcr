@@ -81,6 +81,9 @@ vendored = [
 git2 = "0.20.4"
 openssl = "0.10"
 
+[target.'cfg(windows)'.dependencies]
+git2 = "0.20.4"
+
 [profile.release]
 opt-level = "z"
 lto = "thin"

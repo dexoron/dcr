@@ -12,13 +12,22 @@
 - Оптимизация сборки: `opt-level = "z"`, LTO, `codegen-units = 1`, `panic = "abort"`, `strip = true`.
 - Поддержка новых архитектур (i686, armv7, riscv64gc, aarch64) в рабочих процессах и установочных скриптах.
 - Сборка пакетов `deb` и `rpm` для всех 5 архитектур Linux через `cargo-zigbuild`.
-- Пакеты AUR (`dcr-dev`, `dcr-dev-bin`) и публикация Snap в CI.
+- Пакеты AUR (`dcr-dev`, `dcr-dev-bin`) и сборка Snap в CI.
 
 **Изменено:**
 - Функция `validate_package_name` стала публичной.
 - Команды `gen`, `tree`, `fmt`, `setup` больше не игнорируют аргументы и используют цветной вывод.
 - Инструкция в README изменена с `| bash` на `| sh` для POSIX.
 - Отключена архитектура Windows 32-bit (GNU) из-за проблем со сборкой.
+
+**Исправлено:**
+
+- **`dcr new <invalid-name>` создаёт директорию, затем падает** — валидация теперь происходит до операций с файлами.
+- **`dcr init` создаёт dcr.toml, затем падает при невалидном имени директории** — то же исправление.
+- **Man-страницы отсутствовали после установки** — теперь устанавливаются через скрипты установки, пакетные менеджеры и Homebrew.
+- **Ложное срабатывание на букву диска в Windows** — в парсинге файлов зависимостей.
+- **CRLF `\r\n` ломает парсер зависимостей** — теперь обрабатываются смешанные окончания строк.
+- **Новая строка после обратного слеша не поглощалась** — в обработке escape-последовательностей `parse_d_file`.
 
 ### EN
 
@@ -30,7 +39,7 @@
 - Release profile optimizations (`opt-level = "z"`, LTO, `codegen-units = 1`, `panic = "abort"`, `strip = true`).
 - Linux i686, armv7, riscv64gc, aarch64 architecture support in release workflows and installation scripts.
 - Multi-arch `deb` and `rpm` package builds for all 5 Linux architectures via `cargo-zigbuild`.
-- AUR packages (`dcr-dev`, `dcr-dev-bin`) and automated Snapcraft publishing in CI.
+- AUR packages (`dcr-dev`, `dcr-dev-bin`) and Snap build in CI.
 
 **Changed:**
 - `validate_package_name` made public and callable from CLI commands directly.

@@ -41,10 +41,6 @@ on:
         description: "Publish to crates.io"
         type: boolean
         default: false
-      run_snap:
-        description: "Publish to Snap Store (dcrup)"
-        type: boolean
-        default: false
       run_brew:
         description: "Update Homebrew tap"
         type: boolean
@@ -83,24 +79,40 @@ jobs:
   notes:
     needs: setup
     runs-on: ubuntu-latest
+    outputs:
+      release_name: ${{ steps.extract.outputs.release_name }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.setup.outputs.tag }}
 
       - name: Prepare Release Notes
+        id: extract
         shell: bash
         run: |
           set -euo pipefail
           tag="${{ needs.setup.outputs.version }}"
           notes_file=".github/release-notes.md"
           if grep -q "^## \\[${tag}\\]" CHANGELOG.md; then
+            # Extract release name from header: ## [0.7.1] - 2026-06-02 "Title"
+            release_name=$(awk -v ver="$tag" '
+              $0 ~ "^## \\[" ver "\\]" {
+                match($0, /"([^"]+)"/, arr)
+                if (arr[1] != "") {
+                  print "v" ver " - " arr[1]
+                } else {
+                  print "v" ver
+                }
+              }
+            ' CHANGELOG.md)
+            echo "release_name=${release_name}" >> "$GITHUB_OUTPUT"
             awk -v ver="$tag" '
               $0 ~ "^## \\[" ver "\\]" {found=1; next}
               found && $0 ~ "^## \\[" {exit}
               found {print}
             ' CHANGELOG.md | sed -e '${/^$/d;}' > "$notes_file"
           else
+            echo "release_name=v${tag}" >> "$GITHUB_OUTPUT"
             echo "No CHANGELOG section for $tag." > "$notes_file"
             git log -1 --pretty=format:"%s%n%n%b" >> "$notes_file"
           fi
@@ -126,6 +138,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.setup.outputs.tag }}
+          name: ${{ needs.notes.outputs.release_name }}
           body_path: .github/release-notes.md
           prerelease: ${{ needs.setup.outputs.prerelease == 'true' }}
 
@@ -651,6 +664,8 @@ jobs:
             done
           }
           PKG
+
+          cat > packages/aur/dcr/.SRCINFO <<SRC
           pkgbase = dcr
             pkgdesc = Cargo-like utility to manage C/C++ projects
             pkgver = ${PKGVER_CLEAN}
@@ -1229,34 +1244,11 @@ jobs:
           git commit -m "dcr ${{ needs.setup.outputs.version }}"
           git push
   
-  # ── Snap Store (dcrup) ─────────────────────────────────────────────────────
-  publish-snap:
-    if: |
-      (github.event_name == 'push' && needs.setup.outputs.prerelease == 'false') ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.run_snap == 'true')
-    needs: [setup, build-linux-packages]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download Built Packages
-        uses: actions/download-artifact@v4
-        with:
-          name: snap-package
-          path: dist-packages
-
-      - name: Resolve Snap File
-        id: snap-file
-        run: |
-          snap_file=$(ls dist-packages/*.snap 2>/dev/null | head -1)
-          if [ -z "$snap_file" ]; then
-            echo "No .snap file found in dist-packages/"
-            exit 1
-          fi
-          echo "snap=$snap_file" >> "$GITHUB_OUTPUT"
-
-      - name: Publish to Snap Store
-        uses: snapcore/action-publish@v1
-        env:
-          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAP_STORE_LOGIN }}
-        with:
-          snap: ${{ steps.snap-file.outputs.snap }}
-          release: stable
+  # ── Snap Store (dcrup) — temporarily disabled ────────────────────────────
+  # Classic confinement was denied for this project (too new).
+  # Snap artifact is still built and attached to the release via
+  # publish-dexoron-packages. Users can install manually:
+  #   sudo snap install --classic --dangerous dcrup_*.snap
+  #
+  # publish-snap:
+  #   if: ...
