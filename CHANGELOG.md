@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.7.3] - 2026-06-13 "Оптимизация Зависимостей и VCS / Dependency Optimization & VCS"
+
+### RU
+
+**Добавлено:**
+
+- **Параметр `--vcs` для команд `new` и `init`** — добавлена возможность явно указывать систему контроля версий через `--vcs <git|none>`.
+- **Интеграция Git-информации в `--version`** — утилита теперь выводит текущий короткий хэш коммита и суффикс `-dirty`, если в репозитории DCR есть незакоммиченные изменения.
+- **Автоматическая генерация `.gitignore`** — при инициализации Git-репозитория автоматически создается файл `.gitignore` с исключением директории `/target`.
+- **Защита от вложенных репозиториев** — автоматическая инициализация Git теперь пропускается, если `dcr new` или `dcr init` запускаются внутри уже существующего Git-репозитория.
+- **Тесты для верификации VCS** — добавлены интеграционные тесты `new_vcs_options_work` и `init_vcs_options_work` для проверки логики инициализации репозиториев.
+
+**Изменено:**
+
+- **Полный отказ от библиотеки `git2`** — работа с Git (клонирование зависимостей, инициализация VCS, проверка статуса) переведена на вызовы системного `git` через `Command`. Это облегчает сборку проекта и убирает необходимость в фичах `vendored` и `openssl`.
+- **Миграция с `reqwest` на `ureq`** — в модуле обновления (`flag_update.rs`) тяжелый `reqwest` заменен на легковесный синхронный клиент `ureq 2.10`, что уменьшило оверхед и размер итогового бинарника.
+
+### EN
+
+**Added:**
+
+- **`--vcs` option for `new` and `init` commands** — introduced explicit version control system selection via `--vcs <git|none>`.
+- **Git metadata integration in `--version`** — the CLI now appends the current short commit hash and a `-dirty` suffix if there are uncommitted changes in the DCR repository.
+- **Automatic `.gitignore` generation** — Git repository initialization now automatically writes a `.gitignore` file excluding the `/target` directory.
+- **Nested repository prevention** — automatic Git initialization is now skipped if `dcr new` or `dcr init` is executed inside an already existing Git repository.
+- **VCS verification tests** — added `new_vcs_options_work` and `init_vcs_options_work` integration tests to ensure reliable repository behavior.
+
+**Changed:**
+
+- **Complete removal of `git2` dependency** — all Git actions (dependency fetching, VCS setup, status checks) are now delegated to the system `git` executable via `Command`. This simplifies compilation and drops the need for `vendored` and `openssl` features.
+- **Migrated from `reqwest` to `ureq`** — replaced the heavy `reqwest` crate in `flag_update.rs` with the lightweight synchronous `ureq 2.10` client, reducing overhead and the final binary size.
+
 ## [0.7.2] - 2026-06-07 "Исправление Таргетов и Линковки / Target & Linker Fixes"
 
 ### RU
