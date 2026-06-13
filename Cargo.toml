@@ -1,6 +1,6 @@
 [package]
 name = "dcr"
-version = "0.7.2"
+version = "0.7.3"
 edition = "2024"
 build = "build.rs"
 description = "DCR is a utility for managing C/C++ projects in a Cargo-like style."
@@ -68,21 +68,6 @@ sha2 = "0.10"
 toml = "1.0.3"
 serde_json = "1"
 ctrlc = "3"
-
-[features]
-default = ["vendored"]
-vendored = [
-    "git2/vendored-libgit2",
-    "git2/vendored-openssl",
-    "openssl/vendored",
-]
-
-[target.'cfg(not(windows))'.dependencies]
-git2 = "0.20.4"
-openssl = "0.10"
-
-[target.'cfg(windows)'.dependencies]
-git2 = "0.20.4"
 
 [profile.release]
 opt-level = "z"

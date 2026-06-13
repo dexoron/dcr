@@ -44,7 +44,12 @@ fn main() {
         "clean" => cli::clean::clean(rest),
         "gen" => cli::r#gen::r#gen(rest),
         "--version" => {
-            println!("dcr {} ({})", env!("CARGO_PKG_VERSION"), env!("DCR_TARGET"));
+            println!(
+                "dcr {}{} ({})",
+                env!("CARGO_PKG_VERSION"),
+                env!("DCR_GIT_INFO"),
+                env!("DCR_TARGET")
+            );
             0
         }
         "--help" => cli::help::help(),
