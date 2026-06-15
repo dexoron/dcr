@@ -18,4 +18,37 @@
 fn main() {
     let target = std::env::var("TARGET").unwrap_or_else(|_| "unknown-target".to_string());
     println!("cargo:rustc-env=DCR_TARGET={target}");
+
+    // Let's try to retrieve the commit hash for the version
+    let commit = std::process::Command::new("git")
+        .args(["rev-parse", "--short", "HEAD"])
+        .output()
+        .ok()
+        .and_then(|o| {
+            if o.status.success() {
+                String::from_utf8(o.stdout)
+                    .ok()
+                    .map(|s| s.trim().to_string())
+            } else {
+                None
+            }
+        });
+
+    // Check if there are any uncommitted changes in the repository
+    let is_dirty = std::process::Command::new("git")
+        .args(["status", "--porcelain"])
+        .output()
+        .ok()
+        .map(|o| o.status.success() && !o.stdout.is_empty())
+        .unwrap_or(false);
+
+    if let Some(commit_hash) = commit {
+        let dirty_suffix = if is_dirty { "-dirty" } else { "" };
+        println!(
+            "cargo:rustc-env=DCR_GIT_INFO= (git {}{})",
+            commit_hash, dirty_suffix
+        );
+    } else {
+        println!("cargo:rustc-env=DCR_GIT_INFO=");
+    }
 }

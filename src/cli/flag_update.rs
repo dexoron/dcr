@@ -17,9 +17,9 @@
 
 use crate::utils::log::{error, warn};
 use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, printc};
-use reqwest::blocking::Client;
 use serde::Deserialize;
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 #[cfg(target_os = "linux")]
 use std::process::Command;
@@ -72,15 +72,8 @@ pub fn flag_update(args: &[String]) -> i32 {
 
     let current_version = env!("CARGO_PKG_VERSION");
     let target = env!("DCR_TARGET");
-    let client = match Client::builder().user_agent("dcr-updater").build() {
-        Ok(client) => client,
-        Err(_) => {
-            error("Failed to initialize HTTP client");
-            return 1;
-        }
-    };
 
-    let release = match fetch_latest_release(&client) {
+    let release = match fetch_latest_release() {
         Ok(release) => release,
         Err(err) => {
             error(&format!("Failed to check for updates: {err}"));
@@ -104,7 +97,7 @@ pub fn flag_update(args: &[String]) -> i32 {
         return 1;
     };
 
-    let bytes = match download_asset(&client, &asset.browser_download_url) {
+    let bytes = match download_asset(&asset.browser_download_url) {
         Ok(bytes) => bytes,
         Err(err) => {
             error(&format!("Failed to download update: {err}"));
@@ -131,35 +124,35 @@ pub fn flag_update(args: &[String]) -> i32 {
     0
 }
 
-fn fetch_latest_release(client: &Client) -> Result<Release, String> {
-    let response = client
-        .get(LATEST_RELEASE_URL)
-        .send()
-        .map_err(|_| "GitHub API request failed".to_string())?;
-
-    if !response.status().is_success() {
-        return Err(format!("GitHub API returned status {}", response.status()));
-    }
+fn fetch_latest_release() -> Result<Release, String> {
+    let response = ureq::get(LATEST_RELEASE_URL)
+        .set("User-Agent", "dcr-updater")
+        .call()
+        .map_err(|e| match e {
+            ureq::Error::Status(code, _) => format!("GitHub API returned status {code}"),
+            ureq::Error::Transport(e) => format!("GitHub API request failed: {e}"),
+        })?;
 
     response
-        .json::<Release>()
+        .into_json::<Release>()
         .map_err(|_| "GitHub API response has an unexpected format".to_string())
 }
 
-fn download_asset(client: &Client, url: &str) -> Result<Vec<u8>, String> {
-    let response = client
-        .get(url)
-        .send()
-        .map_err(|_| "Download request failed".to_string())?;
+fn download_asset(url: &str) -> Result<Vec<u8>, String> {
+    let response = ureq::get(url)
+        .set("User-Agent", "dcr-updater")
+        .call()
+        .map_err(|e| match e {
+            ureq::Error::Status(code, _) => format!("Download returned status {code}"),
+            ureq::Error::Transport(e) => format!("Download request failed: {e}"),
+        })?;
 
-    if !response.status().is_success() {
-        return Err(format!("Download returned status {}", response.status()));
-    }
-
-    response
-        .bytes()
-        .map(|bytes| bytes.to_vec())
-        .map_err(|_| "Failed to read downloaded data".to_string())
+    let mut reader = response.into_reader();
+    let mut data = Vec::new();
+    reader
+        .read_to_end(&mut data)
+        .map_err(|_| "Failed to read downloaded data".to_string())?;
+    Ok(data)
 }
 
 fn asset_candidates(target: &str) -> Vec<String> {

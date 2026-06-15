@@ -15,8 +15,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-pub mod build;
-pub mod fs;
-pub mod git;
-pub mod log;
-pub mod text;
+use std::fs;
+use std::path::Path;
+
+// creating git init and .gitignore
+pub fn init(path: &Path) -> Result<(), String> {
+    crate::utils::git::git_init(path)?;
+
+    let gitignore_path = path.join(".gitignore");
+    if !gitignore_path.exists() {
+        fs::write(&gitignore_path, "/target\n")
+            .map_err(|e| format!("failed to create .gitignore: {}", e))?;
+    }
+
+    Ok(())
+}

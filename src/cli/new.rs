@@ -17,6 +17,7 @@
 
 use crate::config::FILE_MAIN_C;
 use crate::core::config::{Config, validate_package_name};
+use crate::core::vcs::VcsKind;
 use crate::utils::fs::check_dir;
 use crate::utils::log::{error, warn};
 use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
@@ -27,7 +28,7 @@ use toml::Value;
 pub fn new(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
         printc("USAGE:", BOLD_GREEN);
-        printc("    dcr new <name>", BOLD_CYAN);
+        printc("    dcr new <name> [--vcs <git|none>]", BOLD_CYAN);
         println!();
         printc("DESCRIPTION:", BOLD_GREEN);
         println!("    Creates a new C/C++ project with the given name.");
@@ -37,16 +38,34 @@ pub fn new(args: &[String]) -> i32 {
 
     let items = check_dir(None).unwrap_or_default();
 
-    if args.is_empty() {
+    let mut vcs_str = None;
+    let mut clean_args = Vec::new();
+    let mut iter = args.iter();
+    while let Some(arg) = iter.next() {
+        if arg == "--vcs" {
+            if let Some(val) = iter.next() {
+                vcs_str = Some(val.clone());
+            } else {
+                error("--vcs requires a value");
+                return 1;
+            }
+        } else if let Some(stripped) = arg.strip_prefix("--vcs=") {
+            vcs_str = Some(stripped.to_string());
+        } else {
+            clean_args.push(arg.clone());
+        }
+    }
+
+    if clean_args.is_empty() {
         error("Project name not specified");
         return 1;
     }
-    if args.len() > 1 {
+    if clean_args.len() > 1 {
         warn("Command does not support additional arguments");
         return 1;
     }
 
-    let project_name = &args[0];
+    let project_name = &clean_args[0];
     println!(
         "Creating a Project `{}`...",
         colored(project_name, BOLD_CYAN)
@@ -126,6 +145,40 @@ pub fn new(args: &[String]) -> i32 {
         colored("✔", BOLD_GREEN),
         colored("src/main.c", BOLD_CYAN)
     );
+
+    // settings VCS
+    let mut vcs_kind = VcsKind::Git;
+    if let Some(ref vcs_val) = vcs_str {
+        match VcsKind::parse(vcs_val) {
+            Ok(kind) => vcs_kind = kind,
+            Err(e) => {
+                error(&e);
+                return 1;
+            }
+        }
+    } else if let Ok(cwd) = std::env::current_dir()
+        && crate::core::vcs::find_existing_vcs(&cwd).is_some()
+    {
+        vcs_kind = VcsKind::None;
+    }
+
+    if vcs_kind == VcsKind::Git {
+        if crate::utils::git::is_git_available() {
+            let project_path = std::path::Path::new(project_name);
+            if let Err(e) = crate::core::vcs::init_vcs(vcs_kind, project_path) {
+                warn(&format!("Failed to initialize git repository: {}", e));
+            } else {
+                println!(
+                    "    {} Initialized git repository",
+                    colored("✔", BOLD_GREEN)
+                );
+            }
+        } else {
+            warn(
+                "Git is not installed or not found in PATH. Skipping Git repository initialization.",
+            );
+        }
+    }
 
     println!(
         "Project `{}` successfully created\n",
