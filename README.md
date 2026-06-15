@@ -37,7 +37,7 @@
 <td><b>Linux (Dexoron Packages)</b></td>
 <td>
 
-See https://dcr.dexoron.su for settings youre packages manager
+See https://pkg.dexoron.su for settings youre packages manager
 
 **Arch Linux:**
 
