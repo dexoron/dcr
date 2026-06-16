@@ -164,13 +164,18 @@ pub fn has_glob_magic(value: &str) -> bool {
     value.chars().any(|c| matches!(c, '*' | '?' | '['))
 }
 
-pub fn parallel_build<F>(total_tasks: usize, task_fn: F) -> Result<(), String>
+pub fn parallel_build<F>(total_tasks: usize, task_fn: F, max_jobs: usize) -> Result<(), String>
 where
     F: Fn(usize) -> Result<(), String> + Sync + Send,
 {
-    let num_threads = std::thread::available_parallelism()
+    let available = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(1);
+    let num_threads = if max_jobs > 0 {
+        max_jobs.min(available)
+    } else {
+        available
+    };
 
     let counter = std::sync::atomic::AtomicUsize::new(0);
     let err_msg = std::sync::Mutex::new(None);

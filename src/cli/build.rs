@@ -24,8 +24,9 @@ use crate::core::deps::{register, resolve_deps};
 use crate::core::workspace::parse_workspace;
 use crate::utils::build::{
     default_target_triple, get_bool_with_profile, get_config_opt, get_config_str,
-    get_language_with_profile, normalize_target_os, parse_version_info, prepend_clang_target_flag,
-    profile_table, resolve_compiler, resolve_pkg_config_flags, resolve_tool,
+    get_language_with_profile, is_bare_metal_target, normalize_target_os, parse_version_info,
+    prepend_clang_target_flag, profile_table, resolve_compiler, resolve_pkg_config_flags,
+    resolve_tool,
 };
 use crate::utils::fs::{check_dir, find_project_root, with_dir};
 use crate::utils::log::error;
@@ -682,6 +683,63 @@ fn build_project_at(
         let build_roots =
             get_list_with_profile_and_target(&config, "roots", profile, build_target)?;
         let src_disable = get_bool_with_profile(&config, "src_disable", profile, false);
+        let freestanding = get_bool_with_profile(&config, "freestanding", profile, false);
+        let lto = get_bool_with_profile(&config, "lto", profile, false);
+        let strip = get_bool_with_profile(&config, "strip", profile, false);
+        let opt_level =
+            get_string_with_profile_and_target(&config, "opt_level", profile, build_target);
+        let debug = get_bool_with_profile(&config, "debug", profile, profile != "release");
+        let warnings =
+            get_list_with_profile_and_target(&config, "warnings", profile, build_target)?;
+        let panic_val = get_string_with_profile_and_target(&config, "panic", profile, build_target);
+        let panic_abort = panic_val == "abort";
+        let codegen_units: usize =
+            get_string_with_profile_and_target(&config, "codegen-units", profile, build_target)
+                .parse()
+                .unwrap_or(0);
+
+        if build_cflags.is_empty() && !freestanding && !is_bare_metal_target(build_target) {
+            if !opt_level.is_empty() {
+                build_cflags.push(format!("-O{opt_level}"));
+            } else {
+                build_cflags.push(match profile {
+                    "release" => "-O3".to_string(),
+                    _ => "-O0".to_string(),
+                });
+            }
+            if debug {
+                build_cflags.push("-g".to_string());
+            }
+            if warnings.is_empty() {
+                if profile == "debug" {
+                    build_cflags.push("-Wall".to_string());
+                    build_cflags.push("-Wextra".to_string());
+                }
+            } else {
+                for w in &warnings {
+                    build_cflags.push(format!("-W{w}"));
+                }
+            }
+            match profile {
+                "debug" => {
+                    build_cflags.push("-fno-omit-frame-pointer".to_string());
+                    build_cflags.push("-DDCR_DEBUG".to_string());
+                }
+                "release" => {
+                    build_cflags.push("-DNDEBUG".to_string());
+                }
+                _ => {}
+            }
+        }
+
+        if lto {
+            build_cflags.push("-flto".to_string());
+            build_ldflags.push("-flto".to_string());
+        }
+        if strip {
+            build_ldflags.push("-s".to_string());
+        }
+
         let build_expects =
             get_list_with_profile_and_target(&config, "expect", profile, build_target)?;
         let pkg_configs =
@@ -909,6 +967,9 @@ fn build_project_at(
             } else {
                 Some(build_type.as_str())
             },
+            freestanding,
+            panic_abort,
+            codegen_units,
             source_roots: &source_roots,
             exclude_dirs: &combined_excludes,
             include_paths: &combined_includes,

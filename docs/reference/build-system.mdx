@@ -20,6 +20,10 @@ DCR supports 4 compilation backends. Selection is automatic based on file extens
 - Compiler resolved via `resolve_compiler()`: `DCR_COMPILER` > `DCR_CC` > `[toolchain]` > `build.compiler` > `PATH`
 - Supports `.d` files for header dependency tracking
 - Flags: `-std=`, `-MMD -MF`, `-c -o`, `-I`, `-L`, `-l`
+- Conditional flags based on config:
+  - `freestanding` or bare-metal target: `-ffreestanding` (compile), `-nostdlib -static` (link)
+  - `lto`: `-flto` (compile + link)
+  - `panic = "abort"`: `-fno-exceptions` (C++ only), `-fno-unwind-tables`, `-fno-asynchronous-unwind-tables`
 
 ### MSVC
 

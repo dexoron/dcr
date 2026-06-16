@@ -64,7 +64,7 @@ author = "John Doe"
 | `compiler` | `"clang"` | Preferred compiler |
 | `kind` | `"bin"` | `bin`, `staticlib`, `sharedlib`, `efi`, `elf`, `none`, `custom` |
 | `target` | host | Target triple for cross-compilation |
-| `platform` | `"native"` | `native`, `efi`, `freestanding` |
+| `platform` | `"native"` | `native`, `efi` |
 | `cflags` | `[]` | Additional C/C++/ASM flags |
 | `ldflags` | `[]` | Additional linker flags |
 | `filename` | `""` | Custom output file name |
@@ -77,6 +77,14 @@ author = "John Doe"
 | `clean` | `[]` | Glob patterns for custom clean paths |
 | `out_dir` | `""` | Custom output directory |
 | `workspace_only` | `false` | Workspace-only, not built standalone |
+| `freestanding` | `false` | Compile in freestanding mode (`-ffreestanding` + `-nostdlib -static`) |
+| `opt_level` | `"0"` (debug) / `"3"` (release) | Optimization level: `0`-`3`, `"s"`, `"z"` |
+| `debug` | `true` (debug) / `false` (release) | Emit debug symbols (`-g`) |
+| `lto` | `false` | Link-time optimization (`-flto` for both compiler and linker) |
+| `strip` | `false` | Strip symbols from output (`-s` in ldflags) |
+| `warnings` | `["all", "extra"]` (debug) / `[]` (release) | Warning flags (e.g. `"all"`, `"extra"`, `"pedantic"`) |
+| `panic` | `""` | Panic strategy: `"abort"` disables exceptions and unwind tables |
+| `codegen-units` | `""` | Max parallel compilation jobs (`"0"` = auto) |
 
 Settings from raw config (not in typed struct):
 - `pkg_config` — list of pkg-config packages

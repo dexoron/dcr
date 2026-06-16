@@ -151,9 +151,11 @@ fn build_objects(
         .map(|s| common::object_path(obj_dir, s, obj_ext))
         .collect();
 
-    common::parallel_build(sources.len(), |i| {
-        build_object(assembler, &sources[i], &objects[i], ctx)
-    })?;
+    common::parallel_build(
+        sources.len(),
+        |i| build_object(assembler, &sources[i], &objects[i], ctx),
+        ctx.codegen_units,
+    )?;
 
     Ok(objects)
 }

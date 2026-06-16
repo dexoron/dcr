@@ -187,6 +187,19 @@ pub fn get_list_with_profile(config: &Config, field: &str, profile: &str) -> Vec
     out
 }
 
+pub fn is_bare_metal_target(target: Option<&str>) -> bool {
+    if let Some(t) = target {
+        let lower = t.to_lowercase();
+        lower.contains("none")
+            || lower.contains("-elf")
+            || lower.contains("eabi")
+            || lower.contains("baremetal")
+            || lower.contains("bare-metal")
+    } else {
+        false
+    }
+}
+
 pub fn get_bool_with_profile(config: &Config, field: &str, profile: &str, default: bool) -> bool {
     let base = config
         .get(&format!("build.{field}"))

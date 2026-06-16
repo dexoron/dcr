@@ -153,9 +153,11 @@ fn build_objects(
 
     let format = nasm_format(ctx.platform);
 
-    common::parallel_build(sources.len(), |i| {
-        build_object(assembler, &sources[i], &objects[i], format, ctx)
-    })?;
+    common::parallel_build(
+        sources.len(),
+        |i| build_object(assembler, &sources[i], &objects[i], format, ctx),
+        ctx.codegen_units,
+    )?;
 
     Ok(objects)
 }

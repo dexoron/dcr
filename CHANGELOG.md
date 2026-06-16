@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.7.4] - 2026-06-16 "Bare-Metal и Оптимизация Сборки / Bare-Metal & Build Optimization"
+
+### RU
+
+**Добавлено:**
+
+- **Полноценная автоматизация Bare-Metal / Freestanding** — добавлен конфигурационный флаг `build.freestanding = true`. При его включении (или при обнаружении bare-metal таргета) DCR автоматически инжектирует флаг `-ffreestanding` на этапе компиляции, а также `-nostdlib` и `-static` на этапе линковки.
+- **Оптимизация артефактов (LTO и Strip)** — в `dcr.toml` добавлены параметры `build.lto` (авто-инжекция флага `-flto` для компилятора и линкера) и `build.strip` (автоматическое отсекание отладочной информации через флаг `-s` линкера).
+- **Контроль многопоточности сборки** — добавлен параметр `build.codegen-units`, позволяющий жестко ограничить максимальное количество параллельных потоков сборки для кастомного движка `parallel_build`.
+- **Управление паникой (Panic Abort)** — добавлен параметр `build.panic = "abort"`. Для C++ проектов он автоматически отключает генерацию таблиц раскрутки стека и исключений через флаги `-fno-exceptions`, `-fno-unwind-tables` и `-fno-asynchronous-unwind-tables`.
+
+**Изменено:**
+
+- **Интеллектуальные дефолтные флаги (DCR Defaults)** — генерация дефолтных флагов оптимизации (`-O3`/`-O0`), отладки (`-g`) и предупреждений (`-Wall -Wextra`) теперь автоматически отключается для bare-metal и freestanding целей, если пользователь переопределил `build.cflags`.
+- **Глобальный вынос bare-metal детектора** — функция `is_bare_metal_target` вынесена в общие утилиты `src/utils/build.rs` для сквозного использования в конвейере сборки.
+
+### EN
+
+**Added:**
+
+- **Full Bare-Metal / Freestanding Automation** — introduced the `build.freestanding = true` configuration option. When enabled (or when a bare-metal target is detected), DCR automatically injects `-ffreestanding` during compilation and both `-nostdlib` and `-static` during linking.
+- **Artifact Optimization (LTO & Strip)** — added `build.lto` (auto-injects `-flto` for compiler and linker) and `build.strip` (automatically strips debug symbols via linker `-s` flag) options to `dcr.toml`.
+- **Compilation Thread Control** — added the `build.codegen-units` option to strictly limit the maximum number of parallel jobs utilized by the custom `parallel_build` worker pool.
+- **Panic Behavior Management** — added `build.panic = "abort"` support. For C++ targets, it automatically strips exception handling and unwind tables via `-fno-exceptions`, `-fno-unwind-tables`, and `-fno-asynchronous-unwind-tables`.
+
+**Changed:**
+
+- **Intelligent Default Flags Generation** — automated injection of fallback optimization (`-O3`/`-O0`), debug (`-g`), and warning (`-Wall -Wextra`) flags is now suppressed for bare-metal and freestanding builds if `build.cflags` are overridden.
+- **Centralized Bare-Metal Detection** — relocated the `is_bare_metal_target` helper to common build utilities (`src/utils/build.rs`) for unified access across the building core.
+
 ## [0.7.3] - 2026-06-13 "Оптимизация Зависимостей и VCS / Dependency Optimization & VCS"
 
 ### RU

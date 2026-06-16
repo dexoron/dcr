@@ -2,38 +2,35 @@
 
 Priority list of tasks to turn DCR into a true Cargo killer for C/C++ developers.
 
-## 🔥 High Priority (Next Releases)
+**Legend:** `[ ]` — not implemented | `[-]` — partially implemented | `[x]` — implemented
 
-- [x] **Git dependencies support**  
-  `git = "https://github.com/user/repo.git#branch"` and `git = "..."@tag`
-- [ ] **Conan and vcpkg integration**  
-  Automatic download, installation and linking of packages
-- [ ] **Full freestanding / embedded support**  
-  `-nostdlib`, linker scripts, bare-metal targets (i686-elf, aarch64-none-elf, etc.)
-- [ ] **EFI support**  
-  Dedicated platform configuration for EFI targets
-- [ ] **Custom project name**  
-  Override binary name in `dcr.toml`
-- [ ] **Custom build steps / targets**  
-  Ability to define custom pre-build, post-build, codegen steps in `dcr.toml`
-- [ ] **Improved mixed C/C++/ASM projects**  
-  Better handling of `.S` and `.asm` files with correct flags
-- [ ] **dcr publish + official package registry**  
-  Publish and fetch your own libraries easily
+## 🔥 High Priority
+
+- [ ] **CLI Output Refactoring & Cleanup**
+  - [ ] Move all terminal strings to a dedicated module (`src/ui/messages.rs`)
+  - [ ] Standardize logging formats (`error:`, `warning:`, `status:`)
+  - [x] Add build execution time statistics to the final output (e.g., `Finished in 4.23s`)
+- [ ] **Internationalization (i18n) / Localization**
+  - [ ] Integrate a lightweight localization engine (`fluent` or `gettext` pure-Rust port)
+  - [ ] Create initial translation catalogs (`en.ftl`, `ru.ftl`)
+- [x] **Self-Update Stability Validation**
+  - [x] Self-update implemented via `self-replace` + `ureq` in `flag_update.rs`
+- [-] **Freestanding / Embedded Automation**
+  - *`-ffreestanding` injected at compile time, `-nostdlib -static` at link time for bare-metal targets or `build.freestanding = true`. Config option `build.freestanding` (bool) added.*
+- [ ] **Conan and vcpkg integration** Automatic download, installation and linking of packages
 
 ## ✅ Medium Priority
 
 - [ ] **Static analysis** (`dcr check`)  
   Integration with clang-tidy, cppcheck, include-what-you-use
-- [ ] **Linter + Formatter** (`dcr fmt`, `dcr lint`)
+- [-] **Linter + Formatter** (`dcr fmt`, `dcr lint`)  
+  *`dcr fmt` (clang-format) implemented; `dcr lint` does not exist yet*
 - [ ] **Hot reload / Live reload** for applications (raylib, SFML, SDL, etc.)
-- [ ] **Better cross-compilation experience**  
-  Ready-to-use toolchains + automatic download
-- [ ] **Linker script support** + direct linker control
-- [ ] **Workspaces improvements**  
-  Per-member include directories, selective builds, better dependency graph
-- [ ] **Build-time code generation**  
-  Support for protobuf, flatbuffers, Qt moc, custom generators
+- [-] **Workspaces improvements** Per-member include directories, selective builds, better dependency graph  
+  *Basic workspaces with dep ordering + topological sort work; advanced features missing*
+- [-] **Build-time code generation** Support for protobuf, flatbuffers, Qt moc, custom generators  
+  *Generic `build.steps` machinery + Qt toolchain (uic/moc/rcc) work; no dedicated protobuf/flatbuffers generators*
+- [-] **dcr publish + official package registry** *Registry consumption (fetch, resolve, link) works; `dcr publish` command / local packing missing*
 
 ## 📌 Low Priority / Nice to Have
 
@@ -57,13 +54,12 @@ Priority list of tasks to turn DCR into a true Cargo killer for C/C++ developers
 ---
 
 **Currently in progress:**
-
-- ...
+- UI/UX terminal output unification and benchmarking metrics.
 
 **Completed in recent releases:**
-
-- Workspaces
-- Cross-compilation
+- Extreme binary size optimization (-50% weight reduction via `ureq` + `native-certs`)
+- Complete removal of `git2` and `openssl` in favor of system Git execution
+- Workspaces & Cross-compilation (`--target <triple>`)
 - IDE config generation (VS Code, CLion, compile_commands.json)
-- Self-update (`dcr --update`)
-- Header tracking
+- EFI support & Linker script support (`build.ldscript`)
+- Mixed C/C++/ASM compilation with custom `std::thread::scope` work-stealing engine

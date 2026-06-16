@@ -18,6 +18,7 @@
 use crate::core::builder::BuildContext;
 use crate::core::builder::common;
 use crate::platform;
+use crate::utils::build::is_bare_metal_target;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
@@ -80,6 +81,9 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
         cmd.arg("-nostdlib");
         cmd.arg("-Wl,-dll");
         cmd.arg("-Wl,--subsystem,10");
+    } else if ctx.freestanding || is_bare_metal_target(ctx.target) {
+        cmd.arg("-nostdlib");
+        cmd.arg("-static");
     }
     for obj in &objects {
         cmd.arg(obj);
@@ -172,19 +176,6 @@ fn default_flags(profile: &str) -> &'static [&'static str] {
     }
 }
 
-fn is_bare_metal_target(target: Option<&str>) -> bool {
-    if let Some(t) = target {
-        let lower = t.to_lowercase();
-        lower.contains("none")
-            || lower.contains("-elf")
-            || lower.contains("eabi")
-            || lower.contains("baremetal")
-            || lower.contains("bare-metal")
-    } else {
-        false
-    }
-}
-
 fn build_objects(
     compiler: &str,
     sources: &[String],
@@ -197,9 +188,11 @@ fn build_objects(
         .map(|s| common::object_path(obj_dir, s, obj_ext))
         .collect();
 
-    common::parallel_build(sources.len(), |i| {
-        build_object(compiler, &sources[i], &objects[i], ctx)
-    })?;
+    common::parallel_build(
+        sources.len(),
+        |i| build_object(compiler, &sources[i], &objects[i], ctx),
+        ctx.codegen_units,
+    )?;
 
     Ok(objects)
 }
@@ -231,6 +224,23 @@ fn build_object(
         cmd.arg("-fPIC");
     }
 
+    if (ctx.freestanding || is_bare_metal_target(ctx.target))
+        && ctx.language.to_lowercase() != "asm"
+    {
+        cmd.arg("-ffreestanding");
+    }
+
+    if ctx.panic_abort && ctx.language.to_lowercase() != "asm" {
+        if ctx.language.contains("++")
+            || ctx.language.contains("cpp")
+            || ctx.language.contains("cxx")
+        {
+            cmd.arg("-fno-exceptions");
+        }
+        cmd.arg("-fno-unwind-tables");
+        cmd.arg("-fno-asynchronous-unwind-tables");
+    }
+
     if let Some(platform) = ctx.platform
         && !platform.trim().is_empty()
     {
@@ -250,7 +260,8 @@ fn build_object(
         }
     }
 
-    let use_dcr_defaults = ctx.cflags.is_empty() && !is_bare_metal_target(ctx.target);
+    let use_dcr_defaults =
+        ctx.cflags.is_empty() && !(ctx.freestanding || is_bare_metal_target(ctx.target));
     if use_dcr_defaults {
         for flag in default_flags(ctx.profile) {
             cmd.arg(flag);

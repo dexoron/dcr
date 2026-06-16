@@ -37,6 +37,23 @@ Set `inherit = false` to disable array inheritance (only profile's own arrays ar
 | `debug` | `-O0 -g -Wall -Wextra -fno-omit-frame-pointer -DDCR_DEBUG` |
 | `release` | `-O3 -DNDEBUG` |
 
+These defaults are composed from the `opt_level`, `debug`, and `warnings` fields and can
+be overridden per-profile:
+
+```toml
+[build.release]
+opt_level = "z"
+lto = true
+strip = true
+panic = "abort"
+codegen-units = "1"
+
+[build.debug]
+opt_level = "1"
+debug = false
+warnings = ["all", "error"]
+```
+
 ## Target-specific profiles
 
 ```toml
