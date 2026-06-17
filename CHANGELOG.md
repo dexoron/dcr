@@ -1,10 +1,21 @@
 # Changelog
 
-## [0.7.4] - 2026-06-16 "Bare-Metal и Оптимизация Сборки / Bare-Metal & Build Optimization"
+## [0.7.4] - 2026-06-17 "Qt Поддержка, Linting и Рефакторинг Архитектуры / Qt Support, Linting, & Architecture Refactor"
 
 ### RU
 
 **Добавлено:**
+
+- **Нативная поддержка Qt** — добавлена автоматическая обработка мета-объектов (MOC, UIC, RCC) при включении `build.qt = true` в `dcr.toml`.
+- **Команда `dcr lint`** — статический анализ C/C++ через `clang-tidy`. Поддерживает `--fix` для автоматического исправления. Уважает `build.roots` и `build.src_disable` из конфига.
+- **Три новых ассемблерных бэкенда**:
+  - **MASM** (`compiler = "ml"` / `"ml64"`) — Microsoft Macro Assembler.
+  - **FASM** (`compiler = "fasm"`) — Flat Assembler.
+  - **LLVM IR** (`compiler = "llc"`) — компиляция `.ll` → объектный файл.
+- **Общий ASM-пайплайн** — линковка и архивирование вынесены в `core/builder/asm.rs`. Новый ассемблерный бэкенд теперь пишется за ~30 строк.
+- **Утилиты для файловой системы** — `to_hex()` и `home_dir()` вынесены в `utils/fs.rs`.
+- **Утилиты для сборки** — `normalize_target()`, `normalize_kind()`, `normalize_platform()`, `default_profile_flags()` вынесены в `utils/build.rs`.
+- **Утилиты для бэкендов** — `asm_lang_flag()`, `source_extensions()`, `elapsed_secs()` добавлены в `core/builder/common.rs`.
 
 - **Полноценная автоматизация Bare-Metal / Freestanding** — добавлен конфигурационный флаг `build.freestanding = true`. При его включении (или при обнаружении bare-metal таргета) DCR автоматически инжектирует флаг `-ffreestanding` на этапе компиляции, а также `-nostdlib` и `-static` на этапе линковки.
 - **Оптимизация артефактов (LTO и Strip)** — в `dcr.toml` добавлены параметры `build.lto` (авто-инжекция флага `-flto` для компилятора и линкера) и `build.strip` (автоматическое отсекание отладочной информации через флаг `-s` линкера).
@@ -15,10 +26,24 @@
 
 - **Интеллектуальные дефолтные флаги (DCR Defaults)** — генерация дефолтных флагов оптимизации (`-O3`/`-O0`), отладки (`-g`) и предупреждений (`-Wall -Wextra`) теперь автоматически отключается для bare-metal и freestanding целей, если пользователь переопределил `build.cflags`.
 - **Глобальный вынос bare-metal детектора** — функция `is_bare_metal_target` вынесена в общие утилиты `src/utils/build.rs` для сквозного использования в конвейере сборки.
+- **Рефакторинг архитектуры**:
+  - `src/config.rs` переименован в `src/templates.rs`.
+  - Начата консолидация конфигурационной логики и оркестрации сборки.
 
 ### EN
 
 **Added:**
+
+- **Native Qt support** — automatic meta-object handling (MOC, UIC, RCC) added when `build.qt = true` is set in `dcr.toml`.
+- **`dcr lint` command** — C/C++ static analysis via `clang-tidy`. Supports `--fix` for automatic fixes. Respects `build.roots` and `build.src_disable` from config.
+- **Three new assembler backends**:
+  - **MASM** (`compiler = "ml"` / `"ml64"`) — Microsoft Macro Assembler.
+  - **FASM** (`compiler = "fasm"`) — Flat Assembler.
+  - **LLVM IR** (`compiler = "llc"`) — compiles `.ll` files via `llc -filetype=obj`.
+- **Shared ASM pipeline** — linking and archiving logic consolidated into `core/builder/asm.rs`. Adding a new assembler backend now takes ~30 lines.
+- **Filesystem utilities** — `to_hex()` and `home_dir()` extracted to `utils/fs.rs`.
+- **Build utilities** — `normalize_target()`, `normalize_kind()`, `normalize_platform()`, `default_profile_flags()` extracted to `utils/build.rs`.
+- **Backend helpers** — `asm_lang_flag()`, `source_extensions()`, `elapsed_secs()` added to `core/builder/common.rs`.
 
 - **Full Bare-Metal / Freestanding Automation** — introduced the `build.freestanding = true` configuration option. When enabled (or when a bare-metal target is detected), DCR automatically injects `-ffreestanding` during compilation and both `-nostdlib` and `-static` during linking.
 - **Artifact Optimization (LTO & Strip)** — added `build.lto` (auto-injects `-flto` for compiler and linker) and `build.strip` (automatically strips debug symbols via linker `-s` flag) options to `dcr.toml`.
@@ -29,6 +54,9 @@
 
 - **Intelligent Default Flags Generation** — automated injection of fallback optimization (`-O3`/`-O0`), debug (`-g`), and warning (`-Wall -Wextra`) flags is now suppressed for bare-metal and freestanding builds if `build.cflags` are overridden.
 - **Centralized Bare-Metal Detection** — relocated the `is_bare_metal_target` helper to common build utilities (`src/utils/build.rs`) for unified access across the building core.
+- **Architectural Refactoring**:
+  - Renamed `src/config.rs` to `src/templates.rs`.
+  - Started consolidation of configuration and build orchestration logic.
 
 ## [0.7.3] - 2026-06-13 "Оптимизация Зависимостей и VCS / Dependency Optimization & VCS"
 

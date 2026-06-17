@@ -56,6 +56,10 @@ author = "John Doe"
 
 ## [build]
 
+...
+
+- `build.qt` — (bool) Enable automatic Qt meta-object handling (MOC, UIC, RCC). Requires `qt6` modules installed via `pkg-config`.
+
 | Field | Default | Description |
 |-------|---------|-------------|
 | `language` | `"c"` | `"c"`, `"c++"`, `"cpp"`, `"cxx"`, `"asm"` |
@@ -85,6 +89,7 @@ author = "John Doe"
 | `warnings` | `["all", "extra"]` (debug) / `[]` (release) | Warning flags (e.g. `"all"`, `"extra"`, `"pedantic"`) |
 | `panic` | `""` | Panic strategy: `"abort"` disables exceptions and unwind tables |
 | `codegen-units` | `""` | Max parallel compilation jobs (`"0"` = auto) |
+| `qt` | `false` | Enable automatic Qt meta-object handling (MOC, UIC, RCC) |
 
 Settings from raw config (not in typed struct):
 - `pkg_config` — list of pkg-config packages
@@ -101,6 +106,11 @@ cxx_standard = "c++23"
 compiler = "clang"
 kind = "sharedlib"
 cflags = ["-Wall", "-Wextra"]
+opt_level = "z"
+lto = true
+strip = true
+panic = "abort"
+codegen-units = "2"
 ```
 
 ## [toolchain]

@@ -18,6 +18,24 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
+pub fn home_dir() -> Option<PathBuf> {
+    if let Ok(home) = std::env::var("HOME") {
+        return Some(PathBuf::from(home));
+    }
+    if let Ok(profile) = std::env::var("USERPROFILE") {
+        return Some(PathBuf::from(profile));
+    }
+    None
+}
+
+pub fn to_hex(bytes: &[u8]) -> String {
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        out.push_str(&format!("{:02x}", b));
+    }
+    out
+}
+
 #[allow(dead_code)]
 pub fn check_dir(dir: Option<&str>) -> io::Result<Vec<String>> {
     let path: PathBuf = match dir {

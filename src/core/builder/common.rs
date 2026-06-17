@@ -19,6 +19,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Mutex, OnceLock};
+use std::time::Instant;
 
 static OUTPUT_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
 
@@ -162,6 +163,36 @@ fn matches_patterns(path: &Path, patterns: &[String], positive: bool) -> bool {
 
 pub fn has_glob_magic(value: &str) -> bool {
     value.chars().any(|c| matches!(c, '*' | '?' | '['))
+}
+
+pub fn asm_lang_flag(source: &str) -> Option<&'static str> {
+    let ext = Path::new(source).extension().and_then(|v| v.to_str())?;
+    match ext {
+        "S" => Some("assembler-with-cpp"),
+        "s" | "asm" => Some("assembler"),
+        _ => None,
+    }
+}
+
+pub fn source_extensions(language: &str) -> Vec<&'static str> {
+    let mut out = Vec::new();
+    for part in language.split(',').map(|s| s.trim()) {
+        let lang = part.to_lowercase();
+        match lang.as_str() {
+            "c" => out.extend(["c"]),
+            "c++" | "cpp" | "cxx" => out.extend(["cpp", "cxx", "cc"]),
+            "asm" => out.extend(["s", "S", "asm"]),
+            _ => {}
+        }
+    }
+    if out.is_empty() {
+        out.extend(["c"]);
+    }
+    out
+}
+
+pub fn elapsed_secs(start: Instant) -> f64 {
+    ((start.elapsed().as_secs_f64() * 100.0).trunc()) / 100.0
 }
 
 pub fn parallel_build<F>(total_tasks: usize, task_fn: F, max_jobs: usize) -> Result<(), String>
@@ -795,5 +826,45 @@ mod tests {
             needs_rebuild(&src.to_string_lossy(), &obj.to_string_lossy()),
             "changed header should trigger rebuild"
         );
+    }
+
+    #[test]
+    fn asm_lang_flag_returns_correct_flag() {
+        assert_eq!(asm_lang_flag("foo.S"), Some("assembler-with-cpp"));
+        assert_eq!(asm_lang_flag("bar.s"), Some("assembler"));
+        assert_eq!(asm_lang_flag("baz.asm"), Some("assembler"));
+        assert_eq!(asm_lang_flag("main.c"), None);
+    }
+
+    #[test]
+    fn source_extensions_parses_language_string() {
+        let c = source_extensions("c");
+        assert!(c.contains(&"c"));
+        assert!(!c.contains(&"cpp"));
+
+        let cpp = source_extensions("c++");
+        assert!(cpp.contains(&"cpp"));
+        assert!(cpp.contains(&"cxx"));
+        assert!(cpp.contains(&"cc"));
+
+        let asm = source_extensions("asm");
+        assert!(asm.contains(&"s"));
+        assert!(asm.contains(&"S"));
+        assert!(asm.contains(&"asm"));
+
+        let mixed = source_extensions("c, c++");
+        assert!(mixed.contains(&"c"));
+        assert!(mixed.contains(&"cpp"));
+
+        let unknown = source_extensions("rust");
+        assert_eq!(unknown, vec!["c"]);
+    }
+
+    #[test]
+    fn elapsed_secs_returns_positive() {
+        let start = std::time::Instant::now();
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        let elapsed = elapsed_secs(start);
+        assert!(elapsed > 0.0);
     }
 }

@@ -41,6 +41,7 @@ fn main() {
         "tree" => cli::tree::tree(rest),
         "test" | "tests" => cli::test::test(rest),
         "fmt" => cli::fmt::fmt(rest),
+        "lint" => cli::lint::lint(rest),
         "clean" => cli::clean::clean(rest),
         "gen" => cli::r#gen::r#gen(rest),
         "--version" => {

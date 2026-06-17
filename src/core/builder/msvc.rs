@@ -44,7 +44,7 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     if ctx.kind == "staticlib" {
         let lib_path = platform::lib_path(ctx.profile, ctx.project_name, ctx.target_dir);
         if !common::needs_link(&objects, &lib_path) {
-            let elapsed = ((start_time.elapsed().as_secs_f64() * 100.0).trunc()) / 100.0;
+            let elapsed = common::elapsed_secs(start_time);
             return Ok(elapsed);
         }
         let mut cmd = Command::new(ctx.archiver.unwrap_or("lib"));
@@ -57,7 +57,7 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
         }
         match cmd.status() {
             Ok(status) if status.success() => {
-                let elapsed = ((start_time.elapsed().as_secs_f64() * 100.0).trunc()) / 100.0;
+                let elapsed = common::elapsed_secs(start_time);
                 return Ok(elapsed);
             }
             Ok(_) => return Err("Build failed".to_string()),
@@ -123,17 +123,17 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     };
 
     if !common::needs_link(&objects, &out_path) {
-        let elapsed = ((start_time.elapsed().as_secs_f64() * 100.0).trunc()) / 100.0;
+        let elapsed = common::elapsed_secs(start_time);
         return Ok(elapsed);
     }
-    cmd.arg(format!("/Fe:{out_path}"));
+    cmd.arg("-o").arg(out_path);
 
     if ctx.verbose || std::env::var("DCR_DEBUG").is_ok() {
         eprintln!("[dcr] {:?}", cmd);
     }
     match cmd.status() {
         Ok(status) if status.success() => {
-            let elapsed = ((start_time.elapsed().as_secs_f64() * 100.0).trunc()) / 100.0;
+            let elapsed = common::elapsed_secs(start_time);
             Ok(elapsed)
         }
         Ok(_) => Err("Build failed".to_string()),
@@ -151,21 +151,8 @@ pub(crate) fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String>
     )
 }
 
-fn source_extensions(language: &str) -> Vec<&str> {
-    let mut out = Vec::new();
-    for part in language.split(',').map(|s| s.trim()) {
-        let lang = part.to_lowercase();
-        match lang.as_str() {
-            "c" => out.extend(["c"]),
-            "c++" | "cpp" | "cxx" => out.extend(["cpp", "cxx", "cc"]),
-            "asm" => {}
-            _ => {}
-        }
-    }
-    if out.is_empty() {
-        out.extend(["c"]);
-    }
-    out
+fn source_extensions(language: &str) -> Vec<&'static str> {
+    crate::core::builder::common::source_extensions(language)
 }
 
 fn msvc_standard_flag(language: &str, standard: &str) -> Result<String, String> {

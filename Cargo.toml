@@ -6,8 +6,8 @@ build = "build.rs"
 description = "DCR is a utility for managing C/C++ projects in a Cargo-like style."
 license = "GPL-3.0-or-later"
 repository = "https://github.com/dexoron/dcr"
-documentation = "https://dcr.dexoron.su/docs"
-homepage = "https://dcr.dexoron.su"
+documentation = "https://dcr-tool.ru/docs"
+homepage = "https://dcr-tool.ru"
 
 [package.metadata.binstall]
 pkg-fmt = "bin"

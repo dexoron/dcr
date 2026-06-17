@@ -15,7 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::core::config::Config;
+use crate::core::build_config::Config;
 use crate::core::deps::register;
 use crate::utils::fs::find_project_root;
 use crate::utils::log::error;

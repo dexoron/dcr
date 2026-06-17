@@ -42,3 +42,18 @@ dcr fmt
 Processes: `src/**/*.{c,cpp,cxx,cc,h,hpp,hxx,hh}` and `tests/**/*.{c,cpp,cxx,cc,h,hpp,hxx,hh}`.
 
 Uses `.clang-format` at the project root (if present), otherwise default clang-format style.
+
+## `dcr lint`
+
+Runs `clang-tidy` on C/C++ source files for static analysis.
+
+```bash
+dcr lint              # show diagnostics
+dcr lint --fix        # apply fixes automatically
+dcr lint --help       # detailed help
+```
+
+Processes: `src/**/*.{c,cpp,cxx,cc}` and `tests/**/*.{c,cpp,cxx,cc}`.
+
+Without `--fix`, clang-tidy reports warnings and errors without modifying files.
+With `--fix`, clang-tidy applies automatic suggestions in place.

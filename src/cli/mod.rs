@@ -24,6 +24,7 @@ pub mod fmt;
 pub mod r#gen;
 pub mod help;
 pub mod init;
+pub mod lint;
 pub mod new;
 pub mod run;
 pub mod setup;

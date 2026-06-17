@@ -15,10 +15,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+pub mod asm;
 pub mod common;
+pub mod fasm;
 pub mod gas;
+pub mod llvm_ir;
+pub mod masm;
 pub mod msvc;
 pub mod nasm;
+pub mod qt;
 pub mod unix_cc;
 
 pub struct BuildContext<'a> {
@@ -34,6 +39,9 @@ pub struct BuildContext<'a> {
     pub platform: Option<&'a str>,
     pub linker: Option<&'a str>,
     pub archiver: Option<&'a str>,
+    pub moc: Option<&'a str>,
+    pub uic: Option<&'a str>,
+    pub rcc: Option<&'a str>,
     pub package_type: Option<&'a str>,
     pub freestanding: bool,
     pub panic_abort: bool,
@@ -49,6 +57,7 @@ pub struct BuildContext<'a> {
     pub output_filename: Option<&'a str>,
     pub output_extension: Option<&'a str>,
     pub verbose: bool,
+    pub qt: bool,
 }
 
 pub fn build(ctx: &BuildContext) -> Result<f64, String> {
@@ -65,8 +74,17 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     if compiler == "as" || compiler.contains("gas") {
         return gas::build(ctx);
     }
+    if compiler.contains("llc") {
+        return llvm_ir::build(ctx);
+    }
+    if compiler.contains("fasm") {
+        return fasm::build(ctx);
+    }
     if compiler.contains("nasm") {
         return nasm::build(ctx);
+    }
+    if compiler == "ml" || compiler == "ml64" || compiler.contains("masm") {
+        return masm::build(ctx);
     }
     if compiler == "cl" || compiler.contains("msvc") {
         return msvc::build(ctx);
@@ -90,8 +108,17 @@ pub fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String> {
     if compiler == "as" || compiler.contains("gas") {
         return gas::collect_sources(ctx);
     }
+    if compiler.contains("llc") {
+        return llvm_ir::collect_sources(ctx);
+    }
+    if compiler.contains("fasm") {
+        return fasm::collect_sources(ctx);
+    }
     if compiler.contains("nasm") {
         return nasm::collect_sources(ctx);
+    }
+    if compiler == "ml" || compiler == "ml64" || compiler.contains("masm") {
+        return masm::collect_sources(ctx);
     }
     unix_cc::collect_sources(ctx)
 }

@@ -15,15 +15,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::core::build_config::Config;
 use crate::core::builder::BuildContext;
 use crate::core::builder::collect_sources;
 use crate::core::builder::common;
-use crate::core::config::Config;
 use crate::core::workspace::parse_workspace;
 use crate::utils::build::{
     get_bool_with_profile, get_config_opt, get_config_str, get_language_with_profile_or_default,
-    get_list_with_profile, get_string_with_profile, normalize_target_os, resolve_compiler,
-    resolve_pkg_config_flags_lossy,
+    get_list_with_profile, get_string_with_profile, normalize_kind, normalize_platform,
+    normalize_target, resolve_compiler, resolve_pkg_config_flags_lossy,
 };
 use crate::utils::fs::find_project_root;
 use crate::utils::log::error;
@@ -366,6 +366,9 @@ fn collect_project_info_inner(root: &Path, profile: &str) -> Result<ProjectInfo,
         platform: normalize_platform(&platform),
         linker: resolved_linker.as_deref(),
         archiver: resolved_archiver.as_deref(),
+        moc: None,
+        uic: None,
+        rcc: None,
         package_type: None,
         freestanding: false,
         panic_abort: false,
@@ -381,6 +384,7 @@ fn collect_project_info_inner(root: &Path, profile: &str) -> Result<ProjectInfo,
         output_filename: None,
         output_extension: None,
         verbose: false,
+        qt: false,
     };
 
     let sources = collect_sources(&ctx).map_err(|e| format!("Failed to collect sources: {e}"))?;
@@ -606,7 +610,7 @@ fn build_compile_command(info: &ProjectInfo, source: &str, profile: &str) -> Vec
     cmd.push("-c".to_string());
 
     // ASM x flag — must be before source file
-    if let Some(flag) = asm_lang_flag(source) {
+    if let Some(flag) = common::asm_lang_flag(source) {
         cmd.push("-x".to_string());
         cmd.push(flag.to_string());
     }
@@ -682,15 +686,6 @@ fn build_compile_command(info: &ProjectInfo, source: &str, profile: &str) -> Vec
     }
 
     cmd
-}
-
-fn asm_lang_flag(source: &str) -> Option<&'static str> {
-    let ext = Path::new(source).extension().and_then(|v| v.to_str())?;
-    match ext {
-        "S" => Some("assembler-with-cpp"),
-        "s" | "asm" => Some("assembler"),
-        _ => None,
-    }
 }
 
 fn strip_src_prefix(p: &Path) -> PathBuf {
@@ -1239,25 +1234,6 @@ fn parse_gen_args(args: &[String]) -> Result<(PathBuf, String), i32> {
     };
 
     Ok((root, profile))
-}
-
-fn normalize_target(s: &str, profile: &str) -> Option<String> {
-    let trimmed = normalize_target_os(s.trim());
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(format!("target/{trimmed}/{profile}"))
-    }
-}
-
-fn normalize_kind(s: &str) -> &str {
-    let t = s.trim();
-    if t.is_empty() { "bin" } else { t }
-}
-
-fn normalize_platform(s: &str) -> Option<&str> {
-    let t = s.trim();
-    if t.is_empty() { None } else { Some(t) }
 }
 
 fn json_str(s: &str) -> String {

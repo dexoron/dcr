@@ -15,7 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::core::config::Config;
+use crate::core::build_config::Config;
 use crate::utils::build::normalize_target_os;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};

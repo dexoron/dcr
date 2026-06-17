@@ -6,14 +6,37 @@ sidebar_label: Build system
 
 ## Compiler Backends
 
-DCR supports 4 compilation backends. Selection is automatic based on file extension.
+DCR supports 7 compilation backends. Selection is automatic based on file extension and `build.compiler` value.
 
 | Backend | Files | When used |
 |---------|-------|-----------|
 | `unix_cc` | `.c`, `.cpp`, `.cxx`, `.cc`, `.S` | gcc/clang on Linux/macOS/BSD |
 | `msvc` | `.c`, `.cpp`, `.cxx`, `.cc` | Windows (cl, clang-cl) |
 | `gas` | `.s` | ARM/ARM64 assembler (no preprocessor) |
-| `nasm` | `.asm` | x86/x86_64 assembler |
+| `nasm` | `.asm`, `.s` | x86/x86_64 NASM assembler |
+| `masm` | `.asm` | MASM (ml/ml64) on Windows |
+| `fasm` | `.asm`, `.fasm` | Flat Assembler |
+| `llvm_ir` | `.ll` | LLVM IR via `llc -filetype=obj` |
+
+## Qt Support
+
+DCR provides native Qt support for automatic meta-object handling (MOC, UIC, RCC).
+
+Enable it by setting `build.qt = true` in `dcr.toml`. DCR will automatically detect Qt-related files (`.ui`, `.qrc`, `.h` with `Q_OBJECT`) and process them.
+
+```toml
+[build]
+qt = true
+```
+
+*Note: Requires `qt6` modules (Core, Widgets, Gui, Svg) installed via `pkg-config`.*
+
+Advanced customization is still possible via `build.steps` if special handling is needed:
+
+```toml
+[build.steps]
+moc = "moc {in} -o {out}"
+```
 
 ### Unix CC
 
@@ -30,10 +53,13 @@ DCR supports 4 compilation backends. Selection is automatic based on file extens
 - Supports cl.exe and clang-cl.exe
 - Flags: `/std:`, `/Fo:`, `/Fe:`, `/I`, `/link`
 
-### GAS / NASM
+### GAS / NASM / MASM / FASM / LLVM-IR
 
 - GAS: `-I`, `-c -o`, `--defsym`
 - NASM: `-I`, `-o`, `-D`, `-f` (format: win64/elf64/macho64/macho32/elf32)
+- MASM: `/nologo /c /Fo<obj> <source>`
+- FASM: `<source> <output>` (output path is the object file)
+- LLVM IR: `-filetype=obj <source> -o <output>`
 
 ## Incremental Builds
 
@@ -48,7 +74,7 @@ Three levels of incrementality:
 - `thread::scope` for thread pool
 - Atomic task queue (`AtomicU64`)
 - Mutex on stdout (`OUTPUT_MUTEX`)
-- Thread count = `available_parallelism()`
+- Thread count = `available_parallelism()`, capped by `build.codegen-units` if set
 
 ## Build Kinds
 

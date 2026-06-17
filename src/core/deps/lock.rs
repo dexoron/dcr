@@ -15,10 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::Path;
-use toml::Value;
 
 #[derive(Debug, Clone)]
 pub struct DepLock {
@@ -72,66 +70,4 @@ fn quote_list(items: &[String]) -> String {
 
 fn escape_value(input: &str) -> String {
     input.replace('\\', "\\\\").replace('"', "\\\"")
-}
-
-#[allow(dead_code)]
-pub fn read_dep_version(dep_path: &Path) -> Option<String> {
-    let path = dep_path.join("dcr.toml");
-    let content = fs::read_to_string(path).ok()?;
-    let value: Value = content.parse().ok()?;
-    value
-        .get("package")
-        .and_then(|v| v.as_table())
-        .and_then(|t| t.get("version"))
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
-}
-
-#[allow(dead_code)]
-pub fn compute_checksum(root: &Path) -> Result<String, String> {
-    let mut files = Vec::new();
-    collect_files(root, root, &mut files)?;
-    files.sort();
-    let mut hasher = Sha256::new();
-    for rel in files {
-        hasher.update(rel.as_bytes());
-        let data =
-            fs::read(root.join(&rel)).map_err(|err| format!("failed to read {}: {err}", rel))?;
-        hasher.update(&data);
-    }
-    let hash = hasher.finalize();
-    Ok(to_hex(&hash))
-}
-
-#[allow(dead_code)]
-fn collect_files(root: &Path, dir: &Path, out: &mut Vec<String>) -> Result<(), String> {
-    for entry in fs::read_dir(dir).map_err(|err| format!("read_dir failed: {err}"))? {
-        let entry = entry.map_err(|err| format!("read_dir failed: {err}"))?;
-        let path = entry.path();
-        let name = entry.file_name();
-        let name_str = name.to_string_lossy();
-        if name_str == "target" {
-            continue;
-        }
-        if path.is_dir() {
-            collect_files(root, &path, out)?;
-        } else if path.is_file() {
-            let rel = path
-                .strip_prefix(root)
-                .unwrap_or(&path)
-                .to_string_lossy()
-                .to_string();
-            out.push(rel);
-        }
-    }
-    Ok(())
-}
-
-#[allow(dead_code)]
-fn to_hex(bytes: &[u8]) -> String {
-    let mut out = String::with_capacity(bytes.len() * 2);
-    for b in bytes {
-        out.push_str(&format!("{:02x}", b));
-    }
-    out
 }

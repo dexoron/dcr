@@ -26,6 +26,16 @@ pub mod bsd;
 pub mod linux;
 #[cfg(target_os = "macos")]
 pub mod macos;
+#[cfg(not(any(
+    target_os = "linux",
+    target_os = "macos",
+    target_os = "windows",
+    target_os = "freebsd",
+    target_os = "openbsd",
+    target_os = "netbsd",
+    target_os = "dragonfly"
+)))]
+pub mod posix;
 #[cfg(target_os = "windows")]
 pub mod windows;
 
@@ -61,10 +71,7 @@ pub fn bin_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
         target_os = "dragonfly"
     )))]
     {
-        match target_dir {
-            Some(dir) => format!("{}/{}", dir.trim_end_matches('/'), name),
-            None => format!("./target/{profile}/{name}"),
-        }
+        return posix::bin_path(profile, name, target_dir);
     }
 }
 
@@ -100,10 +107,7 @@ pub fn elf_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
         target_os = "dragonfly"
     )))]
     {
-        match target_dir {
-            Some(dir) => format!("{}/{}", dir.trim_end_matches('/'), name),
-            None => format!("./target/{profile}/{name}"),
-        }
+        return posix::elf_path(profile, name, target_dir);
     }
 }
 
@@ -139,10 +143,7 @@ pub fn efi_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
         target_os = "dragonfly"
     )))]
     {
-        match target_dir {
-            Some(dir) => format!("{}/{}.efi", dir.trim_end_matches('/'), name),
-            None => format!("./target/{profile}/{name}.efi"),
-        }
+        return posix::efi_path(profile, name, target_dir);
     }
 }
 
@@ -178,10 +179,7 @@ pub fn lib_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
         target_os = "dragonfly"
     )))]
     {
-        match target_dir {
-            Some(dir) => format!("{}/lib{}.a", dir.trim_end_matches('/'), name),
-            None => format!("./target/{profile}/lib{name}.a"),
-        }
+        return posix::lib_path(profile, name, target_dir);
     }
 }
 
@@ -217,9 +215,6 @@ pub fn shared_lib_path(profile: &str, name: &str, target_dir: Option<&str>) -> S
         target_os = "dragonfly"
     )))]
     {
-        match target_dir {
-            Some(dir) => format!("{}/lib{}.so", dir.trim_end_matches('/'), name),
-            None => format!("./target/{profile}/lib{name}.so"),
-        }
+        return posix::shared_lib_path(profile, name, target_dir);
     }
 }

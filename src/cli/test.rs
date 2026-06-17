@@ -17,7 +17,7 @@
 
 use crate::cli::build;
 use crate::config::{FILE_DCR_TEST_H, FILE_TEST_C, flags};
-use crate::core::config::Config;
+use crate::core::build_config::Config;
 use crate::utils::build::{
     get_config_opt, get_config_str, get_language_with_profile, get_list_with_profile,
     get_string_with_profile, resolve_compiler, resolve_pkg_config_flags,

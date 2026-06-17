@@ -15,7 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::core::config::Config;
+use crate::core::build_config::Config;
 use crate::utils::log::warn;
 
 pub struct VersionInfo {
@@ -32,17 +32,16 @@ pub fn parse_version_info(version: &str) -> VersionInfo {
     if full.is_empty() {
         full = "0.0.0".to_string();
     }
-    let full_clone = full.clone();
-    let (base, suffix) = match full_clone.split_once('-') {
-        Some((head, tail)) => (head, tail),
-        None => (full_clone.as_str(), ""),
+    let (base, suffix) = match full.split_once('-') {
+        Some((head, tail)) => (head.to_string(), tail.to_string()),
+        None => (full.clone(), String::new()),
     };
     let mut parts = base.split('.');
     let major = parts.next().unwrap_or("0").to_string();
     let minor = parts.next().unwrap_or("0").to_string();
     let patch = parts.next().unwrap_or("0").to_string();
     let suffix_dash = if suffix.is_empty() {
-        "".to_string()
+        String::new()
     } else {
         format!("-{suffix}")
     };
@@ -51,8 +50,48 @@ pub fn parse_version_info(version: &str) -> VersionInfo {
         major,
         minor,
         patch,
-        suffix: suffix.to_string(),
+        suffix,
         suffix_dash,
+    }
+}
+
+pub fn substitute_vars(template: &str, info: &VersionInfo, profile: &str, name: &str) -> String {
+    let s = template
+        .replace("{profile}", profile)
+        .replace("{name}", name);
+    substitute_version_vars(&s, info)
+}
+
+pub fn substitute_version_vars(template: &str, info: &VersionInfo) -> String {
+    template
+        .replace("{version}", &info.full)
+        .replace("{version_major}", &info.major)
+        .replace("{version_minor}", &info.minor)
+        .replace("{version_patch}", &info.patch)
+        .replace("{version_suffix}", &info.suffix)
+        .replace("{version_suffix_dash}", &info.suffix_dash)
+}
+
+pub fn normalize_target(target: &str, profile: &str) -> Option<String> {
+    let trimmed = normalize_target_os(target.trim());
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(format!("target/{trimmed}/{profile}"))
+    }
+}
+
+pub fn normalize_kind(kind: &str) -> &str {
+    let trimmed = kind.trim();
+    if trimmed.is_empty() { "bin" } else { trimmed }
+}
+
+pub fn normalize_platform(platform: &str) -> Option<&str> {
+    let trimmed = platform.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
     }
 }
 
@@ -187,16 +226,40 @@ pub fn get_list_with_profile(config: &Config, field: &str, profile: &str) -> Vec
     out
 }
 
+fn contains_ignore_case(text: &str, pattern: &str) -> bool {
+    if pattern.len() > text.len() {
+        return false;
+    }
+    text.as_bytes()
+        .windows(pattern.len())
+        .any(|w| w.eq_ignore_ascii_case(pattern.as_bytes()))
+}
+
 pub fn is_bare_metal_target(target: Option<&str>) -> bool {
-    if let Some(t) = target {
-        let lower = t.to_lowercase();
-        lower.contains("none")
-            || lower.contains("-elf")
-            || lower.contains("eabi")
-            || lower.contains("baremetal")
-            || lower.contains("bare-metal")
-    } else {
-        false
+    match target {
+        Some(t) => {
+            contains_ignore_case(t, "none")
+                || contains_ignore_case(t, "-elf")
+                || contains_ignore_case(t, "eabi")
+                || contains_ignore_case(t, "baremetal")
+                || contains_ignore_case(t, "bare-metal")
+        }
+        None => false,
+    }
+}
+
+pub fn default_profile_flags(profile: &str) -> &'static [&'static str] {
+    match profile {
+        "release" => &["-O3", "-DNDEBUG"],
+        "debug" => &[
+            "-O0",
+            "-g",
+            "-Wall",
+            "-Wextra",
+            "-fno-omit-frame-pointer",
+            "-DDCR_DEBUG",
+        ],
+        _ => &[],
     }
 }
 
@@ -376,7 +439,7 @@ pub fn resolve_pkg_config_flags_lossy(
     }
 }
 
-fn run_pkg_config(pkg: &str, arg: &str) -> Result<String, String> {
+pub fn run_pkg_config(pkg: &str, arg: &str) -> Result<String, String> {
     let output = std::process::Command::new("pkg-config")
         .arg(arg)
         .arg(pkg)
@@ -504,5 +567,53 @@ mod tests {
         assert_eq!(info.patch, "3");
         assert_eq!(info.suffix, "beta");
         assert_eq!(info.suffix_dash, "-beta");
+    }
+
+    #[test]
+    fn normalize_target_with_profile() {
+        assert_eq!(
+            normalize_target("linux", "debug"),
+            Some("target/x86_64-unknown-linux-gnu/debug".into())
+        );
+        assert_eq!(
+            normalize_target("x86_64-unknown-linux-gnu", "release"),
+            Some("target/x86_64-unknown-linux-gnu/release".into())
+        );
+        assert_eq!(normalize_target("", "debug"), None);
+    }
+
+    #[test]
+    fn normalize_kind_empty_defaults_to_bin() {
+        assert_eq!(normalize_kind(""), "bin");
+        assert_eq!(normalize_kind("  "), "bin");
+        assert_eq!(normalize_kind("staticlib"), "staticlib");
+        assert_eq!(normalize_kind("  elf  "), "elf");
+    }
+
+    #[test]
+    fn normalize_platform_empty_is_none() {
+        assert_eq!(normalize_platform(""), None);
+        assert_eq!(normalize_platform("  "), None);
+        assert_eq!(normalize_platform("native"), Some("native"));
+        assert_eq!(normalize_platform(" efi "), Some("efi"));
+    }
+
+    #[test]
+    fn default_profile_flags_by_profile() {
+        assert!(default_profile_flags("debug").contains(&"-O0"));
+        assert!(default_profile_flags("debug").contains(&"-g"));
+        assert!(default_profile_flags("release").contains(&"-O3"));
+        assert!(default_profile_flags("release").contains(&"-DNDEBUG"));
+        assert!(default_profile_flags("unknown").is_empty());
+    }
+
+    #[test]
+    fn is_bare_metal_detects_embedded_targets() {
+        assert!(is_bare_metal_target(Some("aarch64-none-elf")));
+        assert!(is_bare_metal_target(Some("i686-elf")));
+        assert!(is_bare_metal_target(Some("armv7e-m-none-eabi")));
+        assert!(is_bare_metal_target(Some("riscv32-unknown-none-elf")));
+        assert!(!is_bare_metal_target(Some("x86_64-unknown-linux-gnu")));
+        assert!(!is_bare_metal_target(None));
     }
 }

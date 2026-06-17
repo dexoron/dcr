@@ -17,9 +17,11 @@
 
 use crate::cli::build::build;
 use crate::cli::flags::parse_build_run_flags;
-use crate::core::config::Config;
+use crate::core::build_config::Config;
 use crate::core::runner::run_binary;
-use crate::utils::build::{default_target_triple, normalize_target_os, parse_version_info};
+use crate::utils::build::{
+    default_target_triple, normalize_target_os, parse_version_info, substitute_vars,
+};
 use crate::utils::fs::find_project_root;
 use crate::utils::fs::with_dir;
 use crate::utils::log::error;
@@ -195,11 +197,11 @@ fn run_project(
         match workspace_root {
             Some(wr) => target
                 .as_ref()
-                .and_then(|t| crate::cli::build::normalize_target(t, &flags.profile))
+                .and_then(|t| crate::utils::build::normalize_target(t, &flags.profile))
                 .map(|rel| wr.join(&rel).to_string_lossy().to_string()),
             None => target
                 .as_ref()
-                .and_then(|t| crate::cli::build::normalize_target(t, &flags.profile)),
+                .and_then(|t| crate::utils::build::normalize_target(t, &flags.profile)),
         }
     };
 
@@ -285,11 +287,5 @@ fn run_shell(cmd: &str) -> i32 {
 
 fn substitute_run_vars(cmd: &str, profile: &str, version: &str) -> String {
     let info = parse_version_info(version);
-    cmd.replace("{profile}", profile)
-        .replace("{version}", &info.full)
-        .replace("{version_major}", &info.major)
-        .replace("{version_minor}", &info.minor)
-        .replace("{version_patch}", &info.patch)
-        .replace("{version_suffix}", &info.suffix)
-        .replace("{version_suffix_dash}", &info.suffix_dash)
+    substitute_vars(cmd, &info, profile, "")
 }
