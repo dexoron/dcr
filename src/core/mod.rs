@@ -15,8 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+pub mod build_config;
 pub mod builder;
-pub mod config;
 pub mod deps;
 pub mod registry;
 pub mod runner;

@@ -15,10 +15,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::config::flags;
-use crate::core::config::Config;
+use crate::core::build_config::Config;
 use crate::core::workspace::parse_workspace;
-use crate::utils::build::{default_target_triple, parse_version_info};
+use crate::utils::build::{default_profile_flags, default_target_triple, parse_version_info};
 use crate::utils::fs::{check_dir, find_project_root, with_dir};
 use crate::utils::log::{error, warn};
 use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
@@ -106,7 +105,7 @@ fn parse_clean_flags(args: &[String]) -> Result<CleanFlags, String> {
         }
         if arg.starts_with("--") {
             let candidate = arg.trim_start_matches("--").to_string();
-            if flags(&candidate).is_some() {
+            if !default_profile_flags(&candidate).is_empty() {
                 if profile.is_some() {
                     return Err("Duplicate profile flag".to_string());
                 }
@@ -227,7 +226,7 @@ fn clean_custom_paths(config: &Config, profile: &str) -> Result<(), String> {
             .filter_map(|item| item.as_str())
             .map(|s| {
                 let value = s.replace("{profile}", profile);
-                substitute_version_vars(&value, config)
+                substitute_clean_vars(&value, config)
             })
             .collect::<Vec<String>>(),
         None => Vec::new(),
@@ -248,17 +247,11 @@ fn clean_custom_paths(config: &Config, profile: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn substitute_version_vars(value: &str, config: &Config) -> String {
+fn substitute_clean_vars(value: &str, config: &Config) -> String {
     let version = config
         .get("package.version")
         .and_then(|v| v.as_str())
         .unwrap_or("");
     let info = parse_version_info(version);
-    value
-        .replace("{version}", &info.full)
-        .replace("{version_major}", &info.major)
-        .replace("{version_minor}", &info.minor)
-        .replace("{version_patch}", &info.patch)
-        .replace("{version_suffix}", &info.suffix)
-        .replace("{version_suffix_dash}", &info.suffix_dash)
+    crate::utils::build::substitute_version_vars(value, &info)
 }

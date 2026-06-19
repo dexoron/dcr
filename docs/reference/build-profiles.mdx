@@ -32,10 +32,36 @@ Set `inherit = false` to disable array inheritance (only profile's own arrays ar
 
 ## Built-in profiles
 
-| Profile | Default cflags |
+The default flags for each profile are composed from three config fields:
+
+| Field | debug default | release default |
+|-------|--------------|----------------|
+| `opt_level` | `"0"` | `"3"` |
+| `debug` | `true` | `false` |
+| `warnings` | `["all", "extra"]` | `[]` |
+
+Which produce the equivalent compiler flags:
+
+| Profile | Effective flags |
 |---------|---------------|
 | `debug` | `-O0 -g -Wall -Wextra -fno-omit-frame-pointer -DDCR_DEBUG` |
 | `release` | `-O3 -DNDEBUG` |
+
+Additional build options can be toggled per-profile:
+
+```toml
+[build.release]
+opt_level = "z"
+lto = true
+strip = true
+panic = "abort"
+codegen-units = "1"
+
+[build.debug]
+opt_level = "1"
+debug = false
+warnings = ["all", "error"]
+```
 
 ## Target-specific profiles
 

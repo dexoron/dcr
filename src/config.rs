@@ -97,16 +97,6 @@ int main(int argc, char **argv) {
 "#;
 
 pub fn flags(profile: &str) -> Option<&'static [&'static str]> {
-    match profile {
-        "release" => Some(&["-O3", "-DNDEBUG"]),
-        "debug" => Some(&[
-            "-O0",
-            "-g",
-            "-Wall",
-            "-Wextra",
-            "-fno-omit-frame-pointer",
-            "-DDCR_DEBUG",
-        ]),
-        _ => None,
-    }
+    let f = crate::utils::build::default_profile_flags(profile);
+    if f.is_empty() { None } else { Some(f) }
 }

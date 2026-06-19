@@ -16,11 +16,10 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 pub mod common;
-pub mod git;
 pub mod lock;
 pub mod register;
 
-use crate::core::config::Config;
+use crate::core::build_config::Config;
 use crate::core::deps::common::ResolvedDeps;
 use crate::core::deps::lock::{DepLock, write_lock};
 use std::path::Path;

@@ -17,15 +17,16 @@
 
 use crate::cli::clean::clean;
 use crate::cli::flags::parse_build_run_flags;
+use crate::core::build_config::Config;
 use crate::core::builder::common;
 use crate::core::builder::{BuildContext, build as build_project, collect_sources};
-use crate::core::config::Config;
 use crate::core::deps::{register, resolve_deps};
 use crate::core::workspace::parse_workspace;
 use crate::utils::build::{
     default_target_triple, get_bool_with_profile, get_config_opt, get_config_str,
-    get_language_with_profile, normalize_target_os, parse_version_info, prepend_clang_target_flag,
-    profile_table, resolve_compiler, resolve_pkg_config_flags, resolve_tool,
+    get_language_with_profile, is_bare_metal_target, normalize_kind, normalize_platform,
+    normalize_target, normalize_target_os, parse_version_info, prepend_clang_target_flag,
+    profile_table, resolve_compiler, resolve_pkg_config_flags, resolve_tool, substitute_vars,
 };
 use crate::utils::fs::{check_dir, find_project_root, with_dir};
 use crate::utils::log::error;
@@ -632,6 +633,7 @@ fn build_project_at(
         let project_compiler =
             get_string_with_profile_and_target(&config, "compiler", profile, build_target);
         let build_language = get_language_with_profile(&config, profile)?;
+        let build_qt = get_bool_with_profile(&config, "qt", profile, false);
         let build_standard =
             get_string_with_profile_and_target(&config, "standard", profile, build_target);
         let build_cxx_standard =
@@ -682,6 +684,63 @@ fn build_project_at(
         let build_roots =
             get_list_with_profile_and_target(&config, "roots", profile, build_target)?;
         let src_disable = get_bool_with_profile(&config, "src_disable", profile, false);
+        let freestanding = get_bool_with_profile(&config, "freestanding", profile, false);
+        let lto = get_bool_with_profile(&config, "lto", profile, false);
+        let strip = get_bool_with_profile(&config, "strip", profile, false);
+        let opt_level =
+            get_string_with_profile_and_target(&config, "opt_level", profile, build_target);
+        let debug = get_bool_with_profile(&config, "debug", profile, profile != "release");
+        let warnings =
+            get_list_with_profile_and_target(&config, "warnings", profile, build_target)?;
+        let panic_val = get_string_with_profile_and_target(&config, "panic", profile, build_target);
+        let panic_abort = panic_val == "abort";
+        let codegen_units: usize =
+            get_string_with_profile_and_target(&config, "codegen-units", profile, build_target)
+                .parse()
+                .unwrap_or(0);
+
+        if build_cflags.is_empty() && !freestanding && !is_bare_metal_target(build_target) {
+            if !opt_level.is_empty() {
+                build_cflags.push(format!("-O{opt_level}"));
+            } else {
+                build_cflags.push(match profile {
+                    "release" => "-O3".to_string(),
+                    _ => "-O0".to_string(),
+                });
+            }
+            if debug {
+                build_cflags.push("-g".to_string());
+            }
+            if warnings.is_empty() {
+                if profile == "debug" {
+                    build_cflags.push("-Wall".to_string());
+                    build_cflags.push("-Wextra".to_string());
+                }
+            } else {
+                for w in &warnings {
+                    build_cflags.push(format!("-W{w}"));
+                }
+            }
+            match profile {
+                "debug" => {
+                    build_cflags.push("-fno-omit-frame-pointer".to_string());
+                    build_cflags.push("-DDCR_DEBUG".to_string());
+                }
+                "release" => {
+                    build_cflags.push("-DNDEBUG".to_string());
+                }
+                _ => {}
+            }
+        }
+
+        if lto {
+            build_cflags.push("-flto".to_string());
+            build_ldflags.push("-flto".to_string());
+        }
+        if strip {
+            build_ldflags.push("-s".to_string());
+        }
+
         let build_expects =
             get_list_with_profile_and_target(&config, "expect", profile, build_target)?;
         let pkg_configs =
@@ -872,21 +931,19 @@ fn build_project_at(
         }
 
         let version_info = parse_version_info(&project_version);
-        let substitute = |s: &str| -> String {
-            s.replace("{profile}", profile)
-                .replace("{name}", &project_name)
-                .replace("{version}", &version_info.full)
-                .replace("{version_major}", &version_info.major)
-                .replace("{version_minor}", &version_info.minor)
-                .replace("{version_patch}", &version_info.patch)
-                .replace("{version_suffix}", &version_info.suffix)
-                .replace("{version_suffix_dash}", &version_info.suffix_dash)
-        };
-        let resolved_cflags: Vec<String> = resolved_cflags.iter().map(|f| substitute(f)).collect();
-        let modified_ldflags: Vec<String> =
-            resolved_ldflags.iter().map(|f| substitute(f)).collect();
-        let merged_include_dirs: Vec<String> =
-            merged_include_dirs.iter().map(|f| substitute(f)).collect();
+        let resolved_cflags: Vec<String> = resolved_cflags
+            .iter()
+            .map(|f| substitute_vars(f, &version_info, profile, &project_name))
+            .collect();
+        let modified_ldflags: Vec<String> = resolved_ldflags
+            .iter()
+            .map(|f| substitute_vars(f, &version_info, profile, &project_name))
+            .collect();
+        let merged_include_dirs: Vec<String> = merged_include_dirs
+            .iter()
+            .map(|f| substitute_vars(f, &version_info, profile, &project_name))
+            .collect();
+        let tool_execs = resolve_toolchain_execs(&tc_uic, &tc_moc, &tc_rcc, &pkg_configs);
         let ctx = BuildContext {
             profile,
             project_name: &project_name,
@@ -904,11 +961,17 @@ fn build_project_at(
             platform: normalize_platform(&build_platform),
             linker: resolved_linker.as_deref(),
             archiver: resolved_archiver.as_deref(),
+            moc: Some(&tool_execs.moc),
+            uic: Some(&tool_execs.uic),
+            rcc: Some(&tool_execs.rcc),
             package_type: if build_type.is_empty() {
                 None
             } else {
                 Some(build_type.as_str())
             },
+            freestanding,
+            panic_abort,
+            codegen_units,
             source_roots: &source_roots,
             exclude_dirs: &combined_excludes,
             include_paths: &combined_includes,
@@ -928,15 +991,8 @@ fn build_project_at(
                 Some(output_extension.as_str())
             },
             verbose,
+            qt: build_qt,
         };
-        if std::env::var("DCR_DEBUG").is_ok() {
-            eprintln!("[dcr] debug: compiler={}", ctx.compiler);
-            eprintln!("[dcr] debug: cflags={:?}", ctx.cflags);
-            eprintln!("[dcr] debug: ldflags={:?}", ctx.ldflags);
-            eprintln!("[dcr] debug: lib_dirs={:?}", ctx.lib_dirs);
-            eprintln!("[dcr] debug: libs={:?}", ctx.libs);
-        }
-        let tool_execs = resolve_toolchain_execs(&tc_uic, &tc_moc, &tc_rcc, &pkg_configs);
         let step_flags =
             build_step_flags(&resolved_cflags, &resolved.include_dirs, &resolved_compiler);
         let step_vars = StepVars {
@@ -1042,29 +1098,6 @@ fn package_library(ctx: &BuildContext, headers: &[PathBuf]) -> Result<(), String
     }
 
     Ok(())
-}
-
-pub fn normalize_target(target: &str, profile: &str) -> Option<String> {
-    let trimmed = normalize_target_os(target.trim());
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(format!("target/{trimmed}/{profile}"))
-    }
-}
-
-fn normalize_kind(kind: &str) -> &str {
-    let trimmed = kind.trim();
-    if trimmed.is_empty() { "bin" } else { trimmed }
-}
-
-fn normalize_platform(platform: &str) -> Option<&str> {
-    let trimmed = platform.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed)
-    }
 }
 
 struct ToolchainExecs {
@@ -1181,12 +1214,11 @@ fn detect_qt6_tool_variant(tool: &str) -> Option<String> {
 }
 
 fn is_on_path(cmd: &str) -> bool {
-    std::process::Command::new("sh")
-        .arg("-c")
-        .arg(format!("command -v {cmd}"))
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    if Path::new(cmd).is_file() {
+        return true;
+    }
+    std::env::var_os("PATH")
+        .is_some_and(|paths| std::env::split_paths(&paths).any(|dir| dir.join(cmd).is_file()))
 }
 
 #[derive(Clone)]
@@ -1309,21 +1341,15 @@ fn substitute_step_cmd(
     stem: &str,
     vars: &StepVars,
 ) -> String {
-    template
-        .replace("{in}", &input.to_string_lossy())
+    let info = make_version_info(vars);
+    let s = substitute_vars(template, &info, vars.profile, "");
+    s.replace("{in}", &input.to_string_lossy())
         .replace("{out}", &output.to_string_lossy())
         .replace("{uic}", &tools.uic)
         .replace("{moc}", &tools.moc)
         .replace("{rcc}", &tools.rcc)
         .replace("{cflags}", step_flags)
         .replace("{stem}", stem)
-        .replace("{profile}", vars.profile)
-        .replace("{version}", vars.version)
-        .replace("{version_major}", vars.version_major)
-        .replace("{version_minor}", vars.version_minor)
-        .replace("{version_patch}", vars.version_patch)
-        .replace("{version_suffix}", vars.version_suffix)
-        .replace("{version_suffix_dash}", vars.version_suffix_dash)
 }
 
 fn build_step_flags(cflags: &[String], include_dirs: &[String], compiler: &str) -> String {
@@ -1346,14 +1372,9 @@ fn build_step_flags(cflags: &[String], include_dirs: &[String], compiler: &str) 
             out.push(format!("/I{dir}"));
         }
     }
-    let mut dedup = Vec::new();
-    for item in out {
-        if !dedup.contains(&item) {
-            dedup.push(item);
-        }
-    }
-    dedup
-        .into_iter()
+    out.sort();
+    out.dedup();
+    out.into_iter()
         .map(quote_step_arg)
         .collect::<Vec<_>>()
         .join(" ")
@@ -1414,16 +1435,21 @@ fn build_steps_need_run(steps: &[BuildStep], vars: &StepVars) -> Result<bool, St
     Ok(false)
 }
 
+fn make_version_info(vars: &StepVars) -> crate::utils::build::VersionInfo {
+    crate::utils::build::VersionInfo {
+        full: vars.version.to_string(),
+        major: vars.version_major.to_string(),
+        minor: vars.version_minor.to_string(),
+        patch: vars.version_patch.to_string(),
+        suffix: vars.version_suffix.to_string(),
+        suffix_dash: vars.version_suffix_dash.to_string(),
+    }
+}
+
 fn expand_step_value(template: &str, stem: &str, vars: &StepVars) -> String {
-    template
-        .replace("{stem}", stem)
-        .replace("{profile}", vars.profile)
-        .replace("{version}", vars.version)
-        .replace("{version_major}", vars.version_major)
-        .replace("{version_minor}", vars.version_minor)
-        .replace("{version_patch}", vars.version_patch)
-        .replace("{version_suffix}", vars.version_suffix)
-        .replace("{version_suffix_dash}", vars.version_suffix_dash)
+    let info = make_version_info(vars);
+    let s = substitute_vars(template, &info, vars.profile, "");
+    s.replace("{stem}", stem)
 }
 
 struct StepVars<'a> {
@@ -1655,9 +1681,5 @@ fn update_hasher_with_file(hasher: &mut Sha256, path: &Path) -> Result<(), Strin
 }
 
 fn to_hex(bytes: &[u8]) -> String {
-    let mut out = String::with_capacity(bytes.len() * 2);
-    for b in bytes {
-        out.push_str(&format!("{:02x}", b));
-    }
-    out
+    crate::utils::fs::to_hex(bytes)
 }

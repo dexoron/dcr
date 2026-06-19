@@ -1,0 +1,130 @@
+mod common;
+use common::*;
+
+#[test]
+fn init_and_clean_remove_target() {
+    let dir = unique_sandbox_dir("init");
+    let out = run_dcr(&["init"], &dir);
+    assert!(out.status.success(), "dcr init should succeed");
+
+    let target_debug = dir.join("target").join("debug");
+    std::fs::create_dir_all(&target_debug).expect("failed to create target/debug");
+    std::fs::write(target_debug.join("dummy.o"), "x").expect("failed to write dummy file");
+
+    let out = run_dcr(&["clean"], &dir);
+    assert!(out.status.success(), "dcr clean should succeed");
+    assert!(!dir.join("target").exists(), "target should be removed");
+}
+
+#[test]
+fn build_run_clean_flags_normal_project() {
+    let Some(compiler) = available_compiler() else {
+        eprintln!("no compiler found; skipping build/run test");
+        return;
+    };
+
+    let dir = unique_sandbox_dir("normal");
+    let out = run_dcr(&["init"], &dir);
+    assert!(out.status.success(), "dcr init should succeed");
+
+    let envs = [("DCR_COMPILER", compiler)];
+    let out = run_dcr_env(&["build"], &dir, &envs);
+    assert!(out.status.success(), "dcr build should succeed");
+
+    let out = run_dcr_env(&["build", "--release"], &dir, &envs);
+    assert!(out.status.success(), "dcr build --release should succeed");
+
+    let out = run_dcr_env(&["run"], &dir, &envs);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("Running"), "dcr run should start");
+
+    let out = run_dcr_env(&["clean", "--release"], &dir, &envs);
+    assert!(out.status.success(), "dcr clean --release should succeed");
+    let target_dir = "target/x86_64-unknown-linux-gnu".to_string();
+    assert!(
+        !dir.join(&target_dir).join("release").exists(),
+        "target/x86_64-unknown-linux-gnu/release should be removed"
+    );
+    assert!(
+        dir.join(&target_dir).join("debug").is_dir(),
+        "target/x86_64-unknown-linux-gnu/debug should remain"
+    );
+
+    let out = run_dcr_env(&["clean"], &dir, &envs);
+    assert!(out.status.success(), "dcr clean should succeed");
+    assert!(!dir.join("target").exists(), "target should be removed");
+}
+
+#[test]
+fn build_with_target_config() {
+    let Some(compiler) = available_compiler() else {
+        eprintln!("no compiler found; skipping target config test");
+        return;
+    };
+
+    let dir = unique_sandbox_dir("target_cfg");
+    let out = run_dcr(&["init"], &dir);
+    assert!(out.status.success(), "dcr init should succeed");
+
+    let toml_path = dir.join("dcr.toml");
+    let toml = std::fs::read_to_string(&toml_path).expect("failed to read dcr.toml");
+    let project_name = parse_project_name(&toml);
+    let updated = toml.replace("[build]", "[build]\ntarget = \"linux\"");
+    std::fs::write(&toml_path, updated).expect("failed to write dcr.toml");
+
+    let envs = [("DCR_COMPILER", compiler)];
+    let out = run_dcr_env(&["build"], &dir, &envs);
+    assert!(
+        out.status.success(),
+        "dcr build with target = \"linux\" should succeed"
+    );
+
+    let artifact = default_artifact_path(&dir, &project_name);
+    assert!(
+        artifact.is_file(),
+        "artifact should be at default path target/x86_64-unknown-linux-gnu/debug/{}",
+        project_name
+    );
+}
+
+#[test]
+fn build_with_out_dir() {
+    let Some(compiler) = available_compiler() else {
+        eprintln!("no compiler found; skipping out_dir test");
+        return;
+    };
+
+    let dir = unique_sandbox_dir("out_dir");
+    let out = run_dcr(&["init"], &dir);
+    assert!(out.status.success(), "dcr init should succeed");
+
+    let toml_path = dir.join("dcr.toml");
+    let toml = std::fs::read_to_string(&toml_path).expect("failed to read dcr.toml");
+    let project_name = parse_project_name(&toml);
+    let updated = toml.replace("[build]", "[build]\nout_dir = \"./_BUILD\"");
+    std::fs::write(&toml_path, updated).expect("failed to write dcr.toml");
+
+    let envs = [("DCR_COMPILER", compiler)];
+    let out = run_dcr_env(&["build"], &dir, &envs);
+    if !out.status.success() {
+        eprintln!("stdout: {}", String::from_utf8_lossy(&out.stdout));
+        eprintln!("stderr: {}", String::from_utf8_lossy(&out.stderr));
+    }
+    assert!(
+        out.status.success(),
+        "dcr build with out_dir should succeed"
+    );
+
+    let artifact = dir.join("_BUILD").join(&project_name);
+    assert!(
+        artifact.is_file(),
+        "artifact should be at _BUILD/{} (custom out_dir)",
+        project_name
+    );
+
+    let default_path = default_artifact_path(&dir, &project_name);
+    assert!(
+        !default_path.exists(),
+        "artifact should NOT be at default path when out_dir is set"
+    );
+}

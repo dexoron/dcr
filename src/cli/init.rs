@@ -16,7 +16,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::config::FILE_MAIN_C;
-use crate::core::config::{Config, validate_package_name};
+use crate::core::build_config::{Config, validate_package_name};
 use crate::core::vcs::VcsKind;
 use crate::utils::fs::check_dir;
 use crate::utils::log::{error, warn};

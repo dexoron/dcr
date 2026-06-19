@@ -37,9 +37,19 @@ target = "aarch64-unknown-linux-gnu"
 # Auto: cflags += ["--target=aarch64-unknown-linux-gnu"]
 ```
 
-## Bare-Metal
+## Bare-Metal / Freestanding
 
-For targets containing `none`, `-elf`, `eabi`, or `baremetal`, DCR default flags are disabled (no system include paths, no `-l` libc).
+For targets containing `none`, `-elf`, `eabi`, or `baremetal`, DCR automatically:
+
+1. **Disables default flags** — no system include paths, no `-l` libc
+2. **Injects `-ffreestanding`** at compile time and `-nostdlib -static` at link time
+
+You can also enable freestanding mode explicitly:
+
+```toml
+[build]
+freestanding = true
+```
 
 ```bash
 dcr build --target aarch64-none-elf

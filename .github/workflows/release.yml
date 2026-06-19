@@ -93,20 +93,22 @@ jobs:
           set -euo pipefail
           tag="${{ needs.setup.outputs.version }}"
           notes_file=".github/release-notes.md"
-          if grep -q "^## \\[${tag}\\]" CHANGELOG.md; then
+          # Strip -dev suffix to match base version in CHANGELOG
+          changelog_tag="${tag%-dev}"
+          if grep -q "^## \\[${changelog_tag}\\]" CHANGELOG.md; then
             # Extract release name from header: ## [0.7.1] - 2026-06-02 "Title"
-            release_name=$(awk -v ver="$tag" '
-              $0 ~ "^## \\[" ver "\\]" {
+            release_name=$(awk -v search_ver="$changelog_tag" -v display_ver="$tag" '
+              $0 ~ "^## \\[" search_ver "\\]" {
                 match($0, /"([^"]+)"/, arr)
                 if (arr[1] != "") {
-                  print "v" ver " - " arr[1]
+                  print "v" display_ver " - " arr[1]
                 } else {
-                  print "v" ver
+                  print "v" display_ver
                 }
               }
             ' CHANGELOG.md)
             echo "release_name=${release_name}" >> "$GITHUB_OUTPUT"
-            awk -v ver="$tag" '
+            awk -v ver="$changelog_tag" '
               $0 ~ "^## \\[" ver "\\]" {found=1; next}
               found && $0 ~ "^## \\[" {exit}
               found {print}

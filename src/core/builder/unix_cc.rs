@@ -18,8 +18,9 @@
 use crate::core::builder::BuildContext;
 use crate::core::builder::common;
 use crate::platform;
+use crate::utils::build::is_bare_metal_target;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Instant;
 
@@ -30,23 +31,34 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
         ctx.compiler
     };
     let start_time = Instant::now();
-    let extensions = source_extensions(ctx.language);
-    let sources = common::collect_sources(
-        ctx.source_roots,
-        &extensions,
-        ctx.exclude_dirs,
-        ctx.include_paths,
-    )?;
     let obj_dir = match ctx.target_dir {
         Some(dir) => Path::new(dir).join("obj"),
         None => Path::new("./target").join(ctx.profile).join("obj"),
     };
-    let objects = build_objects(compiler, &sources, &obj_dir, ctx, "o")?;
+    let qt_include_path = if ctx.qt {
+        crate::core::builder::qt::process_qt(ctx, &obj_dir)?
+    } else {
+        None
+    };
+
+    let mut all_source_roots = ctx.source_roots.to_vec();
+    if let Some(qt_path) = &qt_include_path {
+        all_source_roots.push(qt_path.clone());
+    }
+
+    let extensions = source_extensions(ctx.language);
+    let sources = common::collect_sources(
+        &all_source_roots,
+        &extensions,
+        ctx.exclude_dirs,
+        ctx.include_paths,
+    )?;
+    let objects = build_objects(compiler, &sources, &obj_dir, ctx, "o", qt_include_path)?;
 
     if ctx.kind == "staticlib" {
         let lib_path = platform::lib_path(ctx.profile, ctx.project_name, ctx.target_dir);
         if !common::needs_link(&objects, &lib_path) {
-            let elapsed = ((start_time.elapsed().as_secs_f64() * 100.0).trunc()) / 100.0;
+            let elapsed = common::elapsed_secs(start_time);
             return Ok(elapsed);
         }
         let mut cmd = Command::new(ctx.archiver.unwrap_or("ar"));
@@ -59,7 +71,7 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
         }
         match cmd.status() {
             Ok(status) if status.success() => {
-                let elapsed = ((start_time.elapsed().as_secs_f64() * 100.0).trunc()) / 100.0;
+                let elapsed = common::elapsed_secs(start_time);
                 return Ok(elapsed);
             }
             Ok(_) => return Err("Build failed".to_string()),
@@ -80,6 +92,9 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
         cmd.arg("-nostdlib");
         cmd.arg("-Wl,-dll");
         cmd.arg("-Wl,--subsystem,10");
+    } else if ctx.freestanding || is_bare_metal_target(ctx.target) {
+        cmd.arg("-nostdlib");
+        cmd.arg("-static");
     }
     for obj in &objects {
         cmd.arg(obj);
@@ -112,7 +127,7 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     };
 
     if !common::needs_link(&objects, &out_path) {
-        let elapsed = ((start_time.elapsed().as_secs_f64() * 100.0).trunc()) / 100.0;
+        let elapsed = common::elapsed_secs(start_time);
         return Ok(elapsed);
     }
     cmd.arg("-o").arg(out_path);
@@ -122,7 +137,7 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     }
     match cmd.status() {
         Ok(status) if status.success() => {
-            let elapsed = ((start_time.elapsed().as_secs_f64() * 100.0).trunc()) / 100.0;
+            let elapsed = common::elapsed_secs(start_time);
             Ok(elapsed)
         }
         Ok(_) => Err("Build failed".to_string()),
@@ -140,49 +155,12 @@ pub(crate) fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String>
     )
 }
 
-fn source_extensions(language: &str) -> Vec<&str> {
-    let mut out = Vec::new();
-    for part in language.split(',').map(|s| s.trim()) {
-        let lang = part.to_lowercase();
-        match lang.as_str() {
-            "c" => out.extend(["c"]),
-            "c++" | "cpp" | "cxx" => out.extend(["cpp", "cxx", "cc"]),
-            "asm" => out.extend(["s", "S", "asm"]),
-            _ => {}
-        }
-    }
-    if out.is_empty() {
-        out.extend(["c"]);
-    }
-    out
+fn source_extensions(language: &str) -> Vec<&'static str> {
+    crate::core::builder::common::source_extensions(language)
 }
 
 fn default_flags(profile: &str) -> &'static [&'static str] {
-    match profile {
-        "release" => &["-O3", "-DNDEBUG"],
-        "debug" => &[
-            "-O0",
-            "-g",
-            "-Wall",
-            "-Wextra",
-            "-fno-omit-frame-pointer",
-            "-DDCR_DEBUG",
-        ],
-        _ => &[],
-    }
-}
-
-fn is_bare_metal_target(target: Option<&str>) -> bool {
-    if let Some(t) = target {
-        let lower = t.to_lowercase();
-        lower.contains("none")
-            || lower.contains("-elf")
-            || lower.contains("eabi")
-            || lower.contains("baremetal")
-            || lower.contains("bare-metal")
-    } else {
-        false
-    }
+    crate::utils::build::default_profile_flags(profile)
 }
 
 fn build_objects(
@@ -191,15 +169,26 @@ fn build_objects(
     obj_dir: &Path,
     ctx: &BuildContext,
     obj_ext: &str,
+    qt_include_dir: Option<PathBuf>,
 ) -> Result<Vec<String>, String> {
     let objects: Vec<String> = sources
         .iter()
         .map(|s| common::object_path(obj_dir, s, obj_ext))
         .collect();
 
-    common::parallel_build(sources.len(), |i| {
-        build_object(compiler, &sources[i], &objects[i], ctx)
-    })?;
+    common::parallel_build(
+        sources.len(),
+        |i| {
+            build_object(
+                compiler,
+                &sources[i],
+                &objects[i],
+                ctx,
+                qt_include_dir.as_deref(),
+            )
+        },
+        ctx.codegen_units,
+    )?;
 
     Ok(objects)
 }
@@ -209,6 +198,7 @@ fn build_object(
     source: &str,
     obj_path: &str,
     ctx: &BuildContext,
+    qt_include_dir: Option<&Path>,
 ) -> Result<(), String> {
     if let Some(parent) = Path::new(obj_path).parent() {
         fs::create_dir_all(parent).map_err(|err| format!("obj dir error: {err}"))?;
@@ -231,6 +221,23 @@ fn build_object(
         cmd.arg("-fPIC");
     }
 
+    if (ctx.freestanding || is_bare_metal_target(ctx.target))
+        && ctx.language.to_lowercase() != "asm"
+    {
+        cmd.arg("-ffreestanding");
+    }
+
+    if ctx.panic_abort && ctx.language.to_lowercase() != "asm" {
+        if ctx.language.contains("++")
+            || ctx.language.contains("cpp")
+            || ctx.language.contains("cxx")
+        {
+            cmd.arg("-fno-exceptions");
+        }
+        cmd.arg("-fno-unwind-tables");
+        cmd.arg("-fno-asynchronous-unwind-tables");
+    }
+
     if let Some(platform) = ctx.platform
         && !platform.trim().is_empty()
     {
@@ -250,7 +257,8 @@ fn build_object(
         }
     }
 
-    let use_dcr_defaults = ctx.cflags.is_empty() && !is_bare_metal_target(ctx.target);
+    let use_dcr_defaults =
+        ctx.cflags.is_empty() && !(ctx.freestanding || is_bare_metal_target(ctx.target));
     if use_dcr_defaults {
         for flag in default_flags(ctx.profile) {
             cmd.arg(flag);
@@ -265,6 +273,10 @@ fn build_object(
         cmd.arg(format!("-I{dir}"));
     }
 
+    if let Some(path) = qt_include_dir {
+        cmd.arg(format!("-I{}", path.display()));
+    }
+
     let d_path = Path::new(obj_path).with_extension("d");
     cmd.arg("-MMD").arg("-MF").arg(&d_path);
 
@@ -276,10 +288,5 @@ fn build_object(
 }
 
 fn asm_lang_flag(source: &str) -> Option<&'static str> {
-    let ext = Path::new(source).extension().and_then(|v| v.to_str())?;
-    match ext {
-        "S" => Some("assembler-with-cpp"),
-        "s" | "asm" => Some("assembler"),
-        _ => None,
-    }
+    crate::core::builder::common::asm_lang_flag(source)
 }

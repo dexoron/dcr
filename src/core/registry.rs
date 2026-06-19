@@ -38,13 +38,7 @@ pub struct RegistryManager {
 }
 
 fn home_dir() -> Option<PathBuf> {
-    if let Ok(home) = std::env::var("HOME") {
-        return Some(PathBuf::from(home));
-    }
-    if let Ok(profile) = std::env::var("USERPROFILE") {
-        return Some(PathBuf::from(profile));
-    }
-    None
+    crate::utils::fs::home_dir()
 }
 
 impl RegistryManager {

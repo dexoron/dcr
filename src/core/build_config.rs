@@ -138,6 +138,8 @@ pub struct BuildConfig {
     pub src_disable: Option<bool>,
     #[serde(default)]
     pub workspace_only: bool,
+    #[serde(default)]
+    pub qt: Option<bool>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
