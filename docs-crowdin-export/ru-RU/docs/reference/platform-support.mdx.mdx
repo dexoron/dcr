@@ -1,12 +1,12 @@
 ---
-sidebar_label: Platform support
+sidebar_label: Поддержка платформ
 ---
 
-# Platform Support
+# Поддержка платформ
 
 ## Target Triples
 
-DCR normalizes target triples. Short platform names are expanded to full triples.
+DCR нормализует target triple через `platform_triple::normalize_triple()`. Если задано имя платформы (short name), оно раскрывается в triple.
 
 ### Linux
 
@@ -14,9 +14,9 @@ DCR normalizes target triples. Short platform names are expanded to full triples
 target/<arch>-unknown-linux-gnu/<profile>/
 ```
 
-Architectures: `x86_64`, `aarch64` (host-detected).
+Поддержка архитектур: `x86_64`, `aarch64`.
 
-Artifact type: ELF. Extensions: `.so` (sharedlib), `.a` (staticlib).
+Artifact type: ELF. Расширения: `.so` для sharedlib, `.a` для staticlib
 
 ### macOS
 
@@ -24,9 +24,9 @@ Artifact type: ELF. Extensions: `.so` (sharedlib), `.a` (staticlib).
 target/<profile>/
 ```
 
-Architectures: `x86_64`, `aarch64` (host-detected).
+Поддержка архитектур: `x86_64`, `aarch64`.
 
-Extensions: `.dylib` (sharedlib), `.a` (staticlib).
+`.dylib` для sharedlib, `.a` для staticlib
 
 ### Windows
 
@@ -34,7 +34,7 @@ Extensions: `.dylib` (sharedlib), `.a` (staticlib).
 target/<profile>/
 ```
 
-Architectures: `x86_64`, `aarch64`.
+Поддержка архитектур: `x86_64`, `aarch64`.
 
 Extensions: `.exe` (bin), `.lib` (staticlib), `.dll` (sharedlib), `.efi` (UEFI).
 
@@ -44,8 +44,8 @@ Extensions: `.exe` (bin), `.lib` (staticlib), `.dll` (sharedlib), `.efi` (UEFI).
 target/<arch>-unknown-<os>/<profile>/
 ```
 
-Supported systems: `freebsd`, `openbsd`, `netbsd`, `dragonfly`.
+Поддерживаемые системы: `freebsd`, `openbsd`, `netbsd`.
 
-## Host Detection
+## Определение хоста
 
-DCR uses `std::env::consts::ARCH` and `std::env::consts::OS` for host platform detection. Used as fallback when `target` is not specified.
+`platform_triple::host_triple()` возвращает тройку текущей системы. Используется как fallback, если `target` не указан.
