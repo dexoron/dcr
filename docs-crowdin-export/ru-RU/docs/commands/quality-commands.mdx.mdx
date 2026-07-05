@@ -1,40 +1,39 @@
 ---
-sidebar_label: Quality commands (test, fmt)
+sidebar_label: Команды качества (test, fmt)
 ---
 
-# Quality Commands
+# Команды качества
 
 ## `dcr test`
 
-Runs tests.
+Запускает тесты.
 
 ```bash
-dcr test                          # debug profile
-dcr test --release                # release profile
-dcr test --debug                  # explicit debug
-dcr test --help                   # detailed help
+dcr test                          # debug профиль
+dcr test --release                # release профиль
+dcr test --debug                  # явно debug
 ```
 
-Before first use, initialize tests:
+Перед первым запуском нужно инициализировать тесты:
 
 ```bash
 dcr test --init
 ```
 
-This creates `tests/dcr_test.h` (framework) and `tests/test.c` (template).
+Это создаёт `tests/dcr_test.h` (фреймворк) и `tests/test.c` (шаблон).
 
-What `dcr test` does:
+Что делает `dcr test`:
 
 1. Builds the project
 2. Collects `tests/*.c` files (`.c` only, not `.cpp`)
 3. Compiles and links each test file
 4. Runs each test binary
 5. Prints summary: TOTAL, PASS, SKIP, FAIL
-6. Returns non-zero exit code on any FAIL
+6. Возвращает ненулевой код при наличии FAIL
 
 ## `dcr fmt`
 
-Formats C/C++ source files using `clang-format`.
+Форматирует исходный код C/C++ через `clang-format`.
 
 ```bash
 dcr fmt
@@ -42,7 +41,7 @@ dcr fmt
 
 Processes: `src/**/*.{c,cpp,cxx,cc,h,hpp,hxx,hh}` and `tests/**/*.{c,cpp,cxx,cc,h,hpp,hxx,hh}`.
 
-Uses `.clang-format` at the project root (if present), otherwise default clang-format style.
+Используется файл `.clang-format` в корне проекта (если есть), иначе дефолтный стиль DCR.
 
 ## `dcr lint`
 
