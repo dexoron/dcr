@@ -1,29 +1,30 @@
 ---
-sidebar_label: Build commands (build, run, clean)
+sidebar_label: Команды сборки (build, run, clean)
 ---
 
-# Build Commands
+# Команды сборки
 
 ## `dcr build`
 
-Builds the project according to `dcr.toml`.
+Собирает проект по `dcr.toml`.
 
 ```bash
-dcr build                         # debug profile
-dcr build --release               # release build
-dcr build --debug                 # explicit debug
+dcr build                         # debug профиль
+dcr build --release               # release профиль
+dcr build --debug                 # явно debug
+dcr build --profile custom        # произвольный профиль
 dcr build --target aarch64-unknown-linux-gnu
-dcr build --force                 # full rebuild
+dcr build --force                 # пересобрать всё с нуля
 dcr build --clean                 # clean + build
-dcr build --verbose               # show compilation commands
-dcr build --workspace pkg-a       # build specific workspace package
+dcr build --verbose               # показать команды компиляции
+dcr build --workspace pkg-a       # собрать конкретный пакет в workspace
 ```
 
-Artifacts: `target/\<triple>/\<profile>/\<binary-name>` (Linux with explicit target).
+Артефакты: `target/\<triple>/\<profile>/\<binary-name>` (Linux с явным целевым объектом).
 
 ## `dcr run`
 
-Builds (if sources are newer than artifacts) and runs the binary.
+Собирает (если исходники новее артефакта) и запускает бинарник.
 
 ```bash
 dcr run
@@ -32,11 +33,11 @@ dcr run --release
 
 ## `dcr clean`
 
-Removes `target/` directory (or `target/\<target>/\<profile>`).
+Удаляет директорию `target/`(или `target/\<target>/\<profile>`).
 
 ```bash
 dcr clean
-dcr clean --release               # target/release/ only
-dcr clean --target windows        # target/x86_64-pc-windows-msvc/
-dcr clean --all                   # clean all workspace packages
+dcr clean --release               # очистить target/release/
+dcr clean --target windows        # очистить target/x86_64-pc-windows-msvc/
+dcr clean --all        # очистить все пакеты workspace
 ```
