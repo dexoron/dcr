@@ -1,33 +1,33 @@
 ---
-sidebar_label: Test framework (EXPECT, TEST, ...)
+sidebar_label: Тестовая инфраструктура (EXPECT, TEST, ...)
 ---
 
-# Test Framework
+# Тестовая инфраструктура
 
-DCR has a built-in minimal test framework for C.
+DCR имеет встроенный минималистичный фреймворк для тестирования на C/C++.
 
-## Macros
+## Макросы
 
-### `EXPECT(expr)`
+### `EXPECT(expr, ...)`
 
-Asserts that an expression is true.
+Проверяет, что выражение истинно.
 
 ```c
 EXPECT(1 + 1 == 2);
-EXPECT(ptr != NULL);
+EXPECT(ptr != NULL, "ptr should not be NULL");
 ```
 
-### `SKIP(reason)`
+### `SKIP(...)`
 
-Skips a test with a message.
+Пропускает тест с опциональным сообщением.
 
 ```c
-SKIP("not implemented on Windows");
+SKIP("not implemented on Windows yet");
 ```
 
 ### `TEST(name)`
 
-Defines a test.
+Определяет тест.
 
 ```c
 TEST(addition) {
@@ -36,34 +36,34 @@ TEST(addition) {
 }
 ```
 
-### `TEST_CASE(name)`
+### `TEST_CASE(name, ...)`
 
 Registers a test case.
 
 ```c
-TEST_CASE(math) {
-    EXPECT(1 + 1 == 2);
+TEST_CASE(math, a, b) {
+    EXPECT(a + b == b + a);
 }
 ```
 
-## Initialization
+## Инициализация
 
 ```bash
 dcr test --init
 ```
 
-Creates:
+Создаются файлы:
 
-* `tests/dcr_test.h` — framework header (do not edit)
-* `tests/test.c` — template with example test
+* `tests/dcr_test.h` — заголовочный файл фреймворка
+* `tests/test.c` — шаблон с примером теста
 
-## Structure
+## Структура tests/
 
 ```
 tests/
-├── dcr_test.h      # framework (do not edit)
-├── test.c          # main tests
-└── ...             # additional .c test files
+├── dcr_test.h      # фреймворк (не редактировать)
+├── test.c          # основные тесты
+└── ...             # дополнительные .c файлы с тестами
 ```
 
 Only `.c` files are compiled (`.cpp` is not supported).
