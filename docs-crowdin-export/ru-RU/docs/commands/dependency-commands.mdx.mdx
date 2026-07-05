@@ -1,47 +1,47 @@
 ---
-sidebar_label: Dependency commands (add, tree)
+sidebar_label: Команды зависимостей (add, tree)
 ---
 
-# Dependency Commands
+# Команды зависимостей
 
 ## `dcr add \<name> [source]`
 
-Adds a dependency to `dcr.toml`.
+Добавляет зависимость в `dcr.toml`.
 
 ```bash
-dcr add fmt                    # registry lookup
-dcr add mylib ../path/to/lib   # path as source
-dcr add mylib path:./lib       # explicit path prefix
-dcr add mylib git:https://github.com/user/repo  # explicit git prefix
-dcr add mylib github:user/repo # GitHub shorthand
-dcr add mylib gitlab:user/repo # GitLab shorthand
+dcr add fmt                    # поиск в реестре
+dcr add mylib ../path/to/lib   # путь как источник
+dcr add mylib path:./lib       # явный префикс пути
+dcr add mylib git:https://github.com/user/repo  # явный префикс git
+dcr add mylib github:user/repo # сокращённая запись GitHub
+dcr add mylib gitlab:user/repo # сокращённая запись GitLab
 ```
 
-Source prefixes:
+Префиксы источника:
 
-* `path:` — local path
-* `git:` — generic git URL
-* `github:` — expands to `https://github.com/\<user>/\<repo>`
-* `gitlab:` — expands to `https://gitlab.com/\<user>/\<repo>`
-* `http://` / `https://` / `git@` — full URL
+* `path:` — локальный путь
+* `git:` — URL адрес git-репозитория
+* `github:` — расширение `https://github.com/\<user>/\<repo>`
+* `gitlab:` — расширение `https://gitlab.com/\<user>/\<repo>`
+* `http://` / `https://` / `git@` — полный URL
 
-Flags:
+Флаги:
 
-* `--branch \<name>` — git branch
+* `--branch \<name>` — git ветка
 * `--tag \<name>` — git tag
 * `--rev \<hash>` — git commit
 
-If source is omitted — DCR searches connected registries.
+Если источник не указан — DCR выполняет поиск в подключенных реестрах.
 
 ## `dcr tree`
 
-Displays the project dependency tree.
+Показывает дерево зависимостей проекта.
 
 ```bash
 dcr tree
 ```
 
-Example output:
+Пример вывода:
 
 ```
 my-app v0.1.0
@@ -50,4 +50,4 @@ my-app v0.1.0
 └── catch2 (registry)
 ```
 
-For path dependencies, recursively shows their own dependencies (from their `dcr.toml`).
+В случае path зависимостей, рекурсивно отображает их собственные зависимости (из файла `dcr.toml`).
