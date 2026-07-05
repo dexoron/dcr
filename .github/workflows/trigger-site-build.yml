@@ -10,9 +10,5 @@ jobs:
   trigger:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger GitLab pipeline
-        run: |
-          curl -sS -X POST \
-            -F "token=${{ secrets.GITLAB_TRIGGER_TOKEN }}" \
-            -F "ref=master" \
-            "https://gitlab.com/api/v4/projects/83371847/trigger/pipeline"
+      - name: Trigger Cloudflare Pages build
+        run: curl -sS -X POST "${{ secrets.CF_PAGES_DEPLOY_HOOK }}"
