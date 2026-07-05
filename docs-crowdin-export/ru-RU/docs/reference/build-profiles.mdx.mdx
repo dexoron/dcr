@@ -1,12 +1,12 @@
 ---
-sidebar_label: Build profiles
+sidebar_label: dcr build --profile lto
 ---
 
-# Build Profiles
+# Встроенные профили
 
-Profiles allow overriding `[build]` fields for specific build modes.
+Профили позволяют переопределять любые поля секции `[build]` для конкретного режима сборки.
 
-## Configuration
+## Конфигурация
 
 ```toml
 [build]
@@ -18,31 +18,31 @@ cflags = ["-Wall"]
 cflags = ["-O0", "-g"]
 
 [build.release]
-cflags = ["-O3", "-DNDEBUG"]
+cflags = ["-O3", "-flto"]
 ```
 
-## Merge rules
+## Правила
 
-Fields from `[build.\<profile>]` are merged on top of `[build]`:
+Поля из `[build.\<profile>]` **мержатся поверх** `[build]`
 
 * **Scalar fields** (strings, numbers, bools) — replaced
-* **Arrays** (`cflags`, `ldflags`, ...) — **appended** (extend the `[build]` array)
+* Массивы (`cflags`, `ldflags`, ...) **заменяются полностью**, а не дополняются
 
 Set `inherit = false` to disable array inheritance (only profile's own arrays are used).
 
-## Built-in profiles
+## Кастомные профили
 
 The default flags for each profile are composed from three config fields:
 
-| Field       | debug default      | release default |
-| ----------- | ------------------ | --------------- |
-| `opt_level` | `"0"`              | `"3"`           |
-| `debug`     | `true`             | `false`         |
-| `warnings`  | `["all", "extra"]` | `[]`            |
+| Field       | Default cflags     | Профили сборки |
+| ----------- | ------------------ | -------------- |
+| `opt_level` | `-O0 -g`           | `"3"`          |
+| `debug`     | `true`             | `false`        |
+| `warnings`  | `["all", "extra"]` | `[]`           |
 
 Which produce the equivalent compiler flags:
 
-| Profile   | Effective flags                                            |
+| Профиль   | Effective flags                                            |
 | --------- | ---------------------------------------------------------- |
 | `debug`   | `-O0 -g -Wall -Wextra -fno-omit-frame-pointer -DDCR_DEBUG` |
 | `release` | `-O3 -DNDEBUG`                                             |
@@ -63,7 +63,7 @@ debug = false
 warnings = ["all", "error"]
 ```
 
-## Target-specific profiles
+## Target-specific профили
 
 ```toml
 [build.linux]
@@ -77,6 +77,6 @@ Application order (highest priority first):
 
 1. `[build.\<target>.\<profile>]`
 2. `[build.\<profile>.\<target>]`
-3. `[build.\<target>]`
-4. `[build.\<profile>]`
+3. ]`или`[build.\<target>]\`
+4. `[build.\<profile>]`.
 5. `[build]`
