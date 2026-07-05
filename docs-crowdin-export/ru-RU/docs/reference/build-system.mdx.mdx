@@ -1,22 +1,22 @@
 ---
-sidebar_label: Build system
+sidebar_label: Система сборки
 ---
 
 # Build System
 
 ## Compiler Backends
 
-DCR supports 7 compilation backends. Selection is automatic based on file extension and `build.compiler` value.
+DCR поддерживает 4 бэкенда компиляции. Выбор происходит автоматически на основе расширения файла и target triple.
 
-| Backend   | Files                             | When used                             |
-| --------- | --------------------------------- | ------------------------------------- |
-| `unix_cc` | `.c`, `.cpp`, `.cxx`, `.cc`, `.S` | gcc/clang on Linux/macOS/BSD          |
-| `msvc`    | `.c`, `.cpp`, `.cxx`, `.cc`       | Windows (cl, clang-cl)                |
-| `gas`     | `.s`                              | ARM/ARM64 assembler (no preprocessor) |
-| `nasm`    | `.asm`, `.s`                      | x86/x86_64 NASM assembler             |
-| `masm`    | `.asm`                            | MASM (ml/ml64) on Windows             |
-| `fasm`    | `.asm`, `.fasm`                   | Flat Assembler                        |
-| `llvm_ir` | `.ll`                             | LLVM IR via `llc -filetype=obj`       |
+| Backend   | Файлы                                   | Когда используется              |
+| --------- | --------------------------------------- | ------------------------------- |
+| `unix_cc` | `.c`, `.cpp`, `.cxx`, `.cc`, `.s`, `.S` | gcc/clang на Linux/macOS/BSD    |
+| `msvc`    | `.c`, `.cpp`, `.cxx`, `.cc`             | Windows (cl, clang-cl)          |
+| `gas`     | `.s`, `.S`                              | ARM/ARM64 ассемблер             |
+| `nasm`    | `.asm`, `.s`                            | x86/x86_64 ассемблер            |
+| `masm`    | `.asm`                                  | MASM (ml/ml64) on Windows       |
+| `fasm`    | `.asm`, `.fasm`                         | Flat Assembler                  |
+| `llvm_ir` | `.ll`                                   | LLVM IR via `llc -filetype=obj` |
 
 ## Qt Support
 
@@ -40,9 +40,9 @@ moc = "moc {in} -o {out}"
 
 ### Unix CC
 
-* Compiler resolved via `resolve_compiler()`: `DCR_COMPILER` > `DCR_CC` > `[toolchain]` > `build.compiler` > `PATH`
-* Supports `.d` files for header dependency tracking
-* Flags: `-std=`, `-MMD -MF`, `-c -o`, `-I`, `-L`, `-l`
+* Компилятор определяется через `resolve_compiler()`: CC/CXX из [toolchain], DCR_COMPILER/env, PATH
+* Поддерживает генерацию `.d` файлов для header dependency tracking
+* Флаги: `-std=`, `-MMD -MF`, `-c -o`, `-I`, `-L`, `-l`
 * Conditional flags based on config:
   * `freestanding` or bare-metal target: `-ffreestanding` (compile), `-nostdlib -static` (link)
   * `lto`: `-flto` (compile + link)
@@ -50,54 +50,54 @@ moc = "moc {in} -o {out}"
 
 ### MSVC
 
-* Supports cl.exe and clang-cl.exe
-* Flags: `/std:`, `/Fo:`, `/Fe:`, `/I`, `/link`
+* Поддерживает cl.exe и clang-cl.exe
+* Флаги: `/std:`, `/Fo:`, `/Fe:`, `/I`, `/link`
 
-### GAS / NASM / MASM / FASM / LLVM-IR
+### GAS / NASM
 
 * GAS: `-I`, `-c -o`, `--defsym`
-* NASM: `-I`, `-o`, `-D`, `-f` (format: win64/elf64/macho64/macho32/elf32)
+* NASM: `-I`, `-c -o`, `-D`, `-f` (формат: win64/elf64/macho64/macho32/elf32)
 * MASM: `/nologo /c /Fo\<obj> <source>`
 * FASM: `<source> \<output>` (output path is the object file)
 * LLVM IR: `-filetype=obj <source> -o \<output>`
 
 ## Incremental Builds
 
-Three levels of incrementality:
+Три уровня инкрементальности:
 
-1. **mtime** — if output is newer than all inputs, skip
-2. **`.d` files** — header change tracking (including transitive)
-3. **SHA256 fingerprint** — recompile if compiler flags changed (stored in `.dcr_fingerprint`)
+1. **mtime** — если выходной файл новее всех входных, файл не перекомпилируется
+2. **`.d` files** — отслеживание изменений в заголовочных файлах (включая транзитивные)
+3. **SHA256 fingerprint** — если флаги компиляции изменились, файл перекомпилируется (fingerprint хранится в `.dcr_fingerprint`)
 
 ## Parallel Compilation
 
-* `thread::scope` for thread pool
-* Atomic task queue (`AtomicU64`)
-* Mutex on stdout (`OUTPUT_MUTEX`)
+* Используется `thread::scope` для создания пула потоков
+* Атомарная очередь задач (`AtomicU64`)
+* Мьютекс на запись в stdout (`OUTPUT_MUTEX`)
 * Thread count = `available_parallelism()`, capped by `build.codegen-units` if set
 
 ## Build Kinds
 
-| Kind        | Type                            | Path (Linux example)                                                                                                       |
-| ----------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `bin`       | Executable                      | `target/\<triple>/\<profile>/\<name>` (.exe on Windows)                 |
-| `staticlib` | Static library                  | `target/\<triple>/\<profile>/lib\<name>.a` (.lib)                       |
-| `sharedlib` | Dynamic library                 | `target/\<triple>/\<profile>/lib\<name>.so` (.dll/.dylib)               |
-| `efi`       | UEFI application                | `target/\<triple>/\<profile>/\<name>.efi`                               |
-| `elf`       | ELF without stdlib              | `target/\<triple>/\<profile>/\<name>`                                   |
-| `none`      | Compile only, no link           | —                                                                                                                          |
-| `custom`    | Full filename+extension control | `target/\<triple>/\<profile>/\<filename>.\<extension>` |
+| Kind        | Тип                                  | Path (Linux example)                                                                            |
+| ----------- | ------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `bin`       | Executable                           | `target/\<profile>/\<name>` (.exe)                            |
+| `staticlib` | Статическая библиотека               | `target/\<profile>/lib\<name>.a` (.lib)                       |
+| `sharedlib` | Динамическая библиотека              | `target/\<profile>/lib\<name>.so` (.dll/.dylib)               |
+| `efi`       | UEFI приложение                      | `target/\<profile>/\<name>.efi`                               |
+| `elf`       | ELF без стандартной библиотеки       | `target/\<profile>/\<name>`                                   |
+| `none`      | Compile only, no link                | —                                                                                               |
+| `custom`    | Полный контроль filename + extension | `target/\<profile>/\<filename>.\<extension>` |
 
 ## Build Steps
 
-DCR supports pre-build and post-build steps:
+DCR поддерживает pre-build и post-build шаги через Qt codegen:
 
 * `build.steps` — commands before compilation
 * `build.post_steps` — commands after compilation
 
-Substitutions: `{stem}`, `{in}`, `{out}`, `{profile}`, `{version}`, `{name}`.
+Подстановки: `{stem}`, `{in}`, `{out}`.
 
-Example Qt codegen via build steps:
+`rcc` — Resource Compiler: `{stem}.qrc → qrc_{stem}.cpp`
 
 ```toml
 [build.steps]
@@ -113,19 +113,19 @@ Automatic lookup (read from raw config):
 pkg_config = ["sdl2", "gl"]
 ```
 
-DCR runs `pkg-config --cflags sdl2 gl` and `pkg-config --libs sdl2 gl` and adds results to compiler/linker flags.
+DCR вызывает `pkg-config --cflags sdl2 gl` и `pkg-config --libs sdl2 gl` и добавляет результат в флаги компиляции/линковки.
 
 ## Variable Substitution
 
 Supported variables:
 
-| Variable                | Description                  |
-| ----------------------- | ---------------------------- |
-| `{version}`             | Package version              |
-| `{version_major}`       | Major version part           |
-| `{version_minor}`       | Minor version part           |
-| `{version_patch}`       | Patch version                |
-| `{version_suffix}`      | Suffix (e.g., `-rc1`)        |
-| `{version_suffix_dash}` | Suffix with dash             |
-| `{profile}`             | Profile name (debug/release) |
-| `{name}`                | Package name                 |
+| Variable                | Описание                        |
+| ----------------------- | ------------------------------- |
+| `{version}`             | Версия пакета                   |
+| `{version_major}`       | Major version part              |
+| `{version_minor}`       | Minor version part              |
+| `{version_patch}`       | Переменная                      |
+| `{version_suffix}`      | Suffix (e.g., `-rc1`)           |
+| `{version_suffix_dash}` | Suffix with dash                |
+| `{profile}`             | Имя профиля (debug/release/...) |
+| `{name}`                | Имя пакета                      |
