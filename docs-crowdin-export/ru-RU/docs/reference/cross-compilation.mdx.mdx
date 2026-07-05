@@ -1,12 +1,12 @@
 ---
-sidebar_label: Cross-compilation
+sidebar_label: Кросс-компиляция
 ---
 
-# Cross-Compilation
+# Кросс-компиляция
 
 ## Short Names
 
-DCR supports short platform names:
+DCR поддерживает короткие имена платформ, которые автоматически раскрываются в полные triples:
 
 | Short Name | Full Triple                |
 | ---------- | -------------------------- |
@@ -22,26 +22,26 @@ dcr build --target windows
 
 ```bash
 dcr build --target aarch64-unknown-linux-gnu
-dcr build --target x86_64-pc-windows-gnu      # mingw
+dcr build --target x86_64-pc-windows-gnu
 dcr build --target armv7-unknown-linux-gnueabihf
 ```
 
 ## clang --target
 
-When using clang, DCR injects `--target=\<triple>` into CFLAGS.
+При использовании clang DCR автоматически inject-ит `--target=\<triple>` в CFLAGS/CXXFLAGS.
 
 ```toml
 [build]
 compiler = "clang"
 target = "aarch64-unknown-linux-gnu"
-# Auto: cflags += ["--target=aarch64-unknown-linux-gnu"]
+# Авто: cflags = ["--target=aarch64-unknown-linux-gnu"]
 ```
 
-## Bare-Metal / Freestanding
+## Bare-Metal
 
 For targets containing `none`, `-elf`, `eabi`, or `baremetal`, DCR automatically:
 
-1. **Disables default flags** — no system include paths, no `-l` libc
+1. Для none/elf/eabi/bare-metal target-ов отключаются DCR default флаги (нет `-I` системных путей, нет `-l` libc).
 2. **Injects `-ffreestanding`** at compile time and `-nostdlib -static` at link time
 
 You can also enable freestanding mode explicitly:
