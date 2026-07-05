@@ -14,19 +14,19 @@ cargo build
 
 ## Code style
 
-All code must be formatted with `cargo fmt`:
+Весь код форматируется через `cargo fmt`:
 
 ```bash
 cargo fmt
 ```
 
-## Linting
+## Линтер
 
 ```bash
 cargo clippy --all-targets -- -D warnings
 ```
 
-## Tests
+## Тесты
 
 ```bash
 cargo test --all-targets
@@ -34,18 +34,18 @@ cargo test --all-targets
 
 ## PR process
 
-1. Fork the repository
-2. Create a branch: `git checkout -b feature/description`
-3. Make changes
-4. Run `cargo fmt && cargo clippy && cargo test`
-5. Open a Pull Request
+1. Форкните репозиторий
+2. Создайте ветку: `git checkout -b feature/description`
+3. Внесите изменения
+4. Запустите `cargo fmt && cargo clippy --all-targets -- -D warnings && cargo test --all-targets`
+5. Откройте Pull Request
 
 ## CI
 
-CI runs:
+В CI запускаются:
 
 * `cargo fmt --check`
 * `cargo clippy --all-targets -- -D warnings`
 * `cargo test --all-targets`
-* Build on Linux, macOS, Windows
-* Integration tests
+* Сборка под Linux, macOS, Windows, FreeBSD, OpenBSD, NetBSD
+* Интеграционные тесты
