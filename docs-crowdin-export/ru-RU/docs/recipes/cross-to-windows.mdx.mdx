@@ -1,12 +1,12 @@
 ---
-sidebar_label: Cross-compile to Windows
+sidebar_label: Кросс-компиляция для Windows
 ---
 
-# Cross-Compile to Windows from Linux
+# Кросс-компиляция для Windows на Linux
 
-Building a Windows binary on Linux using mingw-w64.
+Сборка Windows-бинаря на Linux с использованием mingw-w64.
 
-## Install toolchain
+## Установка toolchain
 
 ```bash
 # Ubuntu/Debian
@@ -16,31 +16,29 @@ sudo apt install mingw-w64
 sudo dnf install mingw64-gcc mingw64-binutils
 ```
 
-## Configuration
+## Конфигурация
 
 ```toml
 [package]
 name = "my-app"
 version = "0.1.0"
-type = "none"
+type = "app"
 
 [build]
 language = "c"
-standard = "c11"
-compiler = "clang"
-kind = "bin"
-target = "x86_64-pc-windows-gnu"    # explicit mingw, not msvc
+standard = "c17"
+target = "windows"
 ```
 
-## Build
+## Сборка
 
 ```bash
-dcr build --target x86_64-pc-windows-gnu --release
+dcr build --target windows --release
 ```
 
-Artifact: `target/x86_64-pc-windows-gnu/release/my-app.exe`.
+Артефакт: `target/x86_64-pc-windows-gnu/release/my-app.exe`.
 
-## Custom toolchain
+## Кастомный toolchain (опционально)
 
 ```toml
 [toolchain]
