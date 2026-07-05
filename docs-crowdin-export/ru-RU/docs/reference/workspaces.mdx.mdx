@@ -1,67 +1,59 @@
 ---
-sidebar_label: Workspaces
+sidebar_label: Рабочие пространства
 ---
 
-# Workspaces
+# Рабочие пространства
 
-Workspaces allow managing multiple packages in a single repository.
+Workspaces позволяют управлять несколькими пакетами в одном репозитории.
 
-## Configuration
-
-```toml
-[workspace.lib-core]
-path = "lib-core"
-
-[workspace.lib-utils]
-path = "lib-utils"
-deps = ["lib-core"]
-
-[workspace.app]
-path = "app"
-deps = ["lib-core", "lib-utils"]
-main = true
-```
-
-### Member fields
-
-| Field  | Description                                      |
-| ------ | ------------------------------------------------ |
-| `path` | Path to the package (relative to workspace root) |
-| `deps` | Dependencies on other members                    |
-| `main` | Mark as the main package                         |
-
-## Topological sort
-
-DCR automatically sorts packages by dependencies: package A is built before B if B depends on A.
-
-Cyclic dependencies are detected and cause an error.
-
-## Build
-
-```bash
-dcr build                    # build all packages in dependency order
-dcr build --workspace app    # build only app (dependencies built automatically)
-```
-
-When building a workspace, member outputs (libraries) are automatically added to include/lib paths of dependent packages.
-
-## Clean
-
-```bash
-dcr clean                    # clean only root target/
-dcr clean --all              # clean target/ of all packages
-```
-
-## Inheritance
-
-If a member has `inherit = true` in its `[build]` section, fields from the root `[build]` are merged into the member:
+## Конфигурация
 
 ```toml
-# root dcr.toml
+[workspace]
+members = [
+    { path = "pkg-a" },
+    { path = "pkg-b", deps = ["pkg-a"] },
+    { path = "pkg-c", deps = ["pkg-a", "pkg-b"], main = true },
+]
+```
+
+### Поля member
+
+| Поле   | Описание                                     |
+| ------ | -------------------------------------------- |
+| `path` | Путь к пакету (относительно корня workspace) |
+| `deps` | Зависимости от других member-ов              |
+| `main` | Пометить как главный пакет                   |
+
+## Топологическая сортировка
+
+DCR автоматически сортирует пакеты по зависимостям: пакет A собирается раньше B, если B зависит от A.
+
+Циклические зависимости обнаруживаются и приводят к ошибке.
+
+## Сборка
+
+```bash
+dcr build                    # собрать все пакеты
+dcr build --workspace pkg-a  # собрать только pkg-a
+```
+
+При сборке workspace выходные файлы member-ов (библиотеки) автоматически добавляются в include/lib пути зависимых пакетов.
+
+## Очистка
+
+```bash
+dcr clean                    # очистить только корневой target/
+dcr clean --all              # очистить target/ всех пакетов
+```
+
+## Наследование
+
+Если у member-а нет своей секции `[build]`, а в корневом `[build]` указано `inherit = true`:
+
+```toml
 [build]
 inherit = true
 language = "c"
 standard = "c17"
-
-# member inherits language and standard
 ```
