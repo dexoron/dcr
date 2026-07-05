@@ -1,8 +1,8 @@
 ---
-sidebar_label: IDE Integration
+sidebar_label: Интеграция с IDE
 ---
 
-# IDE Integration
+# Интеграция с IDE
 
 ## VS Code
 
@@ -10,14 +10,14 @@ sidebar_label: IDE Integration
 dcr gen vscode
 ```
 
-Generates in `.vscode/`:
+Генерирует в `.vscode/`:
 
-| File              | Purpose                                      |
-| ----------------- | -------------------------------------------- |
-| `tasks.json`      | `build` task (dcr build)                     |
-| `launch.json`     | Debug launch configuration                   |
-| `settings.json`   | clangd/IntelliSense: include paths, standard |
-| `extensions.json` | Recommends vscode-clangd, vscode-lldb        |
+| Файл              | Назначение                                  |
+| ----------------- | ------------------------------------------- |
+| `tasks.json`      | Задача `build` (dcr build)                  |
+| `launch.json`     | Debug-запуск бинарника                      |
+| `settings.json`   | clangd/IntelliSense: include пути, стандарт |
+| `extensions.json` | Рекомендует clangd, C/C++                   |
 
 ## CLion
 
@@ -25,14 +25,14 @@ Generates in `.vscode/`:
 dcr gen clion
 ```
 
-Generates in `.idea/`:
+Генерирует в `.idea/`:
 
-| File                                             | Purpose                                   |
-| ------------------------------------------------ | ----------------------------------------- |
-| `externalTools.xml`                              | Build, Run, Clean, Test as external tools |
-| `customTargets.xml`                              | Custom build targets                      |
-| `misc.xml`                                       | C/C++ project settings                    |
-| `runConfigurations/\<name>.xml` | Per-binary run configurations             |
+| Файл                                      | Назначение                                      |
+| ----------------------------------------- | ----------------------------------------------- |
+| `externalTools.xml`                       | Build, Run, Clean, Test как внешние инструменты |
+| `customTargets.xml`                       | Кастомные цели сборки                           |
+| `misc.xml`                                | Настройки C/C++ проекта                         |
+| `runConfigurations/dcr_build_and_run.xml` | Per-binary run configurations                   |
 
 ## compile_commands.json
 
@@ -40,7 +40,7 @@ Generates in `.idea/`:
 dcr gen compile-commands
 ```
 
-Generates `compile_commands.json` at project root. Standard format for clangd, C/C++ IntelliSense, static analyzers.
+Генерирует `compile_commands.json` в корне проекта. Стандартный формат для:
 
 ## project-info
 
@@ -48,4 +48,4 @@ Generates `compile_commands.json` at project root. Standard format for clangd, C
 dcr gen project-info
 ```
 
-Outputs JSON array with project metadata (see [gen-commands](/docs/commands/gen-commands)).
+Выводит JSON с метаданными проекта (см. [gen-commands](/docs/commands/gen-commands)).
