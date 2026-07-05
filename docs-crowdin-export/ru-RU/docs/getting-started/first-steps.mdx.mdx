@@ -1,17 +1,17 @@
 ---
-sidebar_label: First steps
+sidebar_label: Первые шаги
 ---
 
-# First Steps
+# Первые шаги
 
-## Create a project
+## Создать проект
 
 ```bash
 dcr new my-app
 cd my-app
 ```
 
-Structure:
+Будет создана структура:
 
 ```
 my-app/
@@ -27,12 +27,17 @@ my-app/
 name = "my-app"
 version = "0.1.0"
 type = "none"
+description=""
+author=""
+license = "GPL-3.0-or-later"
 
 [build]
 language = "c"
 standard = "c11"
 compiler = "clang"
 kind = "bin"
+
+[dependencies]
 ```
 
 ## Build
@@ -43,20 +48,20 @@ dcr build
 
 Output — `target/\<triple>/debug/my-app` (Linux) or `target/debug/my-app.exe` (Windows).
 
-Build profiles:
+Профиль:
 
 ```bash
-dcr build --release       # release build
-dcr build --debug         # debug (default)
+dcr build --release       # релизная сборка
+dcr build --debug         # дебажная (по умолчанию)
 ```
 
-## Run
+## Запустить
 
 ```bash
 dcr run
 ```
 
-Builds (if needed) and runs the binary.
+Собирает (если нужно) и запускает бинарник.
 
 ## First test
 
@@ -65,8 +70,8 @@ dcr test --init      # create test template
 dcr test             # run tests
 ```
 
-## Formatting
+## Форматирование
 
 ```bash
-dcr fmt              # clang-format with .clang-format
+dcr fmt              # clang-format по .clang-format
 ```
