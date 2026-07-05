@@ -1,19 +1,19 @@
 ---
-sidebar_label: Multi-package workspace
+sidebar_label: Рабочая область с несколькими пакетами
 ---
 
-# Multi-Package Workspace
+# Рабочая область с несколькими пакетами
 
-A project with three packages: two libraries and a binary.
+Проект из трёх пакетов: библиотека, утилита и основной бинарник.
 
-## Structure
+## Структура
 
 ```
 workspace/
-├── dcr.toml              # root workspace
+├── dcr.toml              # корневой workspace
 ├── lib-core/
 │   ├── dcr.toml
-│   └── src/core.c
+│   └── src/lib.rs
 ├── lib-utils/
 │   ├── dcr.toml
 │   └── src/utils.c
@@ -22,7 +22,7 @@ workspace/
     └── src/main.c
 ```
 
-## Root dcr.toml
+## Корневой dcr.toml
 
 ```toml
 [package]
@@ -33,22 +33,17 @@ type = "none"
 [build]
 inherit = true
 language = "c"
-standard = "c11"
+standard = "c17"
 
-[workspace.lib-core]
-path = "lib-core"
-
-[workspace.lib-utils]
-path = "lib-utils"
-deps = ["lib-core"]
-
-[workspace.app]
-path = "app"
-deps = ["lib-core", "lib-utils"]
-main = true
+[workspace]
+members = [
+    { path = "lib-core" },
+    { path = "lib-utils", deps = ["lib-core"] },
+    { path = "app", deps = ["lib-core", "lib-utils"], main = true },
+]
 ```
 
-## Packages
+## Пакеты
 
 `lib-core/dcr.toml`:
 
@@ -56,7 +51,7 @@ main = true
 [package]
 name = "lib-core"
 version = "0.1.0"
-type = "none"
+type = "lib"
 
 [build]
 kind = "staticlib"
@@ -68,7 +63,7 @@ kind = "staticlib"
 [package]
 name = "lib-utils"
 version = "0.1.0"
-type = "none"
+type = "lib"
 
 [build]
 kind = "staticlib"
@@ -80,23 +75,23 @@ kind = "staticlib"
 [package]
 name = "app"
 version = "0.1.0"
-type = "none"
+type = "app"
 
 [build]
 kind = "bin"
 ```
 
-## Build
+## Сборка
 
 ```bash
 cd workspace
-dcr build                     # builds everything in correct order
-dcr build --workspace app     # only app (lib-core and lib-utils built as deps)
-dcr run                       # builds and runs main package
+dcr build                     # собирает всё в правильном порядке
+dcr build --workspace app     # только app (lib-core и lib-utils собираются как зависимости)
+dcr run                       # собирает и запускает main-пакет
 ```
 
-Build order (topological sort):
+Порядок сборки (топологическая сортировка):
 
 1. `lib-core`
-2. `lib-utils` (depends on lib-core)
-3. `app` (depends on lib-core, lib-utils)
+2. `lib-utils` (зависит от lib-core)
+3. `app` (зависит от lib-core, lib-utils)
