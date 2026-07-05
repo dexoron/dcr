@@ -1,0 +1,3 @@
+files:
+  - source: /docs/**/*.mdx
+    translation: /docs-crowdin-export/%locale%/%original_path%/%original_file_name%.%file_extension%
