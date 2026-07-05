@@ -1,49 +1,50 @@
 ---
-sidebar_label: dcr.toml overview
+sidebar_label: Обзор dcr.toml
 ---
 
-# dcr.toml
+# Обзор dcr.toml
 
-Main project configuration file. Located at the project root.
+Основной конфигурационный файл проекта. Располагается в корне проекта.
 
-## Structure
+## Структура
 
 ```toml
 [package]
-# required fields
+# обязательные поля
 
 [build]
-# build settings
+# настройки сборки
 
-[build.debug]       # optional: debug override
-[build.release]     # optional: release override
+[build.debug]       # опционально: переопределение для debug
+[build.release]     # опционально: переопределение для release
 
-[build.linux]       # optional: Linux override
-[build.windows]     # optional: Windows override
-[build.windows.debug]  # target + profile combination
+[build.linux]       # опционально: переопределение для Linux
+[build.windows]     # опционально: переопределение для Windows
+[build.windows.debug]  # комбинация target + profile
 
 [toolchain]
-# compiler/linker paths
+# пути к компиляторам/линкеру
 
 [dependencies]
-# project dependencies
+# зависимости проекта
 
 [workspace]
-# multi-package configuration
+# мультипакетная конфигурация
 
 [run]
-# run settings
+[run.release]     # опционально: переопределение для release
+# настройки запуска
 ```
 
 ## [package]
 
-| Field     | Required | Description             |
-| --------- | -------- | ----------------------- |
-| `name`    | yes      | Project name            |
-| `version` | yes      | Semantic version        |
-| `type`    | yes      | `app`, `lib`, `none`    |
-| `license` | no       | SPDX license identifier |
-| `author`  | no       | Author                  |
+| Поле      | Обязательное | Описание                    |
+| --------- | ------------ | --------------------------- |
+| `name`    | да           | Имя проекта                 |
+| `version` | да           | Семантическая версия        |
+| `type`    | да           | `app`, `lib`, `none`        |
+| `license` | нет          | SPDX-идентификатор лицензии |
+| `author`  | нет          | Автор                       |
 
 ```toml
 [package]
@@ -60,58 +61,55 @@ author = "John Doe"
 
 * `build.qt` — (bool) Enable automatic Qt meta-object handling (MOC, UIC, RCC). Requires `qt6` modules installed via `pkg-config`.
 
-| Field            | Default                                     | Description                                                           |
+| Поле             | По умолчанию                                | Описание                                                              |
 | ---------------- | ------------------------------------------- | --------------------------------------------------------------------- |
-| `language`       | `"c"`                                       | `"c"`, `"c++"`, `"cpp"`, `"cxx"`, `"asm"`                             |
-| `standard`       | `"c11"`                                     | C standard (`c11`, `c17`, `c23`)                                      |
-| `cxx_standard`   | `"c++20"`                                   | C++ standard (`c++17`, `c++20`, `c++23`)                              |
-| `compiler`       | `"clang"`                                   | Preferred compiler                                                    |
+| `language`       | `"c"`                                       | `"c"`, `"cxx"`, `"cpp"`                                               |
+| `standard`       | `"c11"`                                     | Стандарт C (`c11`, `c17`, `c23`)                                      |
+| `cxx_standard`   | `"c++20"`                                   | Стандарт C++ (`c++17`, `c++20`, `c++23`)                              |
+| `compiler`       | `cxxflags`                                  | Предпочитаемый компилятор                                             |
 | `kind`           | `"bin"`                                     | `bin`, `staticlib`, `sharedlib`, `efi`, `elf`, `none`, `custom`       |
-| `target`         | host                                        | Target triple for cross-compilation                                   |
-| `platform`       | `"native"`                                  | `native`, `efi`                                                       |
-| `cflags`         | `[]`                                        | Additional C/C++/ASM flags                                            |
-| `ldflags`        | `[]`                                        | Additional linker flags                                               |
-| `filename`       | `""`                                        | Custom output file name                                               |
+| `target`         | хост                                        | Target triple для кросс-компиляции                                    |
+| `platform`       | `"native"`                                  | `native`, `efi`, `freestanding`                                       |
+| `cflags`         | `[]`                                        | Дополнительные флаги C++                                              |
+| `ldflags`        | `[]`                                        | Дополнительные флаги линковки                                         |
+| `filename`       | `""`                                        | Кастомное имя выходного файла                                         |
 | `extension`      | `""`                                        | Custom file extension                                                 |
-| `roots`          | `["src"]`                                   | Source root directories                                               |
-| `exclude`        | `[]`                                        | Exclude patterns                                                      |
-| `include`        | `[]`                                        | Additional include directories                                        |
+| `roots`          | `["src"]`                                   | Корневые директории с исходниками                                     |
+| `exclude`        | `[]`                                        | Паттерны исключений                                                   |
+| `include`        | `[]`                                        | Дополнительные include-директории                                     |
 | `src_disable`    | `false`                                     | Disable auto source discovery                                         |
-| `inherit`        | `false`                                     | Inherit build from workspace root                                     |
+| `inherit`        | `false`                                     | Наследовать build от корня workspace                                  |
 | `clean`          | `[]`                                        | Glob patterns for custom clean paths                                  |
 | `out_dir`        | `""`                                        | Custom output directory                                               |
-| `workspace_only` | `false`                                     | Workspace-only, not built standalone                                  |
+| `workspace_only` | `false`                                     | Только для workspace, не собирать отдельно                            |
 | `freestanding`   | `false`                                     | Compile in freestanding mode (`-ffreestanding` + `-nostdlib -static`) |
 | `opt_level`      | `"0"` (debug) / `"3"` (release)             | Optimization level: `0`-`3`, `"s"`, `"z"`                             |
-| `debug`          | `true` (debug) / `false` (release)          | Emit debug symbols (`-g`)                                             |
+| `ldscript`       | `true` (debug) / `false` (release)          | Emit debug symbols (`-g`)                                             |
 | `lto`            | `false`                                     | Link-time optimization (`-flto` for both compiler and linker)         |
-| `strip`          | `false`                                     | Strip symbols from output (`-s` in ldflags)                           |
-| `warnings`       | `["all", "extra"]` (debug) / `[]` (release) | Warning flags (e.g. `"all"`, `"extra"`, `"pedantic"`)                 |
+| `asflags`        | `false`                                     | Strip symbols from output (`-s` in ldflags)                           |
+| `true`           | `["all", "extra"]` (debug) / `[]` (release) | Warning flags (e.g. `"all"`, `"extra"`, `"pedantic"`)                 |
 | `panic`          | `""`                                        | Panic strategy: `"abort"` disables exceptions and unwind tables       |
 | `codegen-units`  | `""`                                        | Max parallel compilation jobs (`"0"` = auto)                          |
 | `qt`             | `false`                                     | Enable automatic Qt meta-object handling (MOC, UIC, RCC)              |
 
 Settings from raw config (not in typed struct):
 
-* `pkg_config` — list of pkg-config packages
-* `ldscript` — linker script path
+* Пакеты для pkg-config
+* Путь к linker script
 * `build.steps` / `build.post_steps` — codegen steps
 
 Example:
 
 ```toml
 [build]
-language = "c++"
+language = ["cpp", "c"]
+standard = "c17"
 standard = "c23"
 cxx_standard = "c++23"
 compiler = "clang"
 kind = "sharedlib"
 cflags = ["-Wall", "-Wextra"]
-opt_level = "z"
-lto = true
-strip = true
-panic = "abort"
-codegen-units = "2"
+pkg_config = ["sdl2", "gl"]
 ```
 
 ## [toolchain]
@@ -123,13 +121,16 @@ cxx = "/usr/bin/clang++"
 as = "/usr/bin/as"
 ar = "/usr/bin/ar"
 ld = "/usr/bin/ld.lld"
+uic = "/usr/bin/uic"       # Qt
+moc = "/usr/bin/moc"       # Qt
+rcc = "/usr/bin/rcc"       # Qt
 ```
 
 Raw config also supports `uic`, `moc`, `rcc` for Qt codegen.
 
 ## [dependencies]
 
-See [dependencies](/docs/reference/dependencies).
+См. [dependencies](/docs/reference/dependencies).
 
 ## [run]
 
@@ -138,15 +139,15 @@ See [dependencies](/docs/reference/dependencies).
 cmd = "./target/{profile}/{name}"
 ```
 
-Substitutions:
+Подстановки:
 
-* `{version}` — package version
-* `{version_major}`, `{version_minor}`, `{version_patch}`, `{version_suffix}`, `{version_suffix_dash}` — version parts
+* `{version}` — версия из [package]
+* `pkg_config`
 * `{profile}` — debug / release
-* `{name}` — package name
+* `{name}` — имя из [package]
 
-Default `cmd` = `./target/{profile}/{name}` (macOS/Windows) or `./target/\<triple>/\<profile>/\<name>` (Linux).
+По умолчанию `cmd` вычисляется как `./target/{profile}/{name}`.
 
 ## [workspace]
 
-See [workspaces](/docs/reference/workspaces).
+См. [workspaces](/docs/reference/workspaces).
