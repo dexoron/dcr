@@ -1,8 +1,8 @@
 ---
-sidebar_label: FAQ
+sidebar_label: Часто задаваемые вопросы
 ---
 
-# FAQ
+# Часто задаваемые вопросы
 
 ## Registry not found
 
@@ -18,7 +18,7 @@ name = "default"
 url = "https://index.dcr.pm"
 ```
 
-And check `DCR_INDEX_PATH`:
+Если реестр кастомный, проверьте `DCR_INDEX_PATH`:
 
 ```bash
 echo $DCR_INDEX_PATH
@@ -30,24 +30,24 @@ echo $DCR_INDEX_PATH
 error: compiler not found
 ```
 
-**Solution:** Ensure a compiler is installed and available in PATH.
+**Решение:** Убедитесь, что компилятор установлен и доступен в PATH.
 
 ```bash
 which gcc
 which clang
 ```
 
-Or specify explicitly via `[toolchain]` in `dcr.toml`.
+Или укажите явно через `[toolchain]` или `DCR_COMPILER`.
 
 ## openssl-sys build failed
 
-When building DCR from source:
+При сборке DCR из исходников:
 
 ```
 error: failed to run custom build command for openssl-sys
 ```
 
-**Solution:** Install OpenSSL development headers:
+**Решение:** Установите OpenSSL development headers:
 
 ```bash
 # Ubuntu/Debian
@@ -60,22 +60,22 @@ sudo dnf install openssl-devel
 brew install openssl
 ```
 
-## Ctrl+C during build
+## Ctrl+C во время сборки
 
-DCR handles SIGINT: interrupts the current compilation and exits with non-zero code.
+DCR корректно обрабатывает SIGINT: прерывает текущую компиляцию и завершает процесс с ненулевым кодом.
 
-## How to create a library?
+## Как создать библиотеку?
 
-See [Library Recipe](/docs/recipes/library-project).
+[Library Recipe](/docs/recipes/library-project).
 
 ## How to cross-compile to Windows?
 
-See [Cross-Compile Recipe](/docs/recipes/cross-to-windows).
+См. [Cross-Compile Recipe](/docs/recipes/cross-to-windows).
 
-## How to create a multi-package project?
+## Как сделать мультипакетный проект?
 
-See [Workspace Recipe](/docs/recipes/multi-package-workspace).
+См. [Workspace Recipe](/docs/recipes/multi-package-workspace).
 
-## Lock file
+## Lock-файл устарел
 
-`dcr.lock` is created during builds (`dcr build`) when registry dependencies are present. To force an update — delete `dcr.lock` and run `dcr build`.
+При изменении зависимостей `dcr.lock` автоматически обновляется при следующем `dcr add`. Если нужно принудительно обновить — удалите `dcr.lock` и выполните `dcr build`.
