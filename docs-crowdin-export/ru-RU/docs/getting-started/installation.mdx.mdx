@@ -1,12 +1,12 @@
 ---
-sidebar_label: Installation
+sidebar_label: Установка
 ---
 
-# Installation
+# Установка
 
 ## Linux (Dexoron Packages)
 
-Configure your package manager at https://pkg.dexoron.su and install:
+Настройте менеджер пакетов на https://pkg.dexoron.su и установите:
 
 **Arch Linux**
 
@@ -37,6 +37,8 @@ yay -S dcr
 ```sh
 brew tap dexoron/dexoron
 brew install dcr
+# or
+brew install dexoron/dexoron/dcr
 ```
 
 ## Snap (Linux)
@@ -62,13 +64,13 @@ cargo install dcr
 ## Linux / macOS (script)
 
 ```sh
-curl -fsSL https://dcr.dexoron.su/install.sh | sh
+curl -fsSL https://dcr.dexoron.su/install_bsd.sh | bash
 ```
 
 ## BSD (script)
 
 ```sh
-curl -fsSL https://dcr.dexoron.su/install_bsd.sh | sh
+curl -fsSL https://dcr.dexoron.su/install.sh | bash
 ```
 
 ## Windows (PowerShell)
@@ -90,7 +92,7 @@ ln -sf "$PWD/target/release/dcr" ~/.local/bin/dcr
 Verify the installation:
 
 ```bash
-dcr --version
+dcr setup
 ```
 
 Man pages are available after installation:
@@ -100,7 +102,7 @@ man dcr
 man dcr-build
 ```
 
-To use the registry, create `~/.dcr/config.toml`:
+Команда создаёт `~/.dcr/` с дефолтным `config.toml` и скачивает публичный реестр.
 
 ```toml
 [[registry]]
