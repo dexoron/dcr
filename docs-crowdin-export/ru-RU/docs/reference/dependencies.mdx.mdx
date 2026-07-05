@@ -1,34 +1,34 @@
 ---
-sidebar_label: Dependencies
+sidebar_label: Зависимости
 ---
 
-# Dependencies
+# Зависимости
 
-## Formats
+## Форматы
 
-The `[dependencies]` section supports three formats:
+В секции `[dependencies]` поддерживаются три формата:
 
 ### String (registry)
 
 ```toml
 [dependencies]
 fmt = "10.1.1"
-spdlog = "1.12"
-catch2 = "3.4.0"
+spdlog = "^1.12"
+catch2 = ">=3.0,<4.0"
 ```
 
 The version string is used as-is for registry lookup.
 
-### Table (git)
+### Табличный (git)
 
 ```toml
 [dependencies]
 fmt = { git = "https://github.com/fmtlib/fmt", tag = "10.1.1" }
 ```
 
-Fields: `git`, `branch`, `tag`, `rev`.
+Поля: `git`, `branch`, `tag`, `rev`, `features`.
 
-### Table (path)
+### Табличный (path)
 
 ```toml
 [dependencies]
@@ -37,7 +37,11 @@ mylib = { path = "../mylib" }
 
 ## Registry
 
-DCR uses a package registry for dependency lookup by name.
+## RegistryDCR использует реестр пакетов для поиска зависимостей по имени.```toml
+# ~/.dcr/config.toml
+[registry]
+main = { url = "https://github.com/dcr-ports/dcr-index", priority = 1 }
+```
 
 ```toml
 # ~/.dcr/config.toml
@@ -46,22 +50,22 @@ name = "default"
 url = "https://index.dcr.pm"
 ```
 
-Registry priority: order in `config.toml`. The `DCR_INDEX_PATH` variable overrides the path to `index.json`.
+Registry priority: order in `config.toml`. Переменная `DCR_INDEX_PATH` переопределяет путь к index.json.
 
-## Git dependencies
+## Git-зависимости
 
-DCR clones git repositories via `git2`:
+При добавлении git-зависимости DCR клонирует репозиторий через `git2`:
 
-* `branch` — switch to a branch
-* `tag` — switch to a tag
-* `rev` — switch to a specific commit
+* `branch` — переключиться на ветку
+* `tag` — переключиться на тег
+* `rev` — переключиться на конкретный коммит
 * `features` — feature flags (parsed, but does not affect build)
 
 Cache path: `~/.dcr/git/\<hash>/`.
 
-## Path dependencies
+## Path-зависимости
 
-Local paths. DCR automatically discovers include and lib directories from the neighbor's `dcr.toml`.
+Локальные пути. DCR автоматически находит include и lib директории.
 
 ```toml
 [dependencies]
@@ -71,14 +75,14 @@ mylib = { path = "../relative/path" }
 
 ## dcr.lock
 
-Dependency lock file. Contains package names and sources.
+Файл блокировки зависимостей. Содержит точные версии, хеши и источники.
 
-Created during `dcr build` when registry dependencies are present. Not updated during `dcr add` — only on the next `dcr build`.
+Created during `dcr build` when registry dependencies are present. Автоматически обновляется при `dcr add`.
 
-## Resolution process
+## Процесс резолва
 
-1. Load all dependencies (registry → git → path)
+1. Загружаются все зависимости (registry → git → path)
 2. For path deps: recursively read their `dcr.toml`
 3. For registry deps: search `index.json`
 4. For git deps: clone to cache
-5. Collect `include_dirs`, `lib_dirs`, `libs` for the compiler
+5. Собираются include_dirs, lib_dirs, libs для передачи компилятору
