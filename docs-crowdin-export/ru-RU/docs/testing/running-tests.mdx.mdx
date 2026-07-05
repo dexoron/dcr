@@ -1,8 +1,8 @@
 ---
-sidebar_label: Running tests
+sidebar_label: Запуск тестов
 ---
 
-# Running Tests
+# Запуск тестов
 
 ## Execution
 
@@ -15,12 +15,12 @@ Builds the project, then compiles and runs test files from `tests/`.
 ## Profiles
 
 ```bash
-dcr test                     # debug (default)
+dcr test                     # debug (по умолчанию)
 dcr test --release           # release
-dcr test --debug             # explicit debug
+dcr test --debug             # явно debug
 ```
 
-## Output
+## Вывод
 
 ```
 =====================
@@ -33,13 +33,13 @@ FAIL: 1
 =====================
 ```
 
-## Exit code
+## Код возврата
 
-* 0 — all tests passed (FAIL = 0)
-* 1 — test failures or build error
+* 0 — все тесты пройдены (FAIL = 0)
+* 1 — есть упавшие тесты
 
 ## What gets built
 
-* All `.c` files from `tests/` (`.cpp` not supported)
-* Include path: `tests/` (for `dcr_test.h`)
-* Linked with project if `package.type = "lib"` or `kind = "staticlib"`/`"sharedlib"`
+* Все C/C++ файлы из `tests/`
+* Include path: `tests/` (для `dcr_test.h`)
+* Линкуется с основным проектом (если `type = "lib"`)
