@@ -1,20 +1,20 @@
 ---
-sidebar_label: License
+sidebar_label: Лицензия
 ---
 
-# License
+# Лицензия
 
 ## DCR
 
-DCR itself is [GPL-3.0-or-later](https://spdx.org/licenses/GPL-3.0-or-later.html) licensed.
+DCR распространяется под лицензией [GPL-3.0-or-later](https://spdx.org/licenses/GPL-3.0-or-later.html).
 
-> **Note:** DCR is a build tool, not a library. The GPL applies only to DCR's own source code. Projects built with DCR are not subject to DCR's license — their licensing is determined solely by their own code and dependencies.
+> **Важно:** DCR — инструмент сборки, а не библиотека. GPL распространяется только на исходный код самого DCR. Проекты, собранные с помощью DCR, не подпадают под лицензию DCR — их лицензирование определяется исключительно их собственным кодом и зависимостями.
 
-## Vendored libraries
+## Вендорные библиотеки
 
-DCR statically links the following C libraries through its vendored Rust dependencies:
+DCR статически связывает следующие C-библиотеки через вендорные Rust-зависимости:
 
-| Library                                    | License            | Bundled by                    |
+| Библиотека                                 | Лицензия           | Bundled by                    |
 | ------------------------------------------ | ------------------ | ----------------------------- |
 | [libgit2](https://libgit2.org)             | MIT OR Apache-2.0  | `git2` / `libgit2-sys`        |
 | [libssh2](https://libssh2.org)             | MIT OR Apache-2.0  | `libgit2-sys`                 |
@@ -22,11 +22,11 @@ DCR statically links the following C libraries through its vendored Rust depende
 | [OpenSSL](https://openssl.org)             | Apache-2.0         | `openssl-sys` / `openssl-src` |
 | [ring](https://github.com/briansmith/ring) | Apache-2.0 AND ISC | `rustls`                      |
 
-## Rust dependencies
+## Rust-зависимости
 
-DCR is written in Rust. The following notable Rust crates are statically linked:
+DCR написан на Rust. Ниже перечислены основные статически связываемые крейты:
 
-| Crate                                         | License                  |
+| Крейт                                         | Лицензия                 |
 | --------------------------------------------- | ------------------------ |
 | [`reqwest`](https://crates.io/crates/reqwest) | MIT OR Apache-2.0        |
 | [`rustls`](https://crates.io/crates/rustls)   | Apache-2.0 OR ISC OR MIT |
@@ -39,8 +39,8 @@ DCR is written in Rust. The following notable Rust crates are statically linked:
 | [`hyper`](https://crates.io/crates/hyper)     | MIT                      |
 | [`ctrlc`](https://crates.io/crates/ctrlc)     | MIT OR Apache-2.0        |
 
-Full dependency tree (143 packages) is available in [`Cargo.lock`](https://github.com/dexoron/dcr/blob/main/Cargo.lock). The overwhelming majority are dual-licensed under MIT OR Apache-2.0.
+Полное дерево зависимостей (143 пакета) доступно в [`Cargo.lock`](https://github.com/dexoron/dcr/blob/main/Cargo.lock). Подавляющее большинство имеют двойную лицензию MIT OR Apache-2.0.
 
 ## Additional credits
 
-* DCR's CLI design and project model are inspired by [Cargo](https://doc.rust-lang.org/cargo/).
+* Дизайн CLI и модель проектов DCR вдохновлены [Cargo](https://doc.rust-lang.org/cargo/).
