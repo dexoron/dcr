@@ -29,7 +29,7 @@ sudo dnf install dcr
 ## Arch Linux (AUR)
 
 ```sh
-yay -S dcr
+ура -S dcr
 ```
 
 ## macOS / Linux (Homebrew)
@@ -37,8 +37,6 @@ yay -S dcr
 ```sh
 brew tap dexoron/dexoron
 brew install dcr
-# or
-brew install dexoron/dexoron/dcr
 ```
 
 ## Snap (Linux)
@@ -51,7 +49,7 @@ sudo snap install dcrup
 
 ```sh
 nix run github:dexoron/dcr
-# or install to profile:
+# или установить в профиль:
 nix profile install github:dexoron/dcr
 ```
 
@@ -61,13 +59,13 @@ nix profile install github:dexoron/dcr
 cargo install dcr
 ```
 
-## Linux / macOS (script)
+## Linux / macOS (скрипт)
 
 ```sh
 curl -fsSL https://dcr.dexoron.su/install_bsd.sh | bash
 ```
 
-## BSD (script)
+## BSD (скрипт)
 
 ```sh
 curl -fsSL https://dcr.dexoron.su/install.sh | bash
@@ -79,7 +77,7 @@ curl -fsSL https://dcr.dexoron.su/install.sh | bash
 irm https://dcr.dexoron.su/install.ps1 | iex
 ```
 
-## From source
+## Из источника
 
 ```sh
 git clone https://github.com/dexoron/dcr.git
@@ -87,22 +85,22 @@ cd dcr && cargo build --release
 ln -sf "$PWD/target/release/dcr" ~/.local/bin/dcr
 ```
 
-## Post-install
+## После установки
 
-Verify the installation:
+Проверьте установку:
 
 ```bash
 dcr setup
 ```
 
-Man pages are available after installation:
+После установки становятся доступны man страницы:
 
 ```bash
 man dcr
 man dcr-build
 ```
 
-Команда создаёт `~/.dcr/` с дефолтным `config.toml` и скачивает публичный реестр.
+Чтобы использовать реестр, создайте файл `~/.dcr/config.toml`:
 
 ```toml
 [[registry]]
