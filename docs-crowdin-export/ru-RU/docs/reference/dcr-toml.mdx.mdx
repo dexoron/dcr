@@ -36,15 +36,15 @@ sidebar_label: Обзор dcr.toml
 # настройки запуска
 ```
 
-## [package]
+## [пакет]
 
-| Поле      | Обязательное | Описание                    |
-| --------- | ------------ | --------------------------- |
-| `name`    | да           | Имя проекта                 |
-| `version` | да           | Семантическая версия        |
-| `type`    | да           | `app`, `lib`, `none`        |
-| `license` | нет          | SPDX-идентификатор лицензии |
-| `author`  | нет          | Автор                       |
+| Поле       | Обязательное | Описание                    |
+| ---------- | ------------ | --------------------------- |
+| `имя`      | да           | Имя проекта                 |
+| `версия`   | да           | Семантическая версия        |
+| `тип`      | да           | `app`, `lib`, `none`        |
+| `лицензия` | нет          | SPDX-идентификатор лицензии |
+| `автор`    | нет          | Автор                       |
 
 ```toml
 [package]
@@ -55,50 +55,50 @@ license = "MIT"
 author = "John Doe"
 ```
 
-## [build]
+## [сборка]
 
 ...
 
-* `build.qt` — (bool) Enable automatic Qt meta-object handling (MOC, UIC, RCC). Requires `qt6` modules installed via `pkg-config`.
+* `build.qt` — (bool) Включить автоматическую обработку метаобъектов Qt (MOC, UIC, RCC). Требуется установка модулей `qt6` с помощью `pkg-config`.
 
-| Поле             | По умолчанию                                | Описание                                                              |
-| ---------------- | ------------------------------------------- | --------------------------------------------------------------------- |
-| `language`       | `"c"`                                       | `"c"`, `"cxx"`, `"cpp"`                                               |
-| `standard`       | `"c11"`                                     | Стандарт C (`c11`, `c17`, `c23`)                                      |
-| `cxx_standard`   | `"c++20"`                                   | Стандарт C++ (`c++17`, `c++20`, `c++23`)                              |
-| `compiler`       | `cxxflags`                                  | Предпочитаемый компилятор                                             |
-| `kind`           | `"bin"`                                     | `bin`, `staticlib`, `sharedlib`, `efi`, `elf`, `none`, `custom`       |
-| `target`         | хост                                        | Target triple для кросс-компиляции                                    |
-| `platform`       | `"native"`                                  | `native`, `efi`, `freestanding`                                       |
-| `cflags`         | `[]`                                        | Дополнительные флаги C++                                              |
-| `ldflags`        | `[]`                                        | Дополнительные флаги линковки                                         |
-| `filename`       | `""`                                        | Кастомное имя выходного файла                                         |
-| `extension`      | `""`                                        | Custom file extension                                                 |
-| `roots`          | `["src"]`                                   | Корневые директории с исходниками                                     |
-| `exclude`        | `[]`                                        | Паттерны исключений                                                   |
-| `include`        | `[]`                                        | Дополнительные include-директории                                     |
-| `src_disable`    | `false`                                     | Disable auto source discovery                                         |
-| `inherit`        | `false`                                     | Наследовать build от корня workspace                                  |
-| `clean`          | `[]`                                        | Glob patterns for custom clean paths                                  |
-| `out_dir`        | `""`                                        | Custom output directory                                               |
-| `workspace_only` | `false`                                     | Только для workspace, не собирать отдельно                            |
-| `freestanding`   | `false`                                     | Compile in freestanding mode (`-ffreestanding` + `-nostdlib -static`) |
-| `opt_level`      | `"0"` (debug) / `"3"` (release)             | Optimization level: `0`-`3`, `"s"`, `"z"`                             |
-| `ldscript`       | `true` (debug) / `false` (release)          | Emit debug symbols (`-g`)                                             |
-| `lto`            | `false`                                     | Link-time optimization (`-flto` for both compiler and linker)         |
-| `asflags`        | `false`                                     | Strip symbols from output (`-s` in ldflags)                           |
-| `true`           | `["all", "extra"]` (debug) / `[]` (release) | Warning flags (e.g. `"all"`, `"extra"`, `"pedantic"`)                 |
-| `panic`          | `""`                                        | Panic strategy: `"abort"` disables exceptions and unwind tables       |
-| `codegen-units`  | `""`                                        | Max parallel compilation jobs (`"0"` = auto)                          |
-| `qt`             | `false`                                     | Enable automatic Qt meta-object handling (MOC, UIC, RCC)              |
+| Поле                     | По умолчанию                                                    | Описание                                                                              |
+| ------------------------ | --------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `язык`                   | `"c"`                                                           | `"c"`, `"cxx"`, `"cpp"`                                                               |
+| `стандартный`            | `"c11"`                                                         | Стандарт C (`c11`, `c17`, `c23`)                                                      |
+| `cxx_standard`           | `"c++20"`                                                       | Стандарт C++ (`c++17`, `c++20`, `c++23`)                                              |
+| `компилятор`             | `cxxflags`                                                      | Предпочитаемый компилятор                                                             |
+| `тип`                    | `"bin"`                                                         | `bin`, `staticlib`, `sharedlib`, `efi`, `elf`, `none`, `custom`                       |
+| `target`                 | хост                                                            | Target triple для кросс-компиляции                                                    |
+| `платформа`              | `"нативный"`                                                    | `native`, `efi`, `freestanding`                                                       |
+| `cflags`                 | `[]`                                                            | Дополнительные флаги C++                                                              |
+| `ldflags`                | `[]`                                                            | Дополнительные флаги линковки                                                         |
+| `имя файла`              | `""`                                                            | Кастомное имя выходного файла                                                         |
+| `расширение`             | `""`                                                            | Пользовательское расширение файла                                                     |
+| `корни`                  | `["src"]`                                                       | Корневые директории с исходниками                                                     |
+| `exclude`                | `[]`                                                            | Паттерны исключений                                                                   |
+| `include`                | `[]`                                                            | Дополнительные include-директории                                                     |
+| `src_disable`            | `false`                                                         | Отключить автоматический поиск источников                                             |
+| `наследовать`            | `false`                                                         | Наследовать build от корня workspace                                                  |
+| `clean`                  | `[]`                                                            | Шаблоны Glob для настраиваемых чистых путей                                           |
+| `out_dir`                | `""`                                                            | Пользовательский каталог для вывода данных                                            |
+| `только рабочая область` | `false`                                                         | Только для workspace, не собирать отдельно                                            |
+| `отдельно стоящий`       | `false`                                                         | Компилировать в автономном режиме (`-ffreestanding` + `-nostdlib -static`)            |
+| `opt_level`              | `"0"` (отладочная версия) / `"3"` (релизная версия)             | Уровень оптимизации: `0`–`3`, `"s"`, `"z"`                                            |
+| `ldscript`               | `true` (отладочный режим) / `false` (релизный режим)            | Выводить отладочные символы (`-g`)                                                    |
+| `lto`                    | `false`                                                         | Оптимизация на этапе компоновки (`-flto` как для компилятора, так и для компоновщика) |
+| `asflags`                | `false`                                                         | Удалить символы из вывода (опция `-s` в ldflags)                                      |
+| `true`                   | `["all", "extra"]` (отладочная версия) / `[]` (релизная версия) | Флаги предупреждений (например, `"all"`, `"extra"`, `"pedantic"`)                     |
+| `panic`                  | `""`                                                            | Стратегия «Паника»: `"abort"` отключает исключения и таблицы развертки                |
+| `codegen-units`          | `""`                                                            | Максимальное количество параллельных заданий компиляции (`"0"` = автоматически)       |
+| `qt`                     | `false`                                                         | Включить автоматическую обработку метаобъектов Qt (MOC, UIC, RCC)                     |
 
-Settings from raw config (not in typed struct):
+Параметры из исходного файла конфигурации (не в виде типизированной структуры):
 
 * Пакеты для pkg-config
 * Путь к linker script
-* `build.steps` / `build.post_steps` — codegen steps
+* `build.steps` / `build.post_steps` — этапы генерации кода
 
-Example:
+Пример:
 
 ```toml
 [build]
@@ -112,7 +112,7 @@ cflags = ["-Wall", "-Wextra"]
 pkg_config = ["sdl2", "gl"]
 ```
 
-## [toolchain]
+## [набор инструментов]
 
 ```toml
 [toolchain]
@@ -126,16 +126,16 @@ moc = "/usr/bin/moc"       # Qt
 rcc = "/usr/bin/rcc"       # Qt
 ```
 
-Raw config also supports `uic`, `moc`, `rcc` for Qt codegen.
+Raw config также поддерживает `uic`, `moc` и `rcc` для генерации кода Qt.
 
-## [dependencies]
+## [зависимости]
 
 См. [dependencies](/docs/reference/dependencies).
 
-## [run]
+## [запустить]
 
 ```toml
-[run]
+[запустить]
 cmd = "./target/{profile}/{name}"
 ```
 
@@ -143,11 +143,11 @@ cmd = "./target/{profile}/{name}"
 
 * `{version}` — версия из [package]
 * `pkg_config`
-* `{profile}` — debug / release
+* `{profile}` — отладочная / релизная версия
 * `{name}` — имя из [package]
 
 По умолчанию `cmd` вычисляется как `./target/{profile}/{name}`.
 
-## [workspace]
+## [рабочая область]
 
 См. [workspaces](/docs/reference/workspaces).
