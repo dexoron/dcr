@@ -14,33 +14,33 @@ DCR распространяется под лицензией [GPL-3.0-or-later
 
 DCR статически связывает следующие C-библиотеки через вендорные Rust-зависимости:
 
-| Библиотека                                 | Лицензия           | Bundled by                    |
-| ------------------------------------------ | ------------------ | ----------------------------- |
-| [libgit2](https://libgit2.org)             | MIT OR Apache-2.0  | `git2` / `libgit2-sys`        |
-| [libssh2](https://libssh2.org)             | MIT OR Apache-2.0  | `libgit2-sys`                 |
-| [zlib](https://zlib.net)                   | MIT OR Apache-2.0  | `libgit2-sys`                 |
-| [OpenSSL](https://openssl.org)             | Apache-2.0         | `openssl-sys` / `openssl-src` |
-| [ring](https://github.com/briansmith/ring) | Apache-2.0 AND ISC | `rustls`                      |
+| Библиотека                                   | Лицензия           | В комплекте с                 |
+| -------------------------------------------- | ------------------ | ----------------------------- |
+| [libgit2](https://libgit2.org)               | MIT ИЛИ Apache-2.0 | `git2` / `libgit2-sys`        |
+| [libssh2](https://libssh2.org)               | MIT ИЛИ Apache-2.0 | `libgit2-sys`                 |
+| [zlib](https://zlib.net)                     | MIT ИЛИ Apache-2.0 | `libgit2-sys`                 |
+| [OpenSSL](https://openssl.org)               | Apache-2.0         | `openssl-sys` / `openssl-src` |
+| [кольцо](https://github.com/briansmith/ring) | Apache-2.0 И ISC   | `rustls`                      |
 
 ## Rust-зависимости
 
 DCR написан на Rust. Ниже перечислены основные статически связываемые крейты:
 
-| Крейт                                         | Лицензия                 |
-| --------------------------------------------- | ------------------------ |
-| [`reqwest`](https://crates.io/crates/reqwest) | MIT OR Apache-2.0        |
-| [`rustls`](https://crates.io/crates/rustls)   | Apache-2.0 OR ISC OR MIT |
-| [`serde`](https://crates.io/crates/serde)     | MIT OR Apache-2.0        |
-| [`toml`](https://crates.io/crates/toml)       | MIT OR Apache-2.0        |
-| [`sha2`](https://crates.io/crates/sha2)       | MIT OR Apache-2.0        |
-| [`git2`](https://crates.io/crates/git2)       | MIT OR Apache-2.0        |
-| [`openssl`](https://crates.io/crates/openssl) | Apache-2.0               |
-| [`tokio`](https://crates.io/crates/tokio)     | MIT                      |
-| [`hyper`](https://crates.io/crates/hyper)     | MIT                      |
-| [`ctrlc`](https://crates.io/crates/ctrlc)     | MIT OR Apache-2.0        |
+| Крейт                                         | Лицензия                   |
+| --------------------------------------------- | -------------------------- |
+| [`reqwest`](https://crates.io/crates/reqwest) | MIT ИЛИ Apache-2.0         |
+| [`rustls`](https://crates.io/crates/rustls)   | Apache-2.0 ИЛИ ISC ИЛИ MIT |
+| [`serde`](https://crates.io/crates/serde)     | MIT ИЛИ Apache-2.0         |
+| [`toml`](https://crates.io/crates/toml)       | MIT ИЛИ Apache-2.0         |
+| [`sha2`](https://crates.io/crates/sha2)       | MIT ИЛИ Apache-2.0         |
+| [`git2`](https://crates.io/crates/git2)       | MIT ИЛИ Apache-2.0         |
+| [`openssl`](https://crates.io/crates/openssl) | Apache-2.0                 |
+| [`tokio`](https://crates.io/crates/tokio)     | MIT                        |
+| [`hyper`](https://crates.io/crates/hyper)     | MIT                        |
+| [`ctrlc`](https://crates.io/crates/ctrlc)     | MIT ИЛИ Apache-2.0         |
 
 Полное дерево зависимостей (143 пакета) доступно в [`Cargo.lock`](https://github.com/dexoron/dcr/blob/main/Cargo.lock). Подавляющее большинство имеют двойную лицензию MIT OR Apache-2.0.
 
-## Additional credits
+## Дополнительные благодарности
 
 * Дизайн CLI и модель проектов DCR вдохновлены [Cargo](https://doc.rust-lang.org/cargo/).
