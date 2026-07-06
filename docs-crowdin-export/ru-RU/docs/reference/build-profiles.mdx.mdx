@@ -25,29 +25,29 @@ cflags = ["-O3", "-flto"]
 
 Поля из `[build.\<profile>]` **мержатся поверх** `[build]`
 
-* **Scalar fields** (strings, numbers, bools) — replaced
+* **Скалярные поля** (строки, числа, логические значения) — заменены
 * Массивы (`cflags`, `ldflags`, ...) **заменяются полностью**, а не дополняются
 
-Set `inherit = false` to disable array inheritance (only profile's own arrays are used).
+Установите `inherit = false`, чтобы отключить наследование массивов (будут использоваться только собственные массивы профиля).
 
 ## Кастомные профили
 
-The default flags for each profile are composed from three config fields:
+Флаги по умолчанию для каждого профиля формируются из трёх полей конфигурации:
 
-| Field       | Default cflags     | Профили сборки |
-| ----------- | ------------------ | -------------- |
-| `opt_level` | `-O0 -g`           | `"3"`          |
-| `debug`     | `true`             | `false`        |
-| `warnings`  | `["all", "extra"]` | `[]`           |
+| Поле             | Default cflags     | Профили сборки |
+| ---------------- | ------------------ | -------------- |
+| `opt_level`      | `-O0 -g`           | `"3"`          |
+| `debug`          | `true`             | `false`        |
+| `предупреждения` | `["all", "extra"]` | `[]`           |
 
-Which produce the equivalent compiler flags:
+Которые генерируют соответствующие флаги компилятора:
 
-| Профиль   | Effective flags                                            |
-| --------- | ---------------------------------------------------------- |
-| `debug`   | `-O0 -g -Wall -Wextra -fno-omit-frame-pointer -DDCR_DEBUG` |
-| `release` | `-O3 -DNDEBUG`                                             |
+| Профиль | Действующие флаги                                          |
+| ------- | ---------------------------------------------------------- |
+| `debug` | `-O0 -g -Wall -Wextra -fno-omit-frame-pointer -DDCR_DEBUG` |
+| `релиз` | `-O3 -DNDEBUG`                                             |
 
-Additional build options can be toggled per-profile:
+Дополнительные параметры сборки можно включать или отключать для каждого профиля:
 
 ```toml
 [build.release]
@@ -73,7 +73,7 @@ cflags = ["-DLINUX"]
 cflags = ["-DWIN32", "-O0", "-g"]
 ```
 
-Application order (highest priority first):
+Порядок применения (в порядке убывания приоритета):
 
 1. `[build.\<target>.\<profile>]`
 2. `[build.\<profile>.\<target>]`
