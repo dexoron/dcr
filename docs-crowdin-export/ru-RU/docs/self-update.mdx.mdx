@@ -6,7 +6,7 @@ sidebar_label: Автоматическое обновление
 
 ## dcr --update
 
-Автоматическое обновление до последней версии. Downloads a binary (not an archive) from GitHub Releases and replaces the current executable.
+Автоматическое обновление до последней версии. Загружает бинарный файл (не архив) из раздела «Релизы» на GitHub и заменяет им текущий исполняемый файл.
 
 ```bash
 dcr --update
@@ -15,16 +15,16 @@ dcr --update
 ## Как это работает
 
 1. DCR определяет текущую платформу и архитектуру
-2. Fetches the latest release from `api.github.com/repos/dexoron/dcr/releases/latest`
-3. Compares versions
-4. Downloads the matching asset (direct binary URL, not archive)
+2. Загружает последнюю версию с `api.github.com/repos/dexoron/dcr/releases/latest`
+3. Сравнивает версии
+4. Загружает соответствующий ресурс (прямой URL-адрес двоичного файла, а не архива)
 5. Заменяет текущий исполняемый файл
 
-## Asset naming
+## Названия активов
 
 Шаблон: `dcr-\<triple>.\<ext> `
 
-| Платформа      | Asset name                            |
+| Платформа      | Название актива                       |
 | -------------- | ------------------------------------- |
 | Linux x86_64   | `dcr-x86_64-unknown-linux-gnu.tar.gz` |
 | macOS x86_64   | `dcr-x86_64-apple-darwin.tar.gz`      |
@@ -36,7 +36,7 @@ dcr --update
 Если DCR установлен через AUR, `--update` выводит предупреждение:
 
 ```
-Update via package manager: yay/paru -Syu {package_name} or sudo pacman -Syu {package_name}
+Обновление через менеджер пакетов: yay/paru -Syu {package_name} или sudo pacman -Syu {package_name}
 ```
 
 ## Ошибки
