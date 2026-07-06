@@ -12,7 +12,7 @@ sidebar_label: Системные команды (setup, --help, ...)
 dcr setup
 ```
 
-If `~/.dcr/config.toml` is not found, DCR returns an error. Create it manually:
+Если файл `~/.dcr/config.toml` не найден, DCR возвращает ошибку. Создайте его вручную:
 
 ```toml
 [[registry]]
@@ -22,31 +22,30 @@ url = "https://index.dcr.pm"
 
 ## `dcr --help`
 
-Shows help for all commands.
+Отображает справку по всем командам.
 
 ```bash
 dcr --help
-dcr build --help    # справка по конкретной команде
 ```
 
 ## `dcr --version`
 
-Shows version and target triple.
+Отображает версию и целевую платформу.
 
 ```bash
-dcr --version       # dcr 0.7.0
+dcr --version       # dcr 0.7.0 (x86_64-unknown-linux-gnu)
 ```
 
 ## `dcr --update`
 
-Самообновление. Скачивает последний релиз с GitHub Releases и заменяет текущий бинарник.
+Автоматическое обновление. Загружает последнюю версию бинарного файла из раздела «Релизы» на GitHub и заменяет текущую версию.
 
 ```bash
 dcr --update
 ```
 
-Особенности:
+Возможности:
 
 * Определяет платформу и архитектуру автоматически
-* Warns if installed via AUR (use package manager instead)
+* Выдает предупреждение при установке через AUR (вместо этого используйте пакетный менеджер)
 * Работает на Linux, macOS, Windows
