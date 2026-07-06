@@ -2,36 +2,36 @@
 sidebar_label: Система сборки
 ---
 
-# Build System
+# Система сборки
 
-## Compiler Backends
+## Бэкенды компилятора
 
 DCR поддерживает 4 бэкенда компиляции. Выбор происходит автоматически на основе расширения файла и target triple.
 
-| Backend   | Файлы                                   | Когда используется              |
-| --------- | --------------------------------------- | ------------------------------- |
-| `unix_cc` | `.c`, `.cpp`, `.cxx`, `.cc`, `.s`, `.S` | gcc/clang на Linux/macOS/BSD    |
-| `msvc`    | `.c`, `.cpp`, `.cxx`, `.cc`             | Windows (cl, clang-cl)          |
-| `gas`     | `.s`, `.S`                              | ARM/ARM64 ассемблер             |
-| `nasm`    | `.asm`, `.s`                            | x86/x86_64 ассемблер            |
-| `masm`    | `.asm`                                  | MASM (ml/ml64) on Windows       |
-| `fasm`    | `.asm`, `.fasm`                         | Flat Assembler                  |
-| `llvm_ir` | `.ll`                                   | LLVM IR via `llc -filetype=obj` |
+| Бэкенд    | Файлы                                   | Когда используется                    |
+| --------- | --------------------------------------- | ------------------------------------- |
+| `unix_cc` | `.c`, `.cpp`, `.cxx`, `.cc`, `.s`, `.S` | gcc/clang на Linux/macOS/BSD          |
+| `msvc`    | `.c`, `.cpp`, `.cxx`, `.cc`             | Windows (cl, clang-cl)                |
+| `газ`     | `.s`, `.S`                              | ARM/ARM64 ассемблер                   |
+| `nasm`    | `.asm`, `.s`                            | x86/x86_64 ассемблер                  |
+| `masm`    | `.asm`                                  | MASM (ml/ml64) в Windows              |
+| `fasm`    | `.asm`, `.fasm`                         | Сборщик плоских деталей               |
+| `llvm_ir` | `.ll`                                   | LLVM IR с помощью `llc -filetype=obj` |
 
-## Qt Support
+## Поддержка Qt
 
-DCR provides native Qt support for automatic meta-object handling (MOC, UIC, RCC).
+DCR обеспечивает встроенную поддержку Qt для автоматической обработки метаобъектов (MOC, UIC, RCC).
 
-Enable it by setting `build.qt = true` in `dcr.toml`. DCR will automatically detect Qt-related files (`.ui`, `.qrc`, `.h` with `Q_OBJECT`) and process them.
+Чтобы включить эту функцию, установите значение `build.qt = true` в файле `dcr.toml`. DCR автоматически обнаружит файлы, связанные с Qt (`.ui`, `.qrc`, `.h` с `Q_OBJECT`), и обработает их.
 
 ```toml
 [build]
 qt = true
 ```
 
-*Note: Requires `qt6` modules (Core, Widgets, Gui, Svg) installed via `pkg-config`.*
+*Примечание: Требуется установка модулей `qt6` (Core, Widgets, Gui, Svg) с помощью `pkg-config`.*
 
-Advanced customization is still possible via `build.steps` if special handling is needed:
+Если требуется специальная обработка, по-прежнему можно выполнить расширенную настройку с помощью файла `build.steps`:
 
 ```toml
 [build.steps]
@@ -43,10 +43,10 @@ moc = "moc {in} -o {out}"
 * Компилятор определяется через `resolve_compiler()`: CC/CXX из [toolchain], DCR_COMPILER/env, PATH
 * Поддерживает генерацию `.d` файлов для header dependency tracking
 * Флаги: `-std=`, `-MMD -MF`, `-c -o`, `-I`, `-L`, `-l`
-* Conditional flags based on config:
-  * `freestanding` or bare-metal target: `-ffreestanding` (compile), `-nostdlib -static` (link)
-  * `lto`: `-flto` (compile + link)
-  * `panic = "abort"`: `-fno-exceptions` (C++ only), `-fno-unwind-tables`, `-fno-asynchronous-unwind-tables`
+* Условные флаги, зависящие от настроек:
+  * `freestanding` или целевая среда «bare-metal»: `-ffreestanding` (компиляция), `-nostdlib -static` (линковка)
+  * `lto`: `-flto` (компиляция + линковка)
+  * `panic = "abort"`: `-fno-exceptions` (только для C++), `-fno-unwind-tables`, `-fno-asynchronous-unwind-tables`
 
 ### MSVC
 
@@ -58,10 +58,10 @@ moc = "moc {in} -o {out}"
 * GAS: `-I`, `-c -o`, `--defsym`
 * NASM: `-I`, `-c -o`, `-D`, `-f` (формат: win64/elf64/macho64/macho32/elf32)
 * MASM: `/nologo /c /Fo\<obj> <source>`
-* FASM: `<source> \<output>` (output path is the object file)
+* FASM: `<source> \<output>` (путь вывода — объектный файл)
 * LLVM IR: `-filetype=obj <source> -o \<output>`
 
-## Incremental Builds
+## Инкрементные сборки
 
 Три уровня инкрементальности:
 
@@ -69,31 +69,31 @@ moc = "moc {in} -o {out}"
 2. **`.d` files** — отслеживание изменений в заголовочных файлах (включая транзитивные)
 3. **SHA256 fingerprint** — если флаги компиляции изменились, файл перекомпилируется (fingerprint хранится в `.dcr_fingerprint`)
 
-## Parallel Compilation
+## Параллельная компиляция
 
 * Используется `thread::scope` для создания пула потоков
 * Атомарная очередь задач (`AtomicU64`)
 * Мьютекс на запись в stdout (`OUTPUT_MUTEX`)
-* Thread count = `available_parallelism()`, capped by `build.codegen-units` if set
+* Количество потоков = `available_parallelism()`, ограниченное значением `build.codegen-units`, если оно задано
 
-## Build Kinds
+## Типы сборок
 
-| Kind        | Тип                                  | Path (Linux example)                                                                            |
-| ----------- | ------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| `bin`       | Executable                           | `target/\<profile>/\<name>` (.exe)                            |
-| `staticlib` | Статическая библиотека               | `target/\<profile>/lib\<name>.a` (.lib)                       |
-| `sharedlib` | Динамическая библиотека              | `target/\<profile>/lib\<name>.so` (.dll/.dylib)               |
-| `efi`       | UEFI приложение                      | `target/\<profile>/\<name>.efi`                               |
-| `elf`       | ELF без стандартной библиотеки       | `target/\<profile>/\<name>`                                   |
-| `none`      | Compile only, no link                | —                                                                                               |
-| `custom`    | Полный контроль filename + extension | `target/\<profile>/\<filename>.\<extension>` |
+| Тип                | Тип                                  | Путь (пример для Linux)                                                                         |
+| ------------------ | ------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `bin`              | Исполняемый файл                     | `target/\<profile>/\<name>` (.exe)                            |
+| `staticlib`        | Статическая библиотека               | `target/\<profile>/lib\<name>.a` (.lib)                       |
+| `sharedlib`        | Динамическая библиотека              | `target/\<profile>/lib\<name>.so` (.dll/.dylib)               |
+| `efi`              | UEFI приложение                      | `target/\<profile>/\<name>.efi`                               |
+| `эльф`             | ELF без стандартной библиотеки       | `target/\<profile>/\<name>`                                   |
+| `нет`              | Только компиляция, без линковки      | —                                                                                               |
+| `пользовательский` | Полный контроль filename + extension | `target/\<profile>/\<filename>.\<extension>` |
 
-## Build Steps
+## Этапы сборки
 
 DCR поддерживает pre-build и post-build шаги через Qt codegen:
 
-* `build.steps` — commands before compilation
-* `build.post_steps` — commands after compilation
+* `build.steps` — команды, выполняемые перед компиляцией
+* `build.post_steps` — команды, выполняемые после компиляции
 
 Подстановки: `{stem}`, `{in}`, `{out}`.
 
@@ -106,7 +106,7 @@ moc = "moc {in} -o {out}"
 
 ## pkg-config
 
-Automatic lookup (read from raw config):
+Автоматический поиск (чтение из исходного файла конфигурации):
 
 ```toml
 [build]
@@ -115,17 +115,17 @@ pkg_config = ["sdl2", "gl"]
 
 DCR вызывает `pkg-config --cflags sdl2 gl` и `pkg-config --libs sdl2 gl` и добавляет результат в флаги компиляции/линковки.
 
-## Variable Substitution
+## Подстановка переменных
 
-Supported variables:
+Поддерживаемые переменные:
 
-| Variable                | Описание                        |
-| ----------------------- | ------------------------------- |
-| `{version}`             | Версия пакета                   |
-| `{version_major}`       | Major version part              |
-| `{version_minor}`       | Minor version part              |
-| `{version_patch}`       | Переменная                      |
-| `{version_suffix}`      | Suffix (e.g., `-rc1`)           |
-| `{version_suffix_dash}` | Suffix with dash                |
-| `{profile}`             | Имя профиля (debug/release/...) |
-| `{name}`                | Имя пакета                      |
+| Переменная              | Описание                                  |
+| ----------------------- | ----------------------------------------- |
+| `{version}`             | Версия пакета                             |
+| `{version_major}`       | Часть, обозначающая основную версию       |
+| `{version_minor}`       | Часть, обозначающая второстепенную версию |
+| `{version_patch}`       | Переменная                                |
+| `{version_suffix}`      | Суффикс (например, `-rc1`)                |
+| `{version_suffix_dash}` | Суффикс с тире                            |
+| `{profile}`             | Имя профиля (debug/release/...)           |
+| `{name}`                | Имя пакета                                |
