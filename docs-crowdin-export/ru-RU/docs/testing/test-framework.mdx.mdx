@@ -25,12 +25,12 @@ EXPECT(ptr != NULL, "ptr should not be NULL");
 SKIP("not implemented on Windows yet");
 ```
 
-### `TEST(name)`
+### `TEST(имя)`
 
 Определяет тест.
 
 ```c
-TEST(addition) {
+TEST(сложение) {
     EXPECT(1 + 1 == 2);
     EXPECT(2 + 2 == 4);
 }
@@ -38,7 +38,7 @@ TEST(addition) {
 
 ### `TEST_CASE(name, ...)`
 
-Registers a test case.
+Регистрирует тестовый случай.
 
 ```c
 TEST_CASE(math, a, b) {
@@ -66,4 +66,4 @@ tests/
 └── ...             # дополнительные .c файлы с тестами
 ```
 
-Only `.c` files are compiled (`.cpp` is not supported).
+Компилируются только файлы с расширением `.c` (файлы с расширением `.cpp` не поддерживаются).
