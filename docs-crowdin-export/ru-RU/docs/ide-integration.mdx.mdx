@@ -27,25 +27,25 @@ dcr gen clion
 
 Генерирует в `.idea/`:
 
-| Файл                                      | Назначение                                      |
-| ----------------------------------------- | ----------------------------------------------- |
-| `externalTools.xml`                       | Build, Run, Clean, Test как внешние инструменты |
-| `customTargets.xml`                       | Кастомные цели сборки                           |
-| `misc.xml`                                | Настройки C/C++ проекта                         |
-| `runConfigurations/dcr_build_and_run.xml` | Per-binary run configurations                   |
+| Файл                                      | Назначение                                       |
+| ----------------------------------------- | ------------------------------------------------ |
+| `externalTools.xml`                       | Build, Run, Clean, Test как внешние инструменты  |
+| `customTargets.xml`                       | Кастомные цели сборки                            |
+| `misc.xml`                                | Настройки C/C++ проекта                          |
+| `runConfigurations/dcr_build_and_run.xml` | Конфигурации запуска для каждого бинарного файла |
 
 ## compile_commands.json
 
 ```bash
-dcr gen compile-commands
+dcr gen команды компиляции
 ```
 
 Генерирует `compile_commands.json` в корне проекта. Стандартный формат для:
 
-## project-info
+## информация о проекте
 
 ```bash
-dcr gen project-info
+dcr gen info-проекта
 ```
 
 Выводит JSON с метаданными проекта (см. [gen-commands](/docs/commands/gen-commands)).
