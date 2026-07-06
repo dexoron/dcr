@@ -4,15 +4,15 @@ sidebar_label: Запуск тестов
 
 # Запуск тестов
 
-## Execution
+## Выполнение
 
 ```bash
-dcr test
+Тест DCR
 ```
 
-Builds the project, then compiles and runs test files from `tests/`.
+Выполняет сборку проекта, а затем компилирует и запускает тестовые файлы из каталога `tests/`.
 
-## Profiles
+## Профили
 
 ```bash
 dcr test                     # debug (по умолчанию)
@@ -24,12 +24,12 @@ dcr test --debug             # явно debug
 
 ```
 =====================
-  Testsuite summary
+  Сводка результатов набора тестов
 =====================
-TOTAL: 5
-PASS: 3
-SKIP: 1
-FAIL: 1
+ИСПОЛЬЗОВАНО: 5
+ПРОЙДЕНО: 3
+ПРОПУЩЕНО: 1
+НЕ ПРОЙДЕНО: 1
 =====================
 ```
 
@@ -38,7 +38,7 @@ FAIL: 1
 * 0 — все тесты пройдены (FAIL = 0)
 * 1 — есть упавшие тесты
 
-## What gets built
+## Что строится
 
 * Все C/C++ файлы из `tests/`
 * Include path: `tests/` (для `dcr_test.h`)
