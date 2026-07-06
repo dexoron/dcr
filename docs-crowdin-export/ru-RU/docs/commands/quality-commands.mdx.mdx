@@ -25,11 +25,11 @@ dcr test --init
 
 Что делает `dcr test`:
 
-1. Builds the project
-2. Collects `tests/*.c` files (`.c` only, not `.cpp`)
-3. Compiles and links each test file
-4. Runs each test binary
-5. Prints summary: TOTAL, PASS, SKIP, FAIL
+1. Собирает проект
+2. Собирает файлы `tests/*.c` (только `.c`, не `.cpp`)
+3. Компилирует и линкует каждый файл теста
+4. Запускает каждый бинарник тестов
+5. Вывод сводки: TOTAL, PASS, SKIP, FAIL
 6. Возвращает ненулевой код при наличии FAIL
 
 ## `dcr fmt`
@@ -40,21 +40,21 @@ dcr test --init
 dcr fmt
 ```
 
-Processes: `src/**/*.{c,cpp,cxx,cc,h,hpp,hxx,hh}` and `tests/**/*.{c,cpp,cxx,cc,h,hpp,hxx,hh}`.
+Процессы: `src/**/*.{c,cpp,cxx,cc,h,hpp,hxx,hh}` и `tests/**/*.{c,cpp,cxx,cc,h,hpp,hxx,hh}`.
 
 Использует `.clang-format` в корне проекта (если таковой имеется), иначе стиль clang-format по умолчанию.
 
 ## `dcr lint`
 
-Runs `clang-tidy` on C/C++ source files for static analysis.
+Выполняет `clang-tidy` на C/C++ исходных файлах для статического анализа.
 
 ```bash
-dcr lint              # show diagnostics
-dcr lint --fix        # apply fixes automatically
-dcr lint --help       # detailed help
+dcr lint              # отобразить диагностику
+dcr lint --fix        # автоматически применить исправления
+dcr lint --help       # подробная справка
 ```
 
-Processes: `src/**/*.{c,cpp,cxx,cc}` and `tests/**/*.{c,cpp,cxx,cc}`.
+Процессы: `src/**/*.{c,cpp,cxx,cc}` и `tests/**/*.{c,cpp,cxx,cc}`.
 
-Without `--fix`, clang-tidy reports warnings and errors without modifying files.
-With `--fix`, clang-tidy applies automatic suggestions in place.
+Без параметра `--fix` clang-tidy выдает предупреждения и ошибки, не внося изменений в файлы.
+При параметре `--fix` clang-tidy автоматически вносит предложения по исправлениям на месте.
