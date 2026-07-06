@@ -6,17 +6,17 @@ sidebar_label: Переменные среды
 
 ## DCR_COMPILER
 
-Переопределяет компилятор для всех языков. **Highest priority.**
+Переопределяет компилятор для всех языков. **Наивысший приоритет.**
 
 ```bash
 export DCR_COMPILER=clang
 dcr build
 ```
 
-Compiler resolution priority:
+Приоритет разрешения компилятора:
 
-1. `DCR_COMPILER` (env)
-2. `DCR_CC` / `DCR_CXX` / `DCR_AS` (env)
+1. `DCR_COMPILER` (переменная среды)
+2. `DCR_CC` / `DCR_CXX` / `DCR_AS` (переменная среды)
 3. `[toolchain]` (dcr.toml)
 4. `build.compiler` (dcr.toml)
 5. `PATH`
@@ -33,7 +33,7 @@ export DCR_AS=arm-linux-gnueabihf-as
 
 ## DCR_LD / DCR_AR
 
-Override linker and archiver.
+Переопределить линкер и архиватор.
 
 ```bash
 export DCR_LD=ld.lld
