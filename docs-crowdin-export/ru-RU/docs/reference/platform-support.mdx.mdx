@@ -4,7 +4,7 @@ sidebar_label: Поддержка платформ
 
 # Поддержка платформ
 
-## Target Triples
+## Тройные цели
 
 DCR нормализует target triple через `platform_triple::normalize_triple()`. Если задано имя платформы (short name), оно раскрывается в triple.
 
@@ -16,7 +16,7 @@ target/<arch>-unknown-linux-gnu/<profile>/
 
 Поддержка архитектур: `x86_64`, `aarch64`.
 
-Artifact type: ELF. Расширения: `.so` для sharedlib, `.a` для staticlib
+Тип артефакта: ELF. Расширения: `.so` для sharedlib, `.a` для staticlib
 
 ### macOS
 
@@ -36,7 +36,7 @@ target/<profile>/
 
 Поддержка архитектур: `x86_64`, `aarch64`.
 
-Extensions: `.exe` (bin), `.lib` (staticlib), `.dll` (sharedlib), `.efi` (UEFI).
+Расширения: `.exe` (бинарный файл), `.lib` (статическая библиотека), `.dll` (общая библиотека), `.efi` (UEFI).
 
 ### BSD
 
