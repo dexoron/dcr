@@ -8,7 +8,7 @@ sidebar_label: Зависимости
 
 В секции `[dependencies]` поддерживаются три формата:
 
-### String (registry)
+### Строка (реестр)
 
 ```toml
 [dependencies]
@@ -17,7 +17,7 @@ spdlog = "^1.12"
 catch2 = ">=3.0,<4.0"
 ```
 
-The version string is used as-is for registry lookup.
+Строка версии используется без изменений для поиска в реестре.
 
 ### Табличный (git)
 
@@ -35,7 +35,7 @@ fmt = { git = "https://github.com/fmtlib/fmt", tag = "10.1.1" }
 mylib = { path = "../mylib" }
 ```
 
-## Registry
+## Реестр
 
 ## RegistryDCR использует реестр пакетов для поиска зависимостей по имени.```toml
 # ~/.dcr/config.toml
@@ -50,7 +50,7 @@ name = "default"
 url = "https://index.dcr.pm"
 ```
 
-Registry priority: order in `config.toml`. Переменная `DCR_INDEX_PATH` переопределяет путь к index.json.
+Приоритет реестра: порядок в файле `config.toml`. Переменная `DCR_INDEX_PATH` переопределяет путь к index.json.
 
 ## Git-зависимости
 
@@ -59,9 +59,9 @@ Registry priority: order in `config.toml`. Переменная `DCR_INDEX_PATH`
 * `branch` — переключиться на ветку
 * `tag` — переключиться на тег
 * `rev` — переключиться на конкретный коммит
-* `features` — feature flags (parsed, but does not affect build)
+* `features` — флаги функций (проанализированы, но не влияют на сборку)
 
-Cache path: `~/.dcr/git/\<hash>/`.
+Путь к кэшу: `~/.dcr/git/\<hash>/`.
 
 ## Path-зависимости
 
@@ -77,12 +77,12 @@ mylib = { path = "../relative/path" }
 
 Файл блокировки зависимостей. Содержит точные версии, хеши и источники.
 
-Created during `dcr build` when registry dependencies are present. Автоматически обновляется при `dcr add`.
+Создаётся при выполнении команды `dcr build` при наличии зависимостей реестра. Автоматически обновляется при `dcr add`.
 
 ## Процесс резолва
 
 1. Загружаются все зависимости (registry → git → path)
-2. For path deps: recursively read their `dcr.toml`
-3. For registry deps: search `index.json`
-4. For git deps: clone to cache
+2. Для зависимостей типа «path»: рекурсивно прочитать их файлы `dcr.toml`
+3. Для зависимостей реестра: выполните поиск в файле `index.json`
+4. Для зависимостей Git: клонировать в кэш
 5. Собираются include_dirs, lib_dirs, libs для передачи компилятору
