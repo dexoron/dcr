@@ -27,32 +27,27 @@ my-app/
 name = "my-app"
 version = "0.1.0"
 type = "none"
-description=""
-author=""
-license = "GPL-3.0-or-later"
 
 [build]
 language = "c"
 standard = "c11"
 compiler = "clang"
 kind = "bin"
-
-[dependencies]
 ```
 
-## Build
+## Сборка
 
 ```bash
 dcr build
 ```
 
-Output — `target/\<triple>/debug/my-app` (Linux) or `target/debug/my-app.exe` (Windows).
+Результат — `target/\<triple>/debug/my-app` (Linux) или `target/debug/my-app.exe` (Windows).
 
-Профиль:
+Профиль сборки:
 
 ```bash
-dcr build --release       # релизная сборка
-dcr build --debug         # дебажная (по умолчанию)
+dcr build --release       # release сборка
+dcr build --debug         # debug (по умолчанию)
 ```
 
 ## Запустить
@@ -63,11 +58,11 @@ dcr run
 
 Собирает (если нужно) и запускает бинарник.
 
-## First test
+## Первый тест
 
 ```bash
-dcr test --init      # create test template
-dcr test             # run tests
+dcr test --init      # создать шаблон теста
+dcr test             # запустить тесты
 ```
 
 ## Форматирование
