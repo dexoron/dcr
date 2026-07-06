@@ -1,56 +1,56 @@
 ---
-sidebar_label: Changelog
+sidebar_label: Список изменений
 ---
 
-# Changelog
+# Список изменений
 
-## 0.7.1 (2026-06-02)
+## 0.7.1 (02.06.2026)
 
 ### Добавлено:
 
-* **`--help` for all commands** — `dcr build --help`, `dcr run --help`, `dcr new --help`,
+* **`--help` для всех команд** — `dcr build --help`, `dcr run --help`, `dcr new --help`,
   `dcr init --help`, `dcr clean --help`, `dcr add --help`, `dcr fmt --help`,
   `dcr setup --help`, `dcr tree --help`, `dcr gen --help`, `dcr --update --help`,
-  `dcr test --help`. All output uses styled headers (green) and usage lines (cyan).
-* **Man pages** — 12 troff pages in `man/man1/`: `dcr.1`, `dcr-build.1`,
+  `dcr test --help`. Во всех результатах вывода используются стилизованные заголовки (зелёного цвета) и строки с информацией об использовании (голубого цвета).
+* **Справочные страницы** — 12 страниц в формате troff в каталоге `man/man1/`: `dcr.1`, `dcr-build.1`,
   `dcr-run.1`, `dcr-new.1`, `dcr-init.1`, `dcr-clean.1`, `dcr-add.1`, `dcr-test.1`,
   `dcr-gen.1`, `dcr-fmt.1`, `dcr-tree.1`, `dcr-setup.1`.
-* **Man pages in all packaging** — install.sh, install_bsd.sh, AUR PKGBUILD,
+* **Справочные страницы во всех пакетах** — install.sh, install_bsd.sh, PKGBUILD из AUR,
   Debian (cargo-deb), RPM (cargo-generate-rpm), Nix (postInstall), Homebrew
-  (resource), Snap, GitHub Release assets.
-* **Project name validation** — `dcr init` and `dcr new` now validate names before
-  creating files. Only ASCII letters, digits, `_` and `-` are allowed.
-* **`documentation` and `homepage` fields** — added to `Cargo.toml`.
-* **Release profile optimizations** — `opt-level = "z"`, LTO, `codegen-units = 1`,
-  `panic = "abort"`, `strip = true` for smaller binaries.
-* **Linux i686, armv7, riscv64 targets** — added to release workflow and install scripts.
-* **Linux musl i686, armv7 targets** — cross-compiled via zigbuild in CI.
-* **AUR packages** — `dcr-dev`, `dcr-dev-bin` publishing workflow.
-* **Snap publishing** — automated Snapcraft publishing in CI.
-* **Snap badge** — in README.
+  (ресурс), Snap, ресурсы релизов GitHub.
+* **Проверка имени проекта** — команды `dcr init` и `dcr new` теперь проверяют имена перед созданием файлов
+  . Допускаются только буквы ASCII, цифры, символы `_` и `-`.
+* **Поля `documentation` и `homepage`** — добавлены в файл `Cargo.toml`.
+* **Оптимизации профиля релиза** — `opt-level = "z"`, LTO, `codegen-units = 1`,
+  `panic = "abort"`, `strip = true` для уменьшения размера бинарных файлов.
+* **Платформы Linux i686, armv7, riscv64** — добавлены в рабочий процесс выпуска и скрипты установки.
+* **Платформы Linux musl i686 и armv7** — скомпилированы с помощью zigbuild в системе непрерывной интеграции (CI).
+* **Пакеты AUR** — рабочий процесс публикации `dcr-dev`, `dcr-dev-bin`.
+* **Публикация Snap** — автоматическая публикация Snapcraft в рамках непрерывной интеграции (CI).
+* **Значок Snap** — в файле README.
 
 ### Изменено:
 
-* **`validate_package_name` made public** — callable from CLI commands.
-* **README platform table** — reorganized: libc variants as separate OS rows,
-  removed extra columns. Linux architecture list updated.
-* **`gen.rs` no-args output** — now uses styled output instead of raw `eprintln!`.
-* **`tree.rs`, `fmt.rs`, and `setup.rs`** — now accept arguments for `--help`.
-* **README install commands** — `| bash` → `| sh` for POSIX compatibility.
+* **`validate_package_name` стал общедоступным** — его можно вызывать из команд CLI.
+* **Таблица платформы README** — реорганизована: варианты libc вынесены в отдельные строки по ОС,
+  удалены лишние столбцы. Обновлен список архитектур Linux.
+* **Вывод `gen.rs` без аргументов** — теперь используется стилизованный вывод вместо необработанного `eprintln!`.
+* **`tree.rs`, `fmt.rs` и `setup.rs`** — теперь поддерживают аргументы для опции `--help`.
+* **Команды установки из файла README** — `| bash` → `| sh` для обеспечения совместимости с POSIX.
 
 ### Исправлено:
 
-* **`dcr new \<invalid-name>` creates directory then fails** — validation now
-  happens before any file operations.
-* **`dcr init` on invalid directory name** — same fix.
-* **Man pages missing in installed packages** — now shipped in all formats.
-* **Windows drive letter false positive** — in dependency file parser.
-* **CRLF (`\r\n`) breaks dependency parser** — now handles mixed line endings.
-* **Newline after backslash not consumed** — in `parse_d_file` escape handling.
+* **`dcr new \<invalid-name>` создает каталог, а затем завершается с ошибкой** — теперь проверка
+  выполняется до начала любых операций с файлами.
+* **`dcr init` при указании недопустимого имени каталога** — то же исправление.
+* **Отсутствующие справочные страницы в установленных пакетах** — теперь поставляются во всех форматах.
+* **Ложное срабатывание по букве диска Windows** — в модуле анализа файлов зависимостей.
+* **CRLF (`\r\n`) вызывает сбой в работе парсера зависимостей** — теперь поддерживается обработка смешанных символов окончания строк.
+* **Новая строка после обратного слеша не обработана** — при обработке экранирующих символов в функции `parse_d_file`.
 
-## 0.7.0 (2026-06-01)
+## 0.7.0 (01.06.2026)
 
-### Added
+### Добавлено
 
 * **Поддержка целевых платформ OpenBSD и NetBSD** — полная маршрутизация по платформам с динамически генерируемыми тройками целевых параметров с использованием `std::env::consts::ARCH` и `std::env::consts::OS`. Затрагивает команды `build`, `run`, `clean` и модуль платформы.
 * **`src/platform/bsd.rs`** — новый специальный модуль платформы BSD, общий для FreeBSD, OpenBSD и NetBSD, предоставляющий `bin_path`, `lib_path`, `elf_path`, `efi_path` и `shared_lib_path`.
@@ -65,7 +65,7 @@ sidebar_label: Changelog
 * **Интеграционные тесты** — `build_with_target_config` (проверяет `build.target = «linux»`) и `build_with_out_dir` (проверяет настраиваемый каталог вывода).
 * **`get_build_string_with_profile` стал `pub`** — чтобы `run.rs` мог определять конфигурацию настраиваемого каталога вывода.
 
-### Changed
+### Изменено
 
 * **Изменена семантика `build.target`** — теперь строго содержит тройку целей (например, `x86_64-unknown-linux-gnu`) или короткое имя (`linux`, `macos`, `windows`). Больше не используется в качестве пользовательского каталога вывода — эта функциональность перенесена в `build.out_dir`.
 * **`build.standard` стал опциональным** — изменен с `String` на `Option\<String>`. Проверка обеспечивает только непустоту для языков, отличных от ASM. Пропускается в выводе `dcr.toml`, если пуст.
@@ -75,7 +75,7 @@ sidebar_label: Changelog
 * **Таблица совместимости README** — статус сборки/работы на FreeBSD, OpenBSD, NetBSD повышен с «сообщество/по возможности» до «официально поддерживается».
 * **Обновлена документация** — `build-section.md` описывает новые поля `build.target` и `build.out_dir`. `target-directory.md` переписан для уточнения различия.
 
-### Fixed
+### Исправлено
 
 * **stdout/stderr `dcr run` не наследуются** — вывод дочернего процесса захватывался и выводился вручную, что приводило к сбоям интерактивных программ. Исправлено путем перехода на `Command::status()`.
 * **Условие гонки в CI релиза** — задания матрицы сборки могли загружать ресурсы в релиз, который еще не существовал. Исправлено добавлением специального задания `create-release`.
