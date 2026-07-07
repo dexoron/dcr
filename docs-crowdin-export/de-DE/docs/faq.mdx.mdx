@@ -1,0 +1,81 @@
+---
+sidebar_label: FAQ
+---
+
+# FAQ
+
+## Registry not found
+
+```
+error: registry not found
+```
+
+**Solution:** Make sure `~/.dcr/config.toml` exists:
+
+```toml
+[[registry]]
+name = "default"
+url = "https://index.dcr.pm"
+```
+
+And check `DCR_INDEX_PATH`:
+
+```bash
+echo $DCR_INDEX_PATH
+```
+
+## Compiler not found
+
+```
+error: compiler not found
+```
+
+**Solution:** Ensure a compiler is installed and available in PATH.
+
+```bash
+which gcc
+which clang
+```
+
+Or specify explicitly via `[toolchain]` in `dcr.toml`.
+
+## openssl-sys build failed
+
+When building DCR from source:
+
+```
+error: failed to run custom build command for openssl-sys
+```
+
+**Solution:** Install OpenSSL development headers:
+
+```bash
+# Ubuntu/Debian
+sudo apt install libssl-dev
+
+# Fedora
+sudo dnf install openssl-devel
+
+# macOS
+brew install openssl
+```
+
+## Ctrl+C during build
+
+DCR handles SIGINT: interrupts the current compilation and exits with non-zero code.
+
+## How to create a library?
+
+See [Library Recipe](/docs/recipes/library-project).
+
+## How to cross-compile to Windows?
+
+See [Cross-Compile Recipe](/docs/recipes/cross-to-windows).
+
+## How to create a multi-package project?
+
+See [Workspace Recipe](/docs/recipes/multi-package-workspace).
+
+## Lock file
+
+`dcr.lock` is created during builds (`dcr build`) when registry dependencies are present. To force an update — delete `dcr.lock` and run `dcr build`.
