@@ -1,0 +1,31 @@
+---
+sidebar_label: Project commands (new, init)
+---
+
+# Project Commands
+
+## `dcr new \<name>`
+
+Creates a new project with a standard structure and `dcr.toml`. The `name` argument is required.
+
+Only ASCII letters, digits, underscores `_` and hyphens `-` are allowed in the project name.
+
+```bash
+dcr new my-app
+```
+
+Generates:
+
+* `dcr.toml` with basic fields
+* `src/main.c` with a `main` template
+
+## `dcr init`
+
+Initializes a DCR project in the current (empty) directory.
+
+```bash
+mkdir app && cd app
+dcr init
+```
+
+The project name is taken from the current directory name. The directory name must follow the same naming rules as `dcr new`.
