@@ -13,9 +13,9 @@ sidebar_label: Часто задаваемые вопросы
 **Решение:** Убедитесь, что файл `~/.dcr/config.toml` существует:
 
 ```toml
-[[реестр]]
-name = "default"
+[registry.default]
 url = "https://index.dcr.pm"
+priority = 1
 ```
 
 Если реестр кастомный, проверьте `DCR_INDEX_PATH`:
