@@ -33,14 +33,20 @@ type = "none"
 [build]
 inherit = true
 language = "c"
-standard = "c17"
+standard = "c11"
+workspace_only = true
 
-[workspace]
-members = [
-    { path = "lib-core" },
-    { path = "lib-utils", deps = ["lib-core"] },
-    { path = "app", deps = ["lib-core", "lib-utils"], main = true },
-]
+[workspace.lib-core]
+path = "lib-core"
+
+[workspace.lib-utils]
+path = "lib-utils"
+deps = ["lib-core"]
+
+[workspace.app]
+path = "app"
+deps = ["lib-core", "lib-utils"]
+main = true
 ```
 
 ## Пакеты
