@@ -12,7 +12,12 @@ sidebar_label: Команды проекта (new, init)
 
 ```bash
 dcr new my-app
+dcr new my-app --vcs none
 ```
+
+Flags:
+
+* `--vcs \<git|none>` — Initialize version control system (defaults to `git` if available, or `none`).
 
 Генерирует:
 
@@ -24,8 +29,12 @@ dcr new my-app
 Инициализирует проект DCR в текущем (пустом) каталоге.
 
 ```bash
-mkdir app && cd app
 dcr init
+dcr init --vcs none
 ```
+
+Flags:
+
+* `--vcs \<git|none>` — Initialize version control system (defaults to `git` if available, or `none`).
 
 Название проекта взято из имени текущего каталога. Имя каталога должно соответствовать тем же правилам именования, что и в `dcr new`.
