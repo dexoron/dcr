@@ -103,7 +103,7 @@ man dcr-build
 Чтобы использовать реестр, создайте файл `~/.dcr/config.toml`:
 
 ```toml
-[[registry]]
-name = "default"
+[registry.default]
 url = "https://index.dcr.pm"
+priority = 1
 ```
