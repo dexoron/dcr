@@ -65,3 +65,21 @@ standard = "c17"
 
 # member inherits language and standard
 ```
+
+## Workspace-only root (no build of its own)
+
+A workspace root can set `workspace_only = true` — it won't be built itself, and doesn't need `language` or `compiler`:
+
+```toml
+[package]
+name = "my-workspace"
+version = "0.1.0"
+
+[build]
+workspace_only = true
+kind = "bin"
+
+[workspace]
+lib-core = { path = "lib-core" }
+app = { path = "app", deps = ["lib-core"] }
+```
