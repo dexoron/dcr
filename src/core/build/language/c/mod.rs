@@ -15,10 +15,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-pub mod build;
-pub mod build_config;
-pub mod deps;
-pub mod registry;
-pub mod runner;
-pub mod vcs;
-pub mod workspace;
+use crate::core::build::language::Language;
+
+pub struct C;
+
+impl Language for C {
+    fn id(&self) -> &'static str {
+        "c"
+    }
+    fn extensions(&self) -> &'static [&'static str] {
+        &["c"]
+    }
+    fn matches_token(&self, token: &str) -> bool {
+        token.eq_ignore_ascii_case("c")
+    }
+}

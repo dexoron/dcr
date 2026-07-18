@@ -15,10 +15,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-pub mod build;
-pub mod build_config;
-pub mod deps;
-pub mod registry;
-pub mod runner;
-pub mod vcs;
-pub mod workspace;
+pub mod builder;
+pub mod cache;
+pub mod common;
+pub mod engine;
+pub mod language;
+pub mod report;
+pub mod resolve;
+pub mod steps;
+
+pub use engine::run_build;
+pub use report::{BuildEvent, BuildReporter, BuildRequest};
+pub use resolve::get_build_string_with_profile;

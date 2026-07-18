@@ -6,3 +6,5 @@ sandbox/**
 .env
 
 personal/
+.*
+!.gitignore

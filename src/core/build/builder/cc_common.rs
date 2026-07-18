@@ -15,9 +15,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::core::builder::BuildContext;
-use crate::core::builder::common;
-use crate::platform;
+use crate::core::build::builder::BuildContext;
+use crate::core::build::builder::artifact;
+use crate::core::build::common;
 use crate::utils::build::is_bare_metal_target;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -36,7 +36,7 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
         None => Path::new("./target").join(ctx.profile).join("obj"),
     };
     let qt_include_path = if ctx.qt {
-        crate::core::builder::qt::process_qt(ctx, &obj_dir)?
+        crate::core::build::language::cxx::qt::process_qt(ctx, &obj_dir)?
     } else {
         None
     };
@@ -56,93 +56,10 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     let objects = build_objects(compiler, &sources, &obj_dir, ctx, "o", qt_include_path)?;
 
     if ctx.kind == "staticlib" {
-        let lib_path = platform::lib_path(ctx.profile, ctx.project_name, ctx.target_dir);
-        if !common::needs_link(&objects, &lib_path) {
-            let elapsed = common::elapsed_secs(start_time);
-            return Ok(elapsed);
-        }
-        let mut cmd = Command::new(ctx.archiver.unwrap_or("ar"));
-        cmd.arg("rcs").arg(&lib_path);
-        for obj in &objects {
-            cmd.arg(obj);
-        }
-        if ctx.verbose || std::env::var("DCR_DEBUG").is_ok() {
-            eprintln!("[dcr] {:?}", cmd);
-        }
-        match cmd.status() {
-            Ok(status) if status.success() => {
-                let elapsed = common::elapsed_secs(start_time);
-                return Ok(elapsed);
-            }
-            Ok(_) => return Err("Build failed".to_string()),
-            Err(err) => return Err(format!("Build failed: {err}")),
-        }
+        return artifact::archive_static(ctx, &objects, start_time);
     }
 
-    let mut cmd = Command::new(ctx.linker.unwrap_or(compiler));
-    if ctx.kind == "sharedlib" {
-        if cfg!(target_os = "macos") {
-            cmd.arg("-dynamiclib");
-        } else {
-            cmd.arg("-shared");
-        }
-    }
-    if ctx.kind == "efi" {
-        cmd.arg("-shared");
-        cmd.arg("-nostdlib");
-        cmd.arg("-Wl,-dll");
-        cmd.arg("-Wl,--subsystem,10");
-    } else if ctx.freestanding || is_bare_metal_target(ctx.target) {
-        cmd.arg("-nostdlib");
-        cmd.arg("-static");
-    }
-    for obj in &objects {
-        cmd.arg(obj);
-    }
-    for dir in ctx.lib_dirs {
-        cmd.arg(format!("-L{dir}"));
-    }
-    for lib in ctx.libs {
-        cmd.arg(format!("-l{lib}"));
-    }
-    for flag in ctx.ldflags {
-        cmd.arg(flag);
-    }
-    let name = ctx.output_filename.unwrap_or(ctx.project_name);
-    let ext = ctx.output_extension.unwrap_or("");
-    let final_name = if ext.is_empty() {
-        name.to_string()
-    } else {
-        format!("{}.{}", name, ext)
-    };
-
-    let out_path = if ctx.kind == "sharedlib" {
-        platform::shared_lib_path(ctx.profile, &final_name, ctx.target_dir)
-    } else if ctx.kind == "efi" {
-        platform::efi_path(ctx.profile, &final_name, ctx.target_dir)
-    } else if ctx.kind == "elf" {
-        platform::elf_path(ctx.profile, &final_name, ctx.target_dir)
-    } else {
-        platform::bin_path(ctx.profile, &final_name, ctx.target_dir)
-    };
-
-    if !common::needs_link(&objects, &out_path) {
-        let elapsed = common::elapsed_secs(start_time);
-        return Ok(elapsed);
-    }
-    cmd.arg("-o").arg(out_path);
-
-    if ctx.verbose || std::env::var("DCR_DEBUG").is_ok() {
-        eprintln!("[dcr] {:?}", cmd);
-    }
-    match cmd.status() {
-        Ok(status) if status.success() => {
-            let elapsed = common::elapsed_secs(start_time);
-            Ok(elapsed)
-        }
-        Ok(_) => Err("Build failed".to_string()),
-        Err(err) => Err(format!("Build failed: {err}")),
-    }
+    artifact::link_binary(ctx, &objects, compiler, start_time)
 }
 
 pub(crate) fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String> {
@@ -156,7 +73,7 @@ pub(crate) fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String>
 }
 
 fn source_extensions(language: &str) -> Vec<&'static str> {
-    crate::core::builder::common::source_extensions(language)
+    crate::core::build::common::source_extensions(language)
 }
 
 fn default_flags(profile: &str) -> &'static [&'static str] {
@@ -288,5 +205,5 @@ fn build_object(
 }
 
 fn asm_lang_flag(source: &str) -> Option<&'static str> {
-    crate::core::builder::common::asm_lang_flag(source)
+    crate::core::build::common::asm_lang_flag(source)
 }

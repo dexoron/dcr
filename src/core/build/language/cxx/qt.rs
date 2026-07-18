@@ -15,8 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::core::builder::BuildContext;
-use crate::core::builder::common;
+use crate::core::build::builder::BuildContext;
+use crate::core::build::common;
 use crate::utils::build::run_pkg_config;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -34,14 +34,12 @@ pub fn process_qt(ctx: &BuildContext, build_dir: &Path) -> Result<Option<PathBuf
         ctx.include_paths,
     )?;
 
-    // Fetch Qt system include paths and defines for MOC
     let mut qt_moc_args = Vec::new();
     let qt_modules = vec!["Qt6Core", "Qt6Widgets", "Qt6Gui", "Qt6Svg"];
 
     for module in qt_modules {
         if let Ok(cflags) = run_pkg_config(module, "--cflags") {
             for flag in cflags.split_whitespace() {
-                // Pass both -I and -D flags to moc
                 if flag.starts_with("-I") || flag.starts_with("-D") {
                     qt_moc_args.push(flag.to_string());
                 }
@@ -96,12 +94,10 @@ pub fn process_qt(ctx: &BuildContext, build_dir: &Path) -> Result<Option<PathBuf
 
                         let mut moc_args = Vec::new();
 
-                        // Add Qt system cflags (includes + defines)
                         for arg in &qt_moc_args {
                             moc_args.push(arg.as_str());
                         }
 
-                        // Add project include paths
                         for inc in ctx.include_paths.iter().chain(ctx.include_dirs.iter()) {
                             moc_args.push("-I");
                             moc_args.push(inc);

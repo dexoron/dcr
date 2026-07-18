@@ -15,10 +15,20 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-pub mod build;
-pub mod build_config;
-pub mod deps;
-pub mod registry;
-pub mod runner;
-pub mod vcs;
-pub mod workspace;
+pub mod qt;
+
+use crate::core::build::language::Language;
+
+pub struct Cxx;
+
+impl Language for Cxx {
+    fn id(&self) -> &'static str {
+        "cxx"
+    }
+    fn extensions(&self) -> &'static [&'static str] {
+        &["cpp", "cxx", "cc"]
+    }
+    fn matches_token(&self, token: &str) -> bool {
+        matches!(token.to_lowercase().as_str(), "c++" | "cpp" | "cxx")
+    }
+}

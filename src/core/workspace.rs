@@ -50,7 +50,6 @@ pub fn parse_workspace(
     root: &Path,
 ) -> Result<Option<Workspace>, String> {
     let mut table = None;
-    // Order: workspace.target.profile, workspace.profile.target, workspace.target, workspace.profile, workspace
     let combinations = if let Some(t) = target {
         let normalized_t = normalize_target_os(t);
         vec![

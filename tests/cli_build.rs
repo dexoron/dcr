@@ -17,6 +17,48 @@ fn init_and_clean_remove_target() {
 }
 
 #[test]
+fn add_preserves_run_and_untyped_keys() {
+    // Regression: `dcr add` used to drop the [run] section and non-whitelisted
+    // [build] keys (filename/extension/include) when re-serializing dcr.toml.
+    let dir = unique_sandbox_dir("preserve_add");
+    let out = run_dcr(&["init"], &dir);
+    assert!(out.status.success(), "dcr init should succeed");
+
+    let toml_path = dir.join("dcr.toml");
+    let toml = std::fs::read_to_string(&toml_path).expect("failed to read dcr.toml");
+    let updated = toml.replace(
+        "[build]",
+        "[build]\nfilename = \"KERNEL\"\nextension = \"ELF\"\ninclude = [\"src/include\"]",
+    ) + "\n[run]\ncmd = \"qemu-system-aarch64 -kernel KERNEL\"\n";
+    std::fs::write(&toml_path, updated).expect("failed to write dcr.toml");
+
+    let out = run_dcr(&["add", "zlib", "path:../zlib"], &dir);
+    assert!(out.status.success(), "dcr add should succeed");
+
+    let saved = std::fs::read_to_string(&toml_path).expect("failed to read dcr.toml");
+    assert!(
+        saved.contains("filename = \"KERNEL\""),
+        "build.filename lost:\n{saved}"
+    );
+    assert!(
+        saved.contains("extension = \"ELF\""),
+        "build.extension lost:\n{saved}"
+    );
+    assert!(
+        saved.contains("include = [\"src/include\"]"),
+        "build.include lost:\n{saved}"
+    );
+    assert!(
+        saved.contains("[run]") && saved.contains("qemu-system-aarch64"),
+        "[run] section lost:\n{saved}"
+    );
+    assert!(
+        saved.contains("zlib = { path = \"../zlib\" }"),
+        "dependency not added as inline table:\n{saved}"
+    );
+}
+
+#[test]
 fn build_run_clean_flags_normal_project() {
     let Some(compiler) = available_compiler() else {
         eprintln!("no compiler found; skipping build/run test");
