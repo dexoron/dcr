@@ -13,9 +13,9 @@ error: registry not found
 **Solution:** Make sure `~/.dcr/config.toml` exists:
 
 ```toml
-[[registry]]
-name = "default"
+[registry.default]
 url = "https://index.dcr.pm"
+priority = 1
 ```
 
 And check `DCR_INDEX_PATH`:
