@@ -55,6 +55,10 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     )?;
     let objects = build_objects(compiler, &sources, &obj_dir, ctx, "o", qt_include_path)?;
 
+    if ctx.kind == "none" || ctx.kind == "custom" {
+        return Ok(common::elapsed_secs(start_time));
+    }
+
     if ctx.kind == "staticlib" {
         return artifact::archive_static(ctx, &objects, start_time);
     }

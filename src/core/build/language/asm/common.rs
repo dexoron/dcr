@@ -51,6 +51,10 @@ where
     };
     let objects = build_objects_common(assembler, &sources, &obj_dir, ctx, &build_object)?;
 
+    if ctx.kind == "none" || ctx.kind == "custom" {
+        return Ok(common::elapsed_secs(start_time));
+    }
+
     if ctx.kind == "staticlib" {
         return artifact::archive_static(ctx, &objects, start_time);
     }

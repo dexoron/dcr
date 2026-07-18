@@ -41,6 +41,10 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     };
     let objects = build_objects(compiler, &sources, &obj_dir, ctx, "obj")?;
 
+    if ctx.kind == "none" || ctx.kind == "custom" {
+        return Ok(common::elapsed_secs(start_time));
+    }
+
     if ctx.kind == "staticlib" {
         let lib_path = platform::lib_path(ctx.profile, ctx.project_name, ctx.target_dir);
         if !common::needs_link(&objects, &lib_path) {
