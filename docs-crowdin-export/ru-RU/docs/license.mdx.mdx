@@ -10,36 +10,23 @@ DCR itself is [GPL-3.0-or-later](https://spdx.org/licenses/GPL-3.0-or-later.html
 
 > **Note:** DCR is a build tool, not a library. The GPL applies only to DCR's own source code. Projects built with DCR are not subject to DCR's license — their licensing is determined solely by their own code and dependencies.
 
-## Vendored libraries
-
-DCR statically links the following C libraries through its vendored Rust dependencies:
-
-| Library                                    | License            | Bundled by                    |
-| ------------------------------------------ | ------------------ | ----------------------------- |
-| [libgit2](https://libgit2.org)             | MIT OR Apache-2.0  | `git2` / `libgit2-sys`        |
-| [libssh2](https://libssh2.org)             | MIT OR Apache-2.0  | `libgit2-sys`                 |
-| [zlib](https://zlib.net)                   | MIT OR Apache-2.0  | `libgit2-sys`                 |
-| [OpenSSL](https://openssl.org)             | Apache-2.0         | `openssl-sys` / `openssl-src` |
-| [ring](https://github.com/briansmith/ring) | Apache-2.0 AND ISC | `rustls`                      |
-
 ## Rust dependencies
 
 DCR is written in Rust. The following notable Rust crates are statically linked:
 
-| Crate                                         | License                  |
-| --------------------------------------------- | ------------------------ |
-| [`reqwest`](https://crates.io/crates/reqwest) | MIT OR Apache-2.0        |
-| [`rustls`](https://crates.io/crates/rustls)   | Apache-2.0 OR ISC OR MIT |
-| [`serde`](https://crates.io/crates/serde)     | MIT OR Apache-2.0        |
-| [`toml`](https://crates.io/crates/toml)       | MIT OR Apache-2.0        |
-| [`sha2`](https://crates.io/crates/sha2)       | MIT OR Apache-2.0        |
-| [`git2`](https://crates.io/crates/git2)       | MIT OR Apache-2.0        |
-| [`openssl`](https://crates.io/crates/openssl) | Apache-2.0               |
-| [`tokio`](https://crates.io/crates/tokio)     | MIT                      |
-| [`hyper`](https://crates.io/crates/hyper)     | MIT                      |
-| [`ctrlc`](https://crates.io/crates/ctrlc)     | MIT OR Apache-2.0        |
+| Crate                                                   | License           |
+| ------------------------------------------------------- | ----------------- |
+| [`ureq`](https://crates.io/crates/ureq)                 | MIT OR Apache-2.0 |
+| [`serde`](https://crates.io/crates/serde)               | MIT OR Apache-2.0 |
+| [`toml`](https://crates.io/crates/toml)                 | MIT OR Apache-2.0 |
+| [`toml_edit`](https://crates.io/crates/toml_edit)       | MIT OR Apache-2.0 |
+| [`serde_json`](https://crates.io/crates/serde_json)     | MIT OR Apache-2.0 |
+| [`sha2`](https://crates.io/crates/sha2)                 | MIT OR Apache-2.0 |
+| [`glob`](https://crates.io/crates/glob)                 | MIT OR Apache-2.0 |
+| [`self-replace`](https://crates.io/crates/self-replace) | MIT OR Apache-2.0 |
+| [`ctrlc`](https://crates.io/crates/ctrlc)               | MIT OR Apache-2.0 |
 
-Full dependency tree (143 packages) is available in [`Cargo.lock`](https://github.com/dexoron/dcr/blob/main/Cargo.lock). The overwhelming majority are dual-licensed under MIT OR Apache-2.0.
+Full dependency tree is available in [`Cargo.lock`](https://github.com/dexoron/dcr/blob/main/Cargo.lock). The overwhelming majority are dual-licensed under MIT OR Apache-2.0.
 
 ## Additional credits
 
