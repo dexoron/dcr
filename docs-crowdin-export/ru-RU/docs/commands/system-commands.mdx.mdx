@@ -15,9 +15,9 @@ dcr setup
 Если файл `~/.dcr/config.toml` не найден, DCR возвращает ошибку. Создайте его вручную:
 
 ```toml
-[[registry]]
-name = "default"
+[registry.default]
 url = "https://index.dcr.pm"
+priority = 1
 ```
 
 ## `dcr --help`
