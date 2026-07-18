@@ -15,9 +15,9 @@ dcr setup
 If `~/.dcr/config.toml` is not found, DCR returns an error. Create it manually:
 
 ```toml
-[[registry]]
-name = "default"
+[registry.default]
 url = "https://index.dcr.pm"
+priority = 1
 ```
 
 ## `dcr --help`
