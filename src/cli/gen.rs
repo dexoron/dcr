@@ -15,10 +15,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::core::build::builder::BuildContext;
+use crate::core::build::builder::collect_sources;
+use crate::core::build::common;
 use crate::core::build_config::Config;
-use crate::core::builder::BuildContext;
-use crate::core::builder::collect_sources;
-use crate::core::builder::common;
 use crate::core::workspace::parse_workspace;
 use crate::utils::build::{
     get_bool_with_profile, get_config_opt, get_config_str, get_language_with_profile_or_default,

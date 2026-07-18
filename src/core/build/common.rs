@@ -58,9 +58,10 @@ fn collect_sources_rec(
     if is_excluded(&full_dir, exclude_dirs, include_paths) && include_paths.is_empty() {
         return Ok(());
     }
-    let entries = fs::read_dir(&full_dir).map_err(|err| format!("src dir error: {err}"))?;
+    let entries = fs::read_dir(&full_dir)
+        .map_err(|err| format!("src dir error for {:?}: {err}", full_dir))?;
     for entry in entries {
-        let entry = entry.map_err(|err| format!("src dir error: {err}"))?;
+        let entry = entry.map_err(|err| format!("src dir error for {:?}: {err}", full_dir))?;
         let path = entry.path();
         if path.is_dir() {
             if is_excluded(&path, exclude_dirs, include_paths) && include_paths.is_empty() {
@@ -177,12 +178,8 @@ pub fn asm_lang_flag(source: &str) -> Option<&'static str> {
 pub fn source_extensions(language: &str) -> Vec<&'static str> {
     let mut out = Vec::new();
     for part in language.split(',').map(|s| s.trim()) {
-        let lang = part.to_lowercase();
-        match lang.as_str() {
-            "c" => out.extend(["c"]),
-            "c++" | "cpp" | "cxx" => out.extend(["cpp", "cxx", "cc"]),
-            "asm" => out.extend(["s", "S", "asm"]),
-            _ => {}
+        if let Some(lang) = crate::core::build::language::language_for_token(part) {
+            out.extend(lang.extensions().iter().copied());
         }
     }
     if out.is_empty() {
@@ -331,7 +328,7 @@ pub fn needs_rebuild(source: &str, object: &str) -> bool {
                     return true;
                 }
             } else {
-                return true; // Missing dependency triggers rebuild
+                return true;
             }
         }
     }
@@ -537,7 +534,6 @@ mod tests {
         let src = dir.join("test.c");
         let obj = dir.join("test.o");
         fs::write(&src, "int main() {}").unwrap();
-        // Sleep briefly to ensure mtime difference
         std::thread::sleep(std::time::Duration::from_millis(50));
         fs::write(&obj, "").unwrap();
         assert!(!needs_rebuild(

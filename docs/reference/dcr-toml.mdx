@@ -41,7 +41,7 @@ Main project configuration file. Located at the project root.
 |-------|----------|-------------|
 | `name` | yes | Project name |
 | `version` | yes | Semantic version |
-| `type` | yes | `app`, `lib`, `none` |
+| `type` | no | `app`, `lib`, `none` (defaults to `"none"`) |
 | `license` | no | SPDX license identifier |
 | `author` | no | Author |
 
@@ -62,10 +62,10 @@ author = "John Doe"
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `language` | `"c"` | `"c"`, `"c++"`, `"cpp"`, `"cxx"`, `"asm"` |
+| `language` | `"c"` | `"c"`, `"c++"`, `"cpp"`, `"cxx"`, `"asm"` (optional, defaults to `"c"`) |
 | `standard` | `"c11"` | C standard (`c11`, `c17`, `c23`) |
-| `cxx_standard` | `"c++20"` | C++ standard (`c++17`, `c++20`, `c++23`) |
-| `compiler` | `"clang"` | Preferred compiler |
+| `cxx_standard` | — | C++ standard (`c++17`, `c++20`, `c++23`) |
+| `compiler` | `"clang"` | Preferred compiler (optional, defaults to `"clang"`) |
 | `kind` | `"bin"` | `bin`, `staticlib`, `sharedlib`, `efi`, `elf`, `none`, `custom` |
 | `target` | host | Target triple for cross-compilation |
 | `platform` | `"native"` | `native`, `efi` |
@@ -80,13 +80,13 @@ author = "John Doe"
 | `inherit` | `false` | Inherit build from workspace root |
 | `clean` | `[]` | Glob patterns for custom clean paths |
 | `out_dir` | `""` | Custom output directory |
-| `workspace_only` | `false` | Workspace-only, not built standalone |
+| `workspace_only` | `false` | Workspace-only, not built standalone (no `language`/`compiler` required) |
 | `freestanding` | `false` | Compile in freestanding mode (`-ffreestanding` + `-nostdlib -static`) |
-| `opt_level` | `"0"` (debug) / `"3"` (release) | Optimization level: `0`-`3`, `"s"`, `"z"` |
-| `debug` | `true` (debug) / `false` (release) | Emit debug symbols (`-g`) |
+| `opt_level` | — | Optimization level: `0`-`3`, `"s"`, `"z"` (derived from profile if omitted) |
+| `debug` | profile-based | Emit debug symbols (`-g`): `true` in debug, `false` in release |
 | `lto` | `false` | Link-time optimization (`-flto` for both compiler and linker) |
 | `strip` | `false` | Strip symbols from output (`-s` in ldflags) |
-| `warnings` | `["all", "extra"]` (debug) / `[]` (release) | Warning flags (e.g. `"all"`, `"extra"`, `"pedantic"`) |
+| `warnings` | `[]` | Warning flags (e.g. `"all"`, `"extra"`, `"pedantic"`); engine adds `-Wall -Wextra` in debug if empty |
 | `panic` | `""` | Panic strategy: `"abort"` disables exceptions and unwind tables |
 | `codegen-units` | `""` | Max parallel compilation jobs (`"0"` = auto) |
 | `qt` | `false` | Enable automatic Qt meta-object handling (MOC, UIC, RCC) |
@@ -95,6 +95,30 @@ Settings from raw config (not in typed struct):
 - `pkg_config` — list of pkg-config packages
 - `ldscript` — linker script path
 - `build.steps` / `build.post_steps` — codegen steps
+
+## Per-language overrides: `[build.c]`, `[build.cxx]`, `[build.asm]`
+
+Each language can have its own table that overrides the flat `[build]` settings:
+
+```toml
+[build]
+compiler = "clang"
+standard = "c11"
+
+[build.c]
+standard = "c23"
+compiler = "gcc"
+
+[build.cxx]
+standard = "c++23"
+compiler = "g++"
+
+[build.asm]
+compiler = "nasm"
+flags = ["-felf64"]
+```
+
+The flat `[build]` acts as fallback; per-language tables take precedence for their language.
 
 Example:
 

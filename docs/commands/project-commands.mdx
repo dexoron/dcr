@@ -12,7 +12,11 @@ Only ASCII letters, digits, underscores `_` and hyphens `-` are allowed in the p
 
 ```bash
 dcr new my-app
+dcr new my-app --vcs none
 ```
+
+Flags:
+- `--vcs <git|none>` — Initialize version control system (defaults to `git` if available, or `none`).
 
 Generates:
 - `dcr.toml` with basic fields
@@ -23,8 +27,11 @@ Generates:
 Initializes a DCR project in the current (empty) directory.
 
 ```bash
-mkdir app && cd app
 dcr init
+dcr init --vcs none
 ```
+
+Flags:
+- `--vcs <git|none>` — Initialize version control system (defaults to `git` if available, or `none`).
 
 The project name is taken from the current directory name. The directory name must follow the same naming rules as `dcr new`.

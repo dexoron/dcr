@@ -15,10 +15,24 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-pub mod build;
-pub mod build_config;
-pub mod deps;
-pub mod registry;
-pub mod runner;
-pub mod vcs;
-pub mod workspace;
+pub mod common;
+pub mod fasm;
+pub mod gas;
+pub mod masm;
+pub mod nasm;
+
+use crate::core::build::language::Language;
+
+pub struct Asm;
+
+impl Language for Asm {
+    fn id(&self) -> &'static str {
+        "asm"
+    }
+    fn extensions(&self) -> &'static [&'static str] {
+        &["s", "S", "asm"]
+    }
+    fn matches_token(&self, token: &str) -> bool {
+        token.eq_ignore_ascii_case("asm")
+    }
+}

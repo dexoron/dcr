@@ -218,7 +218,14 @@ fn run_project(
         return Err("Cannot run library build".to_string());
     }
 
-    let build_status = build(&args_for_build(flags));
+    let build_status = if let Some(wroot) = workspace_root {
+        with_dir(wroot, || {
+            Ok(build(&args_for_workspace_build(flags, project_name)))
+        })
+        .unwrap_or(1)
+    } else {
+        build(&args_for_build(flags))
+    };
     let bin_path = crate::platform::bin_path(
         &flags.profile,
         project_name,
@@ -265,6 +272,36 @@ fn args_for_build(flags: &crate::cli::flags::BuildRunFlags) -> Vec<String> {
     if let Some(ref name) = flags.workspace {
         args.push("--workspace".to_string());
         args.push(name.clone());
+    }
+    if flags.force {
+        args.push("--force".to_string());
+    }
+    if flags.clean {
+        args.push("--clean".to_string());
+    }
+    if flags.verbose {
+        args.push("--verbose".to_string());
+    }
+    args
+}
+
+fn args_for_workspace_build(
+    flags: &crate::cli::flags::BuildRunFlags,
+    member_name: &str,
+) -> Vec<String> {
+    let mut args = Vec::new();
+    args.push(format!("--{}", flags.profile));
+    if let Some(ref target) = flags.target {
+        args.push("--target".to_string());
+        args.push(target.clone());
+    }
+    args.push("--workspace".to_string());
+    args.push(member_name.to_string());
+    if flags.force {
+        args.push("--force".to_string());
+    }
+    if flags.clean {
+        args.push("--clean".to_string());
     }
     if flags.verbose {
         args.push("--verbose".to_string());

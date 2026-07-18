@@ -41,23 +41,21 @@ DCR uses a package registry for dependency lookup by name.
 
 ```toml
 # ~/.dcr/config.toml
-[[registry]]
-name = "default"
+[registry.default]
 url = "https://index.dcr.pm"
+priority = 1
 ```
 
 Registry priority: order in `config.toml`. The `DCR_INDEX_PATH` variable overrides the path to `index.json`.
 
 ## Git dependencies
 
-DCR clones git repositories via `git2`:
+Git dependencies are parsed and recorded in `dcr.lock`. DCR supports specifying branch/tag/rev for git sources:
 
 - `branch` — switch to a branch
 - `tag` — switch to a tag
 - `rev` — switch to a specific commit
 - `features` — feature flags (parsed, but does not affect build)
-
-Cache path: `~/.dcr/git/<hash>/`.
 
 ## Path dependencies
 

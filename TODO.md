@@ -23,8 +23,8 @@ Priority list of tasks to turn DCR into a true Cargo killer for C/C++ developers
 
 - [ ] **Static analysis** (`dcr check`)  
   Integration with clang-tidy, cppcheck, include-what-you-use
-- [-] **Linter + Formatter** (`dcr fmt`, `dcr lint`)  
-  *`dcr fmt` (clang-format) implemented; `dcr lint` does not exist yet*
+- [x] **Linter + Formatter** (`dcr fmt`, `dcr lint`)  
+  *`dcr fmt` (clang-format) and `dcr lint` (clang-tidy) are implemented*
 - [ ] **Hot reload / Live reload** for applications (raylib, SFML, SDL, etc.)
 - [-] **Workspaces improvements** Per-member include directories, selective builds, better dependency graph  
   *Basic workspaces with dep ordering + topological sort work; advanced features missing*

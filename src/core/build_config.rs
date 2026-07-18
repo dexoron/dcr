@@ -21,6 +21,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use toml::Value;
 use toml::map::Map;
+use toml_edit::{DocumentMut, Item, Table};
 
 const DEFAULT_VERSION: &str = "0.1.0";
 const DEFAULT_LANGUAGE: &str = "c";
@@ -42,6 +43,7 @@ pub enum ConfigError {
     Io(std::io::Error),
     TomlDe(toml::de::Error),
     TomlSer(toml::ser::Error),
+    TomlEdit(toml_edit::TomlError),
     Invalid(String),
 }
 
@@ -51,6 +53,7 @@ impl std::fmt::Display for ConfigError {
             ConfigError::Io(err) => write!(f, "I/O error: {err}"),
             ConfigError::TomlDe(err) => write!(f, "TOML parse error: {err}"),
             ConfigError::TomlSer(err) => write!(f, "TOML serialize error: {err}"),
+            ConfigError::TomlEdit(err) => write!(f, "TOML parse error: {err}"),
             ConfigError::Invalid(msg) => write!(f, "Invalid config: {msg}"),
         }
     }
@@ -80,6 +83,10 @@ pub struct Config {
     path: PathBuf,
     data: Value,
     typed: DcrConfig,
+    /// Editable document mirror of `data`, used for serialization. It preserves
+    /// comments, formatting, and any keys not modeled by the typed/raw views, so
+    /// `save()` never drops unknown sections (e.g. `[run]`, `[[build.post_steps]]`).
+    doc: DocumentMut,
 }
 
 #[allow(dead_code)]
@@ -105,14 +112,24 @@ pub struct PackageConfig {
     pub pkg_type: Option<String>,
 }
 
+fn default_language() -> LanguageConfig {
+    LanguageConfig::One(DEFAULT_LANGUAGE.to_string())
+}
+
+fn default_compiler() -> String {
+    DEFAULT_COMPILER.to_string()
+}
+
 #[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct BuildConfig {
+    #[serde(default = "default_language")]
     pub language: LanguageConfig,
     #[serde(default)]
     pub standard: Option<String>,
     #[serde(default)]
     pub cxx_standard: Option<String>,
+    #[serde(default = "default_compiler")]
     pub compiler: String,
     #[serde(default)]
     pub kind: Option<String>,
@@ -182,20 +199,29 @@ pub struct WorkspaceMemberConfig {
     pub path: String,
     #[serde(default)]
     pub deps: Vec<String>,
+    #[serde(default)]
+    pub main: Option<bool>,
 }
 
 impl Config {
     pub fn new(path: &str) -> Result<Self, ConfigError> {
         let path = PathBuf::from(path);
-        let data = if path.exists() {
-            read_toml(&path)?
+        let (data, doc) = if path.exists() {
+            load_parts(&path)?
         } else {
-            let default_value = default_toml()?;
-            write_toml(&path, &default_value)?;
-            default_value
+            let content = default_toml_text();
+            let doc: DocumentMut = content.parse().map_err(ConfigError::TomlEdit)?;
+            fs::write(&path, doc.to_string())?;
+            let data: Value = toml::from_str(&content)?;
+            (data, doc)
         };
         let typed = parse_typed_config(&data)?;
-        let cfg = Self { path, data, typed };
+        let cfg = Self {
+            path,
+            data,
+            typed,
+            doc,
+        };
         cfg.validate()?;
         Ok(cfg)
     }
@@ -205,9 +231,14 @@ impl Config {
         if !path.exists() {
             return Err(ConfigError::Invalid("dcr.toml not found".into()));
         }
-        let data = read_toml(&path)?;
+        let (data, doc) = load_parts(&path)?;
         let typed = parse_typed_config(&data)?;
-        let cfg = Self { path, data, typed };
+        let cfg = Self {
+            path,
+            data,
+            typed,
+            doc,
+        };
         cfg.validate()?;
         Ok(cfg)
     }
@@ -347,6 +378,13 @@ impl Config {
             .as_ref()
             .ok_or_else(|| ConfigError::Invalid("missing [build] section (required)".into()))?;
 
+        // For workspace_only projects, [build] section is optional
+        // and language/compiler are not required
+        if build.workspace_only {
+            self.validate_workspace()?;
+            return Ok(());
+        }
+
         if pkg.name.trim().is_empty() {
             return Err(ConfigError::Invalid("package.name is empty".into()));
         }
@@ -421,22 +459,35 @@ impl Config {
     }
 
     pub fn save(&self) -> Result<(), ConfigError> {
-        write_toml(&self.path, &self.data)
+        fs::write(&self.path, self.doc.to_string())?;
+        Ok(())
     }
 
     fn set(&mut self, key: &str, value: Value) -> Result<(), ConfigError> {
         let parts: Vec<&str> = key.split('.').collect();
-        let previous = self.data.clone();
-        set_path(&mut self.data, &parts, value)?;
+        let previous_data = self.data.clone();
+        let previous_doc = self.doc.clone();
+
+        if let Err(err) = set_doc_path(&mut self.doc, &parts, &value) {
+            self.doc = previous_doc;
+            return Err(err);
+        }
+        if let Err(err) = set_path(&mut self.data, &parts, value) {
+            self.data = previous_data;
+            self.doc = previous_doc;
+            return Err(err);
+        }
         self.typed = match parse_typed_config(&self.data) {
             Ok(typed) => typed,
             Err(err) => {
-                self.data = previous;
+                self.data = previous_data;
+                self.doc = previous_doc;
                 return Err(err);
             }
         };
         if let Err(err) = self.validate() {
-            self.data = previous;
+            self.data = previous_data;
+            self.doc = previous_doc;
             self.typed = parse_typed_config(&self.data)?;
             return Err(err);
         }
@@ -658,235 +709,119 @@ impl Config {
     }
 }
 
-fn read_toml(path: &Path) -> Result<Value, ConfigError> {
+fn load_parts(path: &Path) -> Result<(Value, DocumentMut), ConfigError> {
     let content = fs::read_to_string(path)?;
-    Ok(toml::from_str(&content)?)
+    let data: Value = toml::from_str(&content)?;
+    let doc: DocumentMut = content.parse().map_err(ConfigError::TomlEdit)?;
+    Ok((data, doc))
 }
 
-fn write_toml(path: &Path, value: &Value) -> Result<(), ConfigError> {
-    let content = format_toml(value)?;
-    fs::write(path, content)?;
-    Ok(())
-}
-
-fn default_toml() -> Result<Value, ConfigError> {
+fn default_toml_text() -> String {
     let name = std::env::current_dir()
         .ok()
         .and_then(|p| p.file_name().map(|v| v.to_string_lossy().to_string()))
         .unwrap_or_else(|| "project".to_string());
 
-    let mut package = Map::new();
-    package.insert("name".to_string(), Value::String(name));
-    package.insert(
-        "version".to_string(),
-        Value::String(DEFAULT_VERSION.to_string()),
-    );
-    package.insert("type".to_string(), Value::String("none".to_string()));
-    package.insert("description".to_string(), Value::String("".to_string()));
-    package.insert("author".to_string(), Value::String("".to_string()));
-    package.insert(
-        "license".to_string(),
-        Value::String("GPL-3.0-or-later".to_string()),
-    );
-
-    let mut build = Map::new();
-    build.insert(
-        "language".to_string(),
-        Value::String(DEFAULT_LANGUAGE.to_string()),
-    );
-    build.insert(
-        "standard".to_string(),
-        Value::String(DEFAULT_STANDARD.to_string()),
-    );
-    build.insert(
-        "compiler".to_string(),
-        Value::String(DEFAULT_COMPILER.to_string()),
-    );
-    build.insert("kind".to_string(), Value::String(DEFAULT_KIND.to_string()));
-
-    let mut root = Map::new();
-    root.insert("package".to_string(), Value::Table(package));
-    root.insert("build".to_string(), Value::Table(build));
-    root.insert("dependencies".to_string(), Value::Table(Map::new()));
-
-    Ok(Value::Table(root))
+    format!(
+        "[package]\n\
+         name = \"{name}\"\n\
+         version = \"{DEFAULT_VERSION}\"\n\
+         type = \"none\"\n\
+         description = \"\"\n\
+         author = \"\"\n\
+         license = \"GPL-3.0-or-later\"\n\
+         \n\
+         [build]\n\
+         language = \"{DEFAULT_LANGUAGE}\"\n\
+         standard = \"{DEFAULT_STANDARD}\"\n\
+         compiler = \"{DEFAULT_COMPILER}\"\n\
+         kind = \"{DEFAULT_KIND}\"\n\
+         \n\
+         [dependencies]\n"
+    )
 }
 
-fn format_toml(value: &Value) -> Result<String, ConfigError> {
-    let root = value
-        .as_table()
-        .ok_or_else(|| ConfigError::Invalid("root is not a table".into()))?;
-
-    let package = root
-        .get("package")
-        .and_then(|v| v.as_table())
-        .ok_or_else(|| ConfigError::Invalid("missing [package]".into()))?;
-    let build = root
-        .get("build")
-        .and_then(|v| v.as_table())
-        .ok_or_else(|| ConfigError::Invalid("missing [build]".into()))?;
-    let deps = root
-        .get("dependencies")
-        .and_then(|v| v.as_table())
-        .ok_or_else(|| ConfigError::Invalid("missing [dependencies]".into()))?;
-    let toolchain = root.get("toolchain").and_then(|v| v.as_table());
-
-    let name = package.get("name").and_then(|v| v.as_str()).unwrap_or("");
-    let version = package
-        .get("version")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-
-    let language_value = build.get("language");
-    let language = match language_value {
-        Some(Value::String(s)) => s.to_string(),
-        Some(Value::Array(arr)) => format_string_array(&Value::Array(arr.clone())),
-        _ => "".to_string(),
-    };
-    let standard = build.get("standard").and_then(|v| v.as_str()).unwrap_or("");
-    let compiler = build.get("compiler").and_then(|v| v.as_str()).unwrap_or("");
-
-    let mut out = String::new();
-    out.push_str("[package]\n");
-    out.push_str(&format!("name = \"{name}\"\n"));
-    out.push_str(&format!("version = \"{version}\"\n"));
-
-    for key in [
-        "type",
-        "description",
-        "author",
-        "authors",
-        "homepage",
-        "license",
-        "repository",
-        "readme",
-        "keywords",
-        "categories",
-    ] {
-        if let Some(val) = package.get(key) {
-            match val {
-                Value::String(s) => out.push_str(&format!("{key} = \"{s}\"\n")),
-                Value::Array(_) => out.push_str(&format!("{key} = {}\n", format_string_array(val))),
-                _ => {}
-            }
+fn set_doc_path(doc: &mut DocumentMut, path: &[&str], value: &Value) -> Result<(), ConfigError> {
+    let mut current = doc.as_table_mut();
+    for &key in &path[..path.len().saturating_sub(1)] {
+        if !current.contains_key(key) {
+            current.insert(key, Item::Table(Table::new()));
         }
+        current = current
+            .get_mut(key)
+            .and_then(|item| item.as_table_mut())
+            .ok_or_else(|| ConfigError::Invalid(format!("'{key}' is not a table")))?;
     }
-    out.push('\n');
 
-    out.push_str("[build]\n");
-    if language.starts_with('[') {
-        out.push_str(&format!("language = {language}\n"));
+    if let Some(&last) = path.last() {
+        current.insert(last, value_to_item(value));
+        Ok(())
     } else {
-        out.push_str(&format!("language = \"{language}\"\n"));
+        Err(ConfigError::Invalid("empty key".into()))
     }
-    if !standard.is_empty() {
-        out.push_str(&format!("standard = \"{standard}\"\n"));
-    }
-    out.push_str(&format!("compiler = \"{compiler}\"\n"));
-    let kind = build
-        .get("kind")
-        .and_then(|v| v.as_str())
-        .unwrap_or(DEFAULT_KIND);
-    out.push_str(&format!("kind = \"{kind}\"\n"));
-    if let Some(target) = build.get("target").and_then(|v| v.as_str())
-        && !target.trim().is_empty()
-    {
-        out.push_str(&format!("target = \"{target}\"\n"));
-    }
-    if let Some(out_dir) = build.get("out_dir").and_then(|v| v.as_str())
-        && !out_dir.trim().is_empty()
-    {
-        out.push_str(&format!("out_dir = \"{out_dir}\"\n"));
-    }
-    if let Some(cflags) = build.get("cflags") {
-        out.push_str(&format!("cflags = {}\n", format_string_array(cflags)));
-    }
-    if let Some(ldflags) = build.get("ldflags") {
-        out.push_str(&format!("ldflags = {}\n", format_string_array(ldflags)));
-    }
-    out.push('\n');
-
-    if let Some(toolchain) = toolchain {
-        let mut lines = Vec::new();
-        for key in ["cc", "cxx", "as", "ar", "ld"] {
-            if let Some(value) = toolchain.get(key).and_then(|v| v.as_str())
-                && !value.trim().is_empty()
-            {
-                lines.push(format!("{key} = \"{value}\""));
-            }
-        }
-        if !lines.is_empty() {
-            out.push_str("[toolchain]\n");
-            for line in lines {
-                out.push_str(&format!("{line}\n"));
-            }
-            out.push('\n');
-        }
-    }
-
-    out.push_str("[dependencies]\n");
-    if !deps.is_empty() {
-        let mut keys: Vec<&String> = deps.keys().collect();
-        keys.sort();
-        for key in keys {
-            if let Some(val) = deps.get(key) {
-                out.push_str(&format!("{key} = {}\n", format_dep_value(val)));
-            }
-        }
-    }
-    Ok(out)
 }
 
-fn format_dep_value(value: &Value) -> String {
+fn value_to_item(value: &Value) -> Item {
+    Item::Value(value_to_edit_value(value))
+}
+
+fn value_to_edit_value(value: &Value) -> toml_edit::Value {
     match value {
-        Value::String(s) => format!("\"{s}\""),
-        Value::Table(tbl) => {
-            let mut parts = Vec::new();
-            if let Some(v) = tbl.get("version").and_then(|v| v.as_str()) {
-                parts.push(format!("version = \"{v}\""));
-            }
-            if let Some(v) = tbl.get("path").and_then(|v| v.as_str()) {
-                parts.push(format!("path = \"{v}\""));
-            }
-            if let Some(v) = tbl.get("git").and_then(|v| v.as_str()) {
-                parts.push(format!("git = \"{v}\""));
-            }
-            if let Some(v) = tbl.get("branch").and_then(|v| v.as_str()) {
-                parts.push(format!("branch = \"{v}\""));
-            }
-            if let Some(v) = tbl.get("tag").and_then(|v| v.as_str()) {
-                parts.push(format!("tag = \"{v}\""));
-            }
-            if let Some(v) = tbl.get("rev").and_then(|v| v.as_str()) {
-                parts.push(format!("rev = \"{v}\""));
-            }
-            if let Some(v) = tbl.get("default-features").and_then(|v| v.as_bool()) {
-                parts.push(format!(
-                    "default-features = {}",
-                    if v { "true" } else { "false" }
-                ));
-            }
-            if let Some(v) = tbl.get("features") {
-                parts.push(format!("features = {}", format_string_array(v)));
-            }
-            if let Some(v) = tbl.get("system").and_then(|v| v.as_bool()) {
-                parts.push(format!("system = {}", if v { "true" } else { "false" }));
-            }
-            format!("{{ {} }}", parts.join(", "))
+        Value::String(s) => toml_edit::Value::from(s.clone()),
+        Value::Integer(i) => toml_edit::Value::from(*i),
+        Value::Float(f) => toml_edit::Value::from(*f),
+        Value::Boolean(b) => toml_edit::Value::from(*b),
+        Value::Datetime(dt) => {
+            let s = dt.to_string();
+            s.parse::<toml_edit::Datetime>()
+                .map(toml_edit::Value::from)
+                .unwrap_or_else(|_| toml_edit::Value::from(s))
         }
-        _ => "\"\"".to_string(),
+        Value::Array(arr) => {
+            let mut out = toml_edit::Array::new();
+            for item in arr {
+                out.push(value_to_edit_value(item));
+            }
+            toml_edit::Value::Array(out)
+        }
+        Value::Table(tbl) => {
+            let mut out = toml_edit::InlineTable::new();
+            for key in ordered_table_keys(tbl) {
+                if let Some(v) = tbl.get(&key) {
+                    out.insert(&key, value_to_edit_value(v));
+                }
+            }
+            toml_edit::Value::InlineTable(out)
+        }
     }
 }
 
-fn format_string_array(value: &Value) -> String {
-    if let Some(arr) = value.as_array() {
-        let items: Vec<String> = arr
-            .iter()
-            .filter_map(|v| v.as_str().map(|s| format!("\"{s}\"")))
-            .collect();
-        return format!("[{}]", items.join(", "));
-    }
-    "[]".to_string()
+const DEP_KEY_ORDER: &[&str] = &[
+    "version",
+    "path",
+    "git",
+    "branch",
+    "tag",
+    "rev",
+    "default-features",
+    "features",
+    "system",
+];
+
+fn ordered_table_keys(tbl: &Map<String, Value>) -> Vec<String> {
+    let mut keys: Vec<String> = DEP_KEY_ORDER
+        .iter()
+        .filter(|k| tbl.contains_key(**k))
+        .map(|k| (*k).to_string())
+        .collect();
+    let mut rest: Vec<String> = tbl
+        .keys()
+        .filter(|k| !DEP_KEY_ORDER.contains(&k.as_str()))
+        .cloned()
+        .collect();
+    rest.sort();
+    keys.extend(rest);
+    keys
 }
 
 fn get_path<'a>(value: &'a Value, path: &[&str]) -> Option<&'a Value> {
@@ -1132,6 +1067,84 @@ mod tests {
         assert_eq!(
             config2.get("package.name").and_then(|v| v.as_str()),
             Some("newname")
+        );
+    }
+
+    #[test]
+    fn save_preserves_untyped_sections() {
+        let dir = temp_dir("preserve_untyped");
+        let path = write_toml_file(
+            &dir,
+            "# top comment\n\
+             [package]\n\
+             name = \"test\"\n\
+             version = \"0.1.0\"\n\n\
+             [build]\n\
+             language = \"c\"\n\
+             standard = \"c11\"\n\
+             compiler = \"clang\"\n\
+             kind = \"elf\"\n\
+             filename = \"KERNEL\"\n\
+             extension = \"ELF\"\n\
+             inherit = false\n\
+             include = [\"src/include\"]\n\n\
+             [[build.post_steps]]\n\
+             name = \"iso\"\n\
+             cmd = \"grub-mkrescue\"\n\n\
+             [run]\n\
+             cmd = \"qemu-system-aarch64 -kernel KERNEL\"\n\n\
+             [dependencies]\n",
+        );
+
+        let mut config = Config::open(&path.to_string_lossy()).unwrap();
+        config
+            .set("dependencies.zlib", {
+                let mut tbl = Map::new();
+                tbl.insert("path".to_string(), Value::String("../zlib".to_string()));
+                Value::Table(tbl)
+            })
+            .unwrap();
+
+        // Reload from disk and confirm nothing modeled-but-not-whitelisted was dropped.
+        let reloaded = Config::open(&path.to_string_lossy()).unwrap();
+        assert_eq!(
+            reloaded.get("build.filename").and_then(|v| v.as_str()),
+            Some("KERNEL"),
+            "build.filename must survive save"
+        );
+        assert_eq!(
+            reloaded.get("build.extension").and_then(|v| v.as_str()),
+            Some("ELF")
+        );
+        assert_eq!(
+            reloaded.get("build.inherit").and_then(|v| v.as_bool()),
+            Some(false)
+        );
+        assert!(
+            reloaded
+                .get("build.include")
+                .and_then(|v| v.as_array())
+                .is_some(),
+            "build.include array must survive save"
+        );
+        assert_eq!(
+            reloaded.get("run.cmd").and_then(|v| v.as_str()),
+            Some("qemu-system-aarch64 -kernel KERNEL"),
+            "[run] section must survive save"
+        );
+        assert!(
+            reloaded.get("build.post_steps").is_some(),
+            "[[build.post_steps]] must survive save"
+        );
+
+        let saved = fs::read_to_string(&path).unwrap();
+        assert!(
+            saved.contains("zlib = { path = \"../zlib\" }"),
+            "dependency must be an inline table, got:\n{saved}"
+        );
+        assert!(
+            saved.contains("# top comment"),
+            "leading comment must be preserved, got:\n{saved}"
         );
     }
 

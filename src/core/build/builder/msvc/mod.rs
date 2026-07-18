@@ -15,8 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::core::builder::BuildContext;
-use crate::core::builder::common;
+use crate::core::build::builder::BuildContext;
+use crate::core::build::common;
 use crate::platform;
 use std::fs;
 use std::path::Path;
@@ -152,7 +152,7 @@ pub(crate) fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String>
 }
 
 fn source_extensions(language: &str) -> Vec<&'static str> {
-    crate::core::builder::common::source_extensions(language)
+    crate::core::build::common::source_extensions(language)
 }
 
 fn msvc_standard_flag(language: &str, standard: &str) -> Result<String, String> {

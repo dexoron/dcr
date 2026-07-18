@@ -280,7 +280,7 @@ pub fn get_language_with_profile(config: &Config, profile: &str) -> Result<Strin
     }
     match config.get("build.language") {
         Some(v) => parse_language_value(v, "build.language"),
-        None => Err("build.language is missing".to_string()),
+        None => Ok("c".to_string()),
     }
 }
 
@@ -324,9 +324,14 @@ pub fn resolve_compiler(
     tc_as: Option<&str>,
 ) -> String {
     let lang = primary_language(language);
-    env_override_compiler(&lang)
+    let result = env_override_compiler(&lang)
         .or_else(|| toolchain_override_compiler(&lang, tc_cc, tc_cxx, tc_as))
-        .unwrap_or_else(|| compiler.to_string())
+        .unwrap_or_else(|| compiler.to_string());
+    if lang == "asm" {
+        map_asm_compiler(&result)
+    } else {
+        result
+    }
 }
 
 fn env_override_compiler(lang: &str) -> Option<String> {
@@ -369,7 +374,8 @@ fn toolchain_override_compiler(
     tc_as: Option<&str>,
 ) -> Option<String> {
     if lang == "asm" {
-        return tc_as.map(|v| v.to_string());
+        let as_compiler = tc_as.map(|v| v.to_string());
+        return as_compiler.map(|v| map_asm_compiler(&v));
     }
     if (lang == "c++" || lang == "cpp" || lang == "cxx")
         && let Some(v) = tc_cxx
@@ -379,22 +385,30 @@ fn toolchain_override_compiler(
     tc_cc.map(|v| v.to_string())
 }
 
+fn map_asm_compiler(compiler: &str) -> String {
+    match compiler.to_lowercase().as_str() {
+        "gas" | "gnu-as" => "as".to_string(),
+        "nasm" => "nasm".to_string(),
+        "fasm" | "fasm64" => "fasm".to_string(),
+        "masm" | "ml" | "ml64" => "ml".to_string(),
+        _ => compiler.to_string(),
+    }
+}
+
 pub fn primary_language(language: &str) -> String {
-    let parts: Vec<String> = language
+    let tokens: Vec<&str> = language
         .split(',')
-        .map(|p| p.trim().to_lowercase())
-        .filter(|p| !p.is_empty())
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
         .collect();
-    for p in &parts {
-        if p == "c++" || p == "cpp" || p == "cxx" {
-            return p.clone();
+    // Priority: c++ > c > asm.
+    for id in ["cxx", "c", "asm"] {
+        let hit = tokens.iter().any(|t| {
+            crate::core::build::language::language_for_token(t).map(|l| l.id()) == Some(id)
+        });
+        if hit {
+            return id.to_string();
         }
-    }
-    if parts.iter().any(|p| p == "c") {
-        return "c".to_string();
-    }
-    if parts.iter().any(|p| p == "asm") {
-        return "asm".to_string();
     }
     language.to_lowercase()
 }

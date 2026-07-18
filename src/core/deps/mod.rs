@@ -103,6 +103,10 @@ pub fn resolve_deps(
                         }
                     } else {
                         push_if_exists(&mut resolved.include_dirs, &dep_root.join("include"));
+                        push_if_exists(
+                            &mut resolved.include_dirs,
+                            &dep_root.join("target").join("include"),
+                        );
                     }
 
                     if let Some(lib_dirs) = table.get("lib").and_then(|v| v.as_array()) {
@@ -128,6 +132,10 @@ pub fn resolve_deps(
                     }
                 } else {
                     push_if_exists(&mut resolved.include_dirs, &dep_root.join("include"));
+                    push_if_exists(
+                        &mut resolved.include_dirs,
+                        &dep_root.join("target").join("include"),
+                    );
                     push_default_lib_dirs(&mut resolved.lib_dirs, &dep_root);
                     resolved.libs.push(name.clone());
                 }

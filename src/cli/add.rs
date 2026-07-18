@@ -45,7 +45,6 @@ pub fn add(args: &[String]) -> i32 {
         println!("    Adds a dependency to the project.");
         println!();
         printc("SOURCES:", BOLD_GREEN);
-        println!("    user/repo                 GitHub shorthand");
         println!("    github:user/repo          GitHub repository");
         println!("    gitlab:user/repo          GitLab repository");
         println!("    git:host.com/user/repo    Generic git repository");
@@ -140,7 +139,6 @@ fn parse_add_args(args: &[String]) -> Result<AddArgs, i32> {
     if args.is_empty() {
         error("Usage: dcr add <name> <source> [--branch <branch> | --tag <tag> | --rev <rev>]");
         error("Sources:");
-        error("  user/repo                 -> github.com/user/repo");
         error("  github:user/repo          -> github.com/user/repo");
         error("  gitlab:user/repo          -> gitlab.com/user/repo");
         error("  git:host.com/user/repo    -> host.com/user/repo");

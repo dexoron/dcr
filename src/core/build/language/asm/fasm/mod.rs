@@ -1,18 +1,18 @@
-use crate::core::builder::BuildContext;
-use crate::core::builder::asm;
-use crate::core::builder::common;
+use crate::core::build::builder::BuildContext;
+use crate::core::build::common;
+use crate::core::build::language::asm::common as asm;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
 
 pub fn build(ctx: &BuildContext) -> Result<f64, String> {
-    asm::build_assembly(ctx, "LLVM-IR", "llc", &["ll"], build_object)
+    asm::build_assembly(ctx, "FASM", "fasm", &["asm", "fasm"], build_object)
 }
 
 pub(crate) fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String> {
     common::collect_sources(
         ctx.source_roots,
-        &["ll"],
+        &["asm", "fasm"],
         ctx.exclude_dirs,
         ctx.include_paths,
     )
@@ -33,10 +33,14 @@ fn build_object(
     }
 
     let mut cmd = Command::new(assembler);
-    cmd.arg("-filetype=obj").arg(source).arg("-o").arg(obj_path);
+    cmd.arg(source).arg(obj_path);
 
-    for flag in ctx.cflags {
+    for flag in crate::core::build::language::asm::common::filter_asm_flags(ctx.cflags) {
         cmd.arg(flag);
+    }
+
+    if ctx.verbose || std::env::var("DCR_DEBUG").is_ok() {
+        eprintln!("[dcr] {:?}", cmd);
     }
 
     common::run_command_sync_output(&mut cmd)

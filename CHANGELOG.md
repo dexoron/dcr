@@ -1,5 +1,53 @@
 # Changelog
 
+## [0.8.0] - 2026-07-18 "Модульный Движок Сборки, Новая Архитектура Ядра и Улучшение Workspaces / Modular Build Engine, New Core Architecture, & Workspace Improvements"
+
+### RU
+
+**Добавлено:**
+
+- **Выделенное ядро сборки (Build Engine extraction)** — вся логика оркестрации компиляции и сборки полностью вынесена из интерфейсного модуля `src/cli/build.rs` в изолированный, переиспользуемый модуль ядра `src/core/build/engine.rs`.
+- **Полиморфная модель языков (Трейт `Language`)** — введение абстрактного трейта `Language` (`src/core/build/language/mod.rs`). Логика поиска файлов, сопоставления расширений и компиляторов распределена по выделенным языковым бэкендам для C, C++ (включая шаги генерации Qt), LLVM IR и ассемблера (GAS, NASM, FASM, MASM).
+- **Абстракция сборщиков (Трейт `Builder`)** — введение трейта `Builder` для полиморфного управления процессами компиляции (`src/core/build/builder/mod.rs`). Логика вызова компиляторов семейства GCC/Clang вынесена в общий модуль `builder/cc_common.rs`, а MSVC — в `builder/msvc/`.
+- **Поязыковая конфигурация (`[build.<lang>]`)** — добавлена поддержка индивидуальных настроек для каждого языка в `dcr.toml` (например, `[build.c]`, `[build.cpp]`, `[build.asm]`), позволяя независимо настраивать компилятор, стандарт и флаги сборки.
+- **Интеграция путей зависимостей в Workspaces** — сборщик теперь автоматически инжектирует пути заголовков (включая исходники `src/` членов, папки `include/` и директорию `target/include`) и библиотек (`target/lib`, а также специфичные для целевой платформы папки сборки) зависимых членов workspace при сборке.
+- **Система событий `BuildReporter`** — весь вывод сборщика переведён на событийную модель (`src/core/build/report.rs`), что делает движок пригодным для программного встраивания (например, в IDE) без необходимости перехвата stdout/stderr.
+- **Поддержка отмены сборки** — добавлен потокобезопасный токен отмены (`Arc<AtomicBool>`), позволяющий безопасно прервать выполнение компиляции на любом этапе.
+- **Сохранение кастомных ключей TOML** — парсер `dcr.toml` переведен на `toml_edit`, что гарантирует сохранение всех неизвестных/пользовательских ключей, комментариев и форматирования при перезаписи файла (например, через `dcr add`).
+- **Разрешение заголовков для локальных path-зависимостей** — исправлена проблема, при которой потребители не могли найти заголовочные файлы статических/динамических библиотек, лежащие в упакованной папке `target/include` локальных path-зависимостей.
+- **Новая система интеграционных тестов** — старый громоздкий файл `tests/cli_basic.rs` разделен на изолированные и структурированные интеграционные тесты для каждой команды и фичи: `cli_build.rs`, `cli_deps.rs`, `cli_lint.rs`, `cli_new.rs`, `cli_qt.rs`, `cli_test.rs`, `cli_workspace.rs`.
+
+**Изменено:**
+
+- **Дедупликация генерации артефактов** — логика линковки бинарных файлов (ELF, PE, EXE), динамических библиотек (`.so`, `.dll`, `.dylib`) и архивации статических библиотек (`.a`, `.lib`) полностью перенесена в выделенный модуль `src/core/build/builder/artifact.rs`.
+- **Запуск членов workspace из корня** — команда `dcr run` при вызове из корня workspace-only проекта теперь запускает сборку выбранного пакета в контексте workspace (через флаг `--workspace`), исключая изолированные ошибки сборки.
+- **Отказ от глобального состояния** — все операции сборки изолированы внутри структуры `BuildContext`, обеспечивая многопоточную безопасность сборщика.
+- **Вынос логики кэширования** — проверка инкрементальных изменений, отслеживание заголовков (`#include`) и вычисление хэшей сборки перенесено в изолированный модуль `src/core/build/cache.rs`.
+- **Модуляризация кастомных шагов** — обработка этапа `build.steps` для препроцессоров вынесена в `src/core/build/steps.rs`.
+
+### EN
+
+**Added:**
+
+- **Dedicated Build Engine (`src/core/build/engine.rs`)** — decoupled the build orchestration logic completely from the CLI front-end wrapper in `src/cli/build.rs` to a reusable, decoupled core build engine.
+- **Polymorphic Language Model (`Language` trait)** — introduced the abstract `Language` trait (`src/core/build/language/mod.rs`). File scanning, compiler resolution, and flags handling are now encapsulated in dedicated language modules for C, C++ (including Qt code generation), LLVM IR, and ASM (GAS, NASM, FASM, MASM).
+- **Polymorphic Compilation Dispatch (`Builder` trait)** — introduced the `Builder` trait to generalize builder invocations (`src/core/build/builder/mod.rs`). Consolidated GCC/Clang logic into `builder/cc_common.rs` and Microsoft Visual C++ logic into `builder/msvc/`.
+- **Per-Language Configuration overrides (`[build.<lang>]`)** — introduced support for configuring language-specific compiler, standard, and flags (e.g. `[build.c]`, `[build.cpp]`, `[build.asm]`) independently in `dcr.toml`.
+- **Automatic Workspace Dependency Injection** — during workspace builds, include/lib paths of dependent workspace members (including their source headers, local `include/` folders, and build target `target/include` / `target/lib` folders) are automatically resolved and injected.
+- **`BuildReporter` Event System** — decoupled build orchestration output into a structured event-driven reporter model (`src/core/build/report.rs`), making DCR suitable for library embedding and IDE integrations without stderr capturing.
+- **Build Cancellation Support** — introduced thread-safe cancellation tokens (`Arc<AtomicBool>`) allowing clients to safely abort compile runs mid-execution.
+- **TOML Formatting & Custom Keys Preservation** — migrated the config editor to `toml_edit`, preserving all unknown/user-defined TOML keys, structures, and comments during file write operations (e.g., in `dcr add`).
+- **Path Dependencies Target Include Resolution** — local path dependencies configured via tables now correctly expose headers built and packaged into their `target/include` folder to consumer packages.
+- **Modular Integration Test Suite** — refactored the monolith `tests/cli_basic.rs` file into clean, specialized integration tests: `cli_build.rs`, `cli_deps.rs`, `cli_lint.rs`, `cli_new.rs`, `cli_qt.rs`, `cli_test.rs`, `cli_workspace.rs`.
+
+**Changed:**
+
+- **Consolidated Linking and Archiving** — artifact generation (linking executables/shared libraries and archiving static libraries) consolidated into a single `src/core/build/builder/artifact.rs` module.
+- **Workspace-Aware member execution** — `dcr run` executed at the workspace root of a `workspace_only` project now triggers the member build inside the workspace context using the `--workspace` parameter, preventing standalone build issues.
+- **Elimination of Global State** — removed global variables and states from the build core, encapsulating build logic inside isolated `BuildContext` structs for thread safety.
+- **Build Cache Separation** — relocated mtime tracking, incremental caching, and header-dependency checking logic to `src/core/build/cache.rs`.
+- **Modularized Pre-build Steps** — decoupled generator scripts and pre-build commands parsing into `src/core/build/steps.rs`.
+
 ## [0.7.4] - 2026-06-17 "Qt Поддержка, Linting и Рефакторинг Архитектуры / Qt Support, Linting, & Architecture Refactor"
 
 ### RU
