@@ -45,27 +45,25 @@ main = { url = "https://github.com/dcr-ports/dcr-index", priority = 1 }
 
 ```toml
 # ~/.dcr/config.toml
-[[registry]]
-name = "default"
+[registry.default]
 url = "https://index.dcr.pm"
+priority = 1
 ```
 
 Приоритет реестра: порядок в файле `config.toml`. Переменная `DCR_INDEX_PATH` переопределяет путь к index.json.
 
 ## Git-зависимости
 
-При добавлении git-зависимости DCR клонирует репозиторий через `git2`:
+Git dependencies are parsed and recorded in `dcr.lock`. DCR supports specifying branch/tag/rev for git sources:
 
 * `branch` — переключиться на ветку
 * `tag` — переключиться на тег
 * `rev` — переключиться на конкретный коммит
 * `features` — флаги функций (проанализированы, но не влияют на сборку)
 
-Путь к кэшу: `~/.dcr/git/\<hash>/`.
+## Path dependencies
 
-## Path-зависимости
-
-Локальные пути. DCR автоматически находит include и lib директории.
+Local paths. DCR automatically discovers include and lib directories from the neighbor's `dcr.toml`.
 
 ```toml
 [dependencies]
@@ -75,14 +73,14 @@ mylib = { path = "../relative/path" }
 
 ## dcr.lock
 
-Файл блокировки зависимостей. Содержит точные версии, хеши и источники.
+Dependency lock file. Contains package names and sources.
 
-Создаётся при выполнении команды `dcr build` при наличии зависимостей реестра. Автоматически обновляется при `dcr add`.
+Created during `dcr build` when registry dependencies are present. Not updated during `dcr add` — only on the next `dcr build`.
 
-## Процесс резолва
+## Resolution process
 
-1. Загружаются все зависимости (registry → git → path)
-2. Для зависимостей типа «path»: рекурсивно прочитать их файлы `dcr.toml`
-3. Для зависимостей реестра: выполните поиск в файле `index.json`
-4. Для зависимостей Git: клонировать в кэш
-5. Собираются include_dirs, lib_dirs, libs для передачи компилятору
+1. Load all dependencies (registry → git → path)
+2. For path deps: recursively read their `dcr.toml`
+3. For registry deps: search `index.json`
+4. For git deps: clone to cache
+5. Collect `include_dirs`, `lib_dirs`, `libs` for the compiler
