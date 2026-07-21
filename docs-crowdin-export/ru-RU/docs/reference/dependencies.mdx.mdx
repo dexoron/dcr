@@ -71,6 +71,8 @@ mylib = { path = "/abs/path/to/lib" }
 mylib = { path = "../relative/path" }
 ```
 
+*Note: Header resolution automatically checks the packaged `target/include` directory of path dependencies, ensuring consumer packages can find headers from compiled static or dynamic libraries.*
+
 ## dcr.lock
 
 Dependency lock file. Contains package names and sources.
