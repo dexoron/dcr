@@ -4,9 +4,111 @@ sidebar_label: Список изменений
 
 # Список изменений
 
-## 0.7.1 (02.06.2026)
+## 0.8.1 (2026-07-20)
 
 ### Добавлено:
+
+* **`build.kind = "flat-bin"`** — raw binary (default `.bin`) for OS-dev payloads:
+  * **NASM** — `-f bin` → `\<stem>.bin`
+  * **FASM** — direct output (`format binary` in source)
+  * **GAS / MASM / LLC** — object → `objcopy -O binary` → `\<stem>.bin`
+  * **C/C++** — objects → freestanding link → `objcopy -O binary` → `\<name>.bin`
+  * Requires `llvm-objcopy` / `objcopy` / `gobjcopy` except for NASM/FASM direct emit
+* **`[archive]` section** — after a successful build, pack a FAT disk image (`fatfs`): `output`, `format` (`fat12`/`fat16`/`fat32`), optional `size` (default 1.44 MiB), `offset`, `label`, `bootsector`, and `layout` (`from` → `to`, supports globs). `{profile}` works in paths.
+* **Single-file `build.roots`** — a root may be a single source or header file, not only a directory.
+
+### Изменено:
+
+* **`--force`** also re-runs `build.steps` and `build.post_steps`.
+* **`dcr run` on workspace-only root** — if `[run].cmd` is set, run that after build; otherwise delegate to a workspace member.
+
+### Dependencies
+
+* `fatfs = "0.3"` for FAT image packing.
+
+## 0.8.0 (2026-07-18)
+
+### Добавлено
+
+* **Dedicated Build Engine (`src/core/build/engine.rs`)** — decoupled the build orchestration logic completely from the CLI front-end wrapper in `src/cli/build.rs` to a reusable, decoupled core build engine.
+* **Polymorphic Language Model (`Language` trait)** — introduced the abstract `Language` trait (`src/core/build/language/mod.rs`). File scanning, compiler resolution, and flags handling are now encapsulated in dedicated language modules for C, C++ (including Qt code generation), LLVM IR, and ASM (GAS, NASM, FASM, MASM).
+* **Polymorphic Compilation Dispatch (`Builder` trait)** — introduced the `Builder` trait to generalize builder invocations (`src/core/build/builder/mod.rs`). Consolidated GCC/Clang logic into `builder/cc_common.rs` and Microsoft Visual C++ logic into `builder/msvc/`.
+* **Per-Language Configuration overrides (`[build.\<lang>]`)** — introduced support for configuring language-specific compiler, standard, and flags (e.g. `[build.c]`, `[build.cxx]`, `[build.asm]`) independently in `dcr.toml`.
+* **Automatic Workspace Dependency Injection** — during workspace builds, include/lib paths of dependent workspace members (including their source headers, local `include/` folders, and build target `target/include` / `target/lib` folders) are automatically resolved and injected.
+* **`BuildReporter` Event System** — decoupled build orchestration output into a structured event-driven reporter model (`src/core/build/report.rs`), making DCR suitable for library embedding and IDE integrations without stderr capturing.
+* **Build Cancellation Support** — introduced thread-safe cancellation tokens (`Arc\<AtomicBool>`) allowing clients to safely abort compile runs mid-execution.
+* **TOML Formatting & Custom Keys Preservation** — migrated the config editor to `toml_edit`, preserving all unknown/user-defined TOML keys, structures, and comments during file write operations (e.g., in `dcr add`).
+* **Path Dependencies Target Include Resolution** — local path dependencies configured via tables now correctly expose headers built and packaged into their `target/include` folder to consumer packages.
+* **Modular Integration Test Suite** — refactored the monolith `tests/cli_basic.rs` file into clean, specialized integration tests: `cli_build.rs`, `cli_deps.rs`, `cli_lint.rs`, `cli_new.rs`, `cli_qt.rs`, `cli_test.rs`, `cli_workspace.rs`.
+
+### Изменено
+
+* **Consolidated Linking and Archiving** — artifact generation (linking executables/shared libraries and archiving static libraries) consolidated into a single `src/core/build/builder/artifact.rs` module.
+* **Workspace-Aware member execution** — `dcr run` executed at the workspace root of a `workspace_only` project now triggers the member build inside the workspace context using the `--workspace` parameter, preventing standalone build issues.
+* **Elimination of Global State** — removed global variables and states from the build core, encapsulating build logic inside isolated `BuildContext` structs for thread safety.
+* **Build Cache Separation** — relocated mtime tracking, incremental caching, and header-dependency checking logic to `src/core/build/cache.rs`.
+* **Modularized Pre-build Steps** — decoupled generator scripts and pre-build commands parsing into `src/core/build/steps.rs`.
+
+## 0.7.4 (2026-06-17)
+
+### Added
+
+* **Native Qt support** — automatic meta-object handling (MOC, UIC, RCC) added when `build.qt = true` is set in `dcr.toml`.
+* **`dcr lint` command** — C/C++ static analysis via `clang-tidy`. Supports `--fix` for automatic fixes. Respects `build.roots` and `build.src_disable` from config.
+* **Three new assembler backends**:
+  * **MASM** (`compiler = "ml"` / `"ml64"`) — Microsoft Macro Assembler.
+  * **FASM** (`compiler = "fasm"`) — Flat Assembler.
+  * **LLVM IR** (`compiler = "llc"`) — compiles `.ll` files via `llc -filetype=obj`.
+* **Shared ASM pipeline** — linking and archiving logic consolidated into `core/builder/asm.rs`. Adding a new assembler backend now takes ~30 lines.
+* **Filesystem utilities** — `to_hex()` and `home_dir()` extracted to `utils/fs.rs`.
+* **Build utilities** — `normalize_target()`, `normalize_kind()`, `normalize_platform()`, `default_profile_flags()` extracted to `utils/build.rs`.
+* **Backend helpers** — `asm_lang_flag()`, `source_extensions()`, `elapsed_secs()` added to `core/builder/common.rs`.
+* **Full Bare-Metal / Freestanding Automation** — introduced the `build.freestanding = true` configuration option. When enabled (or when a bare-metal target is detected), DCR automatically injects `-ffreestanding` during compilation and both `-nostdlib` and `-static` during linking.
+* **Artifact Optimization (LTO & Strip)** — added `build.lto` (auto-injects `-flto` for compiler and linker) and `build.strip` (automatically strips debug symbols via linker `-s` flag) options to `dcr.toml`.
+* **Compilation Thread Control** — added the `build.codegen-units` option to strictly limit the maximum number of parallel jobs utilized by the custom `parallel_build` worker pool.
+* **Panic Behavior Management** — added `build.panic = "abort"` support. For C++ targets, it automatically strips exception handling and unwind tables via `-fno-exceptions`, `-fno-unwind-tables`, and `-fno-asynchronous-unwind-tables`.
+
+### Changed
+
+* **Intelligent Default Flags Generation** — automated injection of fallback optimization (`-O3`/`-O0`), debug (`-g`), and warning (`-Wall -Wextra`) flags is now suppressed for bare-metal and freestanding builds if `build.cflags` are overridden.
+* **Centralized Bare-Metal Detection** — relocated the `is_bare_metal_target` helper to common build utilities (`src/utils/build.rs`) for unified access across the building core.
+* **Architectural Refactoring**:
+  * Renamed `src/config.rs` to `src/templates.rs`.
+  * Started consolidation of configuration and build orchestration logic.
+
+## 0.7.3 (2026-06-13)
+
+### Added
+
+* **`--vcs` option for `new` and `init` commands** — introduced explicit version control system selection via `--vcs \<git|none>`.
+* **Git metadata integration in `--version`** — the CLI now appends the current short commit hash and a `-dirty` suffix if there are uncommitted changes in the DCR repository.
+* **Automatic `.gitignore` generation** — Git repository initialization now automatically writes a `.gitignore` file excluding the `/target` directory.
+* **Nested repository prevention** — automatic Git initialization is now skipped if `dcr new` or `dcr init` is executed inside an already existing Git repository.
+* **VCS verification tests** — added `new_vcs_options_work` and `init_vcs_options_work` integration tests to ensure reliable repository behavior.
+
+### Changed
+
+* **Complete removal of `git2` dependency** — all Git actions (dependency fetching, VCS setup, status checks) are now delegated to the system `git` executable via `Command`. This simplifies compilation and drops the need for `vendored` and `openssl` features.
+* **Migrated from `reqwest` to `ureq`** — replaced the heavy `reqwest` crate in `flag_update.rs` with the lightweight synchronous `ureq 2.10` client, reducing overhead and the final binary size.
+
+## 0.7.2 (2026-06-07)
+
+### Added
+
+* `default_target_triple()` now respects `target_env` — Linux (gnu/musl) and Windows (msvc/gnu) use the correct environment instead of hardcoded values.
+
+### Исправлено:
+
+* **macOS Apple Silicon builds failed with `_main` undefined** — `--target=` is now passed to ldflags, not just cflags. `default_target_triple()` uses `std::env::consts::ARCH` on macOS instead of hardcoded `x86_64`.
+* **GitHub Stars and GPL-3.0 badges not rendering in README** — badge block converted to pure HTML.
+
+### Changed
+
+* Default target resolution extracted into shared `default_target_triple()` — removed duplication across build, run, clean.
+
+## 0.7.1 (02.06.2026)
+
+### Added
 
 * **`--help` для всех команд** — `dcr build --help`, `dcr run --help`, `dcr new --help`,
   `dcr init --help`, `dcr clean --help`, `dcr add --help`, `dcr fmt --help`,
@@ -29,7 +131,7 @@ sidebar_label: Список изменений
 * **Публикация Snap** — автоматическая публикация Snapcraft в рамках непрерывной интеграции (CI).
 * **Значок Snap** — в файле README.
 
-### Изменено:
+### Changed
 
 * **`validate_package_name` стал общедоступным** — его можно вызывать из команд CLI.
 * **Таблица платформы README** — реорганизована: варианты libc вынесены в отдельные строки по ОС,
@@ -38,7 +140,7 @@ sidebar_label: Список изменений
 * **`tree.rs`, `fmt.rs` и `setup.rs`** — теперь поддерживают аргументы для опции `--help`.
 * **Команды установки из файла README** — `| bash` → `| sh` для обеспечения совместимости с POSIX.
 
-### Исправлено:
+### Исправлено
 
 * **`dcr new \<invalid-name>` создает каталог, а затем завершается с ошибкой** — теперь проверка
   выполняется до начала любых операций с файлами.
@@ -50,7 +152,7 @@ sidebar_label: Список изменений
 
 ## 0.7.0 (01.06.2026)
 
-### Добавлено
+### Added
 
 * **Поддержка целевых платформ OpenBSD и NetBSD** — полная маршрутизация по платформам с динамически генерируемыми тройками целевых параметров с использованием `std::env::consts::ARCH` и `std::env::consts::OS`. Затрагивает команды `build`, `run`, `clean` и модуль платформы.
 * **`src/platform/bsd.rs`** — новый специальный модуль платформы BSD, общий для FreeBSD, OpenBSD и NetBSD, предоставляющий `bin_path`, `lib_path`, `elf_path`, `efi_path` и `shared_lib_path`.
@@ -65,7 +167,7 @@ sidebar_label: Список изменений
 * **Интеграционные тесты** — `build_with_target_config` (проверяет `build.target = «linux»`) и `build_with_out_dir` (проверяет настраиваемый каталог вывода).
 * **`get_build_string_with_profile` стал `pub`** — чтобы `run.rs` мог определять конфигурацию настраиваемого каталога вывода.
 
-### Изменено
+### Changed
 
 * **Изменена семантика `build.target`** — теперь строго содержит тройку целей (например, `x86_64-unknown-linux-gnu`) или короткое имя (`linux`, `macos`, `windows`). Больше не используется в качестве пользовательского каталога вывода — эта функциональность перенесена в `build.out_dir`.
 * **`build.standard` стал опциональным** — изменен с `String` на `Option\<String>`. Проверка обеспечивает только непустоту для языков, отличных от ASM. Пропускается в выводе `dcr.toml`, если пуст.
@@ -75,7 +177,7 @@ sidebar_label: Список изменений
 * **Таблица совместимости README** — статус сборки/работы на FreeBSD, OpenBSD, NetBSD повышен с «сообщество/по возможности» до «официально поддерживается».
 * **Обновлена документация** — `build-section.md` описывает новые поля `build.target` и `build.out_dir`. `target-directory.md` переписан для уточнения различия.
 
-### Исправлено
+### Fixed
 
 * **stdout/stderr `dcr run` не наследуются** — вывод дочернего процесса захватывался и выводился вручную, что приводило к сбоям интерактивных программ. Исправлено путем перехода на `Command::status()`.
 * **Условие гонки в CI релиза** — задания матрицы сборки могли загружать ресурсы в релиз, который еще не существовал. Исправлено добавлением специального задания `create-release`.
