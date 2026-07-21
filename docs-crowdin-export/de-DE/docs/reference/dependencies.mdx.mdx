@@ -1,0 +1,84 @@
+---
+sidebar_label: Dependencies
+---
+
+# Dependencies
+
+## Formats
+
+The `[dependencies]` section supports three formats:
+
+### String (registry)
+
+```toml
+[dependencies]
+fmt = "10.1.1"
+spdlog = "1.12"
+catch2 = "3.4.0"
+```
+
+The version string is used as-is for registry lookup.
+
+### Table (git)
+
+```toml
+[dependencies]
+fmt = { git = "https://github.com/fmtlib/fmt", tag = "10.1.1" }
+```
+
+Fields: `git`, `branch`, `tag`, `rev`.
+
+### Table (path)
+
+```toml
+[dependencies]
+mylib = { path = "../mylib" }
+```
+
+## Registry
+
+DCR uses a package registry for dependency lookup by name.
+
+```toml
+# ~/.dcr/config.toml
+[registry.default]
+url = "https://index.dcr.pm"
+priority = 1
+```
+
+Registry priority: order in `config.toml`. The `DCR_INDEX_PATH` variable overrides the path to `index.json`.
+
+## Git dependencies
+
+Git dependencies are parsed and recorded in `dcr.lock`. DCR supports specifying branch/tag/rev for git sources:
+
+* `branch` — switch to a branch
+* `tag` — switch to a tag
+* `rev` — switch to a specific commit
+* `features` — feature flags (parsed, but does not affect build)
+
+## Path dependencies
+
+Local paths. DCR automatically discovers include and lib directories from the neighbor's `dcr.toml`.
+
+```toml
+[dependencies]
+mylib = { path = "/abs/path/to/lib" }
+mylib = { path = "../relative/path" }
+```
+
+*Note: Header resolution automatically checks the packaged `target/include` directory of path dependencies, ensuring consumer packages can find headers from compiled static or dynamic libraries.*
+
+## dcr.lock
+
+Dependency lock file. Contains package names and sources.
+
+Created during `dcr build` when registry dependencies are present. Not updated during `dcr add` — only on the next `dcr build`.
+
+## Resolution process
+
+1. Load all dependencies (registry → git → path)
+2. For path deps: recursively read their `dcr.toml`
+3. For registry deps: search `index.json`
+4. For git deps: clone to cache
+5. Collect `include_dirs`, `lib_dirs`, `libs` for the compiler

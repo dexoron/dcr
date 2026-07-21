@@ -1,0 +1,103 @@
+---
+sidebar_label: Multi-package workspace
+---
+
+# Multi-Package Workspace
+
+A project with three packages: two libraries and a binary.
+
+## Structure
+
+```
+workspace/
+├── dcr.toml              # root workspace
+├── lib-core/
+│   ├── dcr.toml
+│   └── src/core.c
+├── lib-utils/
+│   ├── dcr.toml
+│   └── src/utils.c
+└── app/
+    ├── dcr.toml
+    └── src/main.c
+```
+
+## Root dcr.toml
+
+```toml
+[package]
+name = "my-workspace"
+version = "0.1.0"
+type = "none"
+
+[build]
+inherit = true
+language = "c"
+standard = "c11"
+workspace_only = true
+
+[workspace.lib-core]
+path = "lib-core"
+
+[workspace.lib-utils]
+path = "lib-utils"
+deps = ["lib-core"]
+
+[workspace.app]
+path = "app"
+deps = ["lib-core", "lib-utils"]
+main = true
+```
+
+## Packages
+
+`lib-core/dcr.toml`:
+
+```toml
+[package]
+name = "lib-core"
+version = "0.1.0"
+type = "none"
+
+[build]
+kind = "staticlib"
+```
+
+`lib-utils/dcr.toml`:
+
+```toml
+[package]
+name = "lib-utils"
+version = "0.1.0"
+type = "none"
+
+[build]
+kind = "staticlib"
+```
+
+`app/dcr.toml`:
+
+```toml
+[package]
+name = "app"
+version = "0.1.0"
+type = "none"
+
+[build]
+kind = "bin"
+```
+
+## Build
+
+```bash
+cd workspace
+dcr build                     # builds everything in correct order
+dcr build --workspace app     # only app (lib-core and lib-utils built as deps)
+dcr run                       # builds and runs main package
+```
+
+Build order (topological sort):
+
+1. `lib-core`
+2. `lib-utils` (depends on lib-core)
+3. `app` (depends on lib-core, lib-utils)

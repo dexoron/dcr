@@ -1,0 +1,109 @@
+---
+sidebar_label: Installation
+---
+
+# Installation
+
+## Linux (Dexoron Packages)
+
+Configure your package manager at https://pkg.dexoron.su and install:
+
+**Arch Linux**
+
+```sh
+sudo pacman -Sy dcr
+```
+
+**Debian/Ubuntu**
+
+```sh
+sudo apt update && sudo apt install dcr
+```
+
+**Fedora/RHEL**
+
+```sh
+sudo dnf install dcr
+```
+
+## Arch Linux (AUR)
+
+```sh
+yay -S dcr
+```
+
+## macOS / Linux (Homebrew)
+
+```sh
+brew tap dexoron/dexoron
+brew install dcr
+```
+
+## Snap (Linux)
+
+```sh
+sudo snap install dcrup
+```
+
+## Nix (flake)
+
+```sh
+nix run github:dexoron/dcr
+# or install to profile:
+nix profile install github:dexoron/dcr
+```
+
+## Cargo (crates.io)
+
+```sh
+cargo install dcr
+```
+
+## Linux / macOS (script)
+
+```sh
+curl -fsSL https://dcr.dexoron.su/install.sh | sh
+```
+
+## BSD (script)
+
+```sh
+curl -fsSL https://dcr.dexoron.su/install_bsd.sh | sh
+```
+
+## Windows (PowerShell)
+
+```powershell
+irm https://dcr.dexoron.su/install.ps1 | iex
+```
+
+## From source
+
+```sh
+git clone https://github.com/dexoron/dcr.git
+cd dcr && cargo build --release
+ln -sf "$PWD/target/release/dcr" ~/.local/bin/dcr
+```
+
+## Post-install
+
+Verify the installation:
+
+```bash
+dcr --version
+```
+
+Man pages are available after installation:
+
+```bash
+man dcr
+man dcr-build
+```
+
+To use the registry, create `~/.dcr/config.toml`:
+
+```toml
+[registry.default]
+url = "https://index.dcr.pm"
+priority = 1
+```
