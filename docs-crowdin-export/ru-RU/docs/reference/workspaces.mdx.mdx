@@ -38,7 +38,10 @@ dcr build                    # собрать все пакеты
 dcr build --workspace pkg-a  # собрать только pkg-a
 ```
 
-При сборке workspace выходные файлы member-ов (библиотеки) автоматически добавляются в include/lib пути зависимых пакетов.
+When building a workspace, DCR automatically injects include and library paths of dependent workspace members:
+
+* **Include Paths**: Automatically resolves and injects header directories of dependencies, including the member's `src/` directory, local `include/` directory, and the packaged `target/include` directory.
+* **Library Paths**: Injects compiled library search paths (`target/lib` as well as target-specific build folders) to allow automatic linking with member libraries.
 
 ## Очистка
 
