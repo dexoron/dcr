@@ -9,18 +9,19 @@ sidebar_label: Команды сборки (build, run, clean)
 Собирает проект по `dcr.toml`.
 
 ```bash
-dcr build                         # debug профиль
-dcr build --release               # release профиль
-dcr build --debug                 # явно debug
-dcr build --profile custom        # произвольный профиль
+dcr build                         # debug profile
+dcr build --release               # release build
+dcr build --debug                 # explicit debug
 dcr build --target aarch64-unknown-linux-gnu
-dcr build --force                 # пересобрать всё с нуля
+dcr build --force                 # full rebuild (also re-runs build.steps / post_steps)
 dcr build --clean                 # clean + build
-dcr build --verbose               # показать команды компиляции
-dcr build --workspace pkg-a       # собрать конкретный пакет в workspace
+dcr build --verbose               # show compilation commands
+dcr build --workspace pkg-a       # build specific workspace package
 ```
 
 Артефакты: `target/\<triple>/\<profile>/\<binary-name>` (Linux с явным целевым объектом).
+
+With `[archive]` in `dcr.toml`, a FAT disk image is packed after a successful build.
 
 ## `dcr run`
 
@@ -29,7 +30,10 @@ dcr build --workspace pkg-a       # собрать конкретный паке
 ```bash
 dcr run
 dcr run --release
+dcr run --force                   # force rebuild then run
 ```
+
+On a **workspace-only** root: if `[run].cmd` is set, that command is used after build; otherwise DCR delegates to a workspace member.
 
 ## `dcr clean`
 
