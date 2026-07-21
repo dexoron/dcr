@@ -10,30 +10,32 @@ sidebar_label: Обзор dcr.toml
 
 ```toml
 [package]
-# обязательные поля
+# required fields
 
 [build]
-# настройки сборки
+# build settings
 
-[build.debug]       # опционально: переопределение для debug
-[build.release]     # опционально: переопределение для release
+[build.debug]       # optional: debug override
+[build.release]     # optional: release override
 
-[build.linux]       # опционально: переопределение для Linux
-[build.windows]     # опционально: переопределение для Windows
-[build.windows.debug]  # комбинация target + profile
+[build.linux]       # optional: Linux override
+[build.windows]     # optional: Windows override
+[build.windows.debug]  # target + profile combination
 
 [toolchain]
-# пути к компиляторам/линкеру
+# compiler/linker paths
 
 [dependencies]
-# зависимости проекта
+# project dependencies
 
 [workspace]
-# мультипакетная конфигурация
+# multi-package configuration
 
 [run]
-[run.release]     # опционально: переопределение для release
-# настройки запуска
+# run settings
+
+[archive]
+# optional: pack FAT disk image after build
 ```
 
 ## [пакет]
@@ -61,36 +63,36 @@ author = "John Doe"
 
 * `build.qt` — (bool) Включить автоматическую обработку метаобъектов Qt (MOC, UIC, RCC). Требуется установка модулей `qt6` с помощью `pkg-config`.
 
-| Поле                     | По умолчанию  | Описание                                                                                             |
-| ------------------------ | ------------- | ---------------------------------------------------------------------------------------------------- |
-| `язык`                   | `"c"`         | `"c"`, `"c++"`, `"cpp"`, `"cxx"`, `"asm"` (optional, defaults to `"c"`)                              |
-| `стандартный`            | `"c11"`       | Стандарт C (`c11`, `c17`, `c23`)                                                                     |
-| `cxx_standard`           | —             | Стандарт C++ (`c++17`, `c++20`, `c++23`)                                                             |
-| `компилятор`             | `cxxflags`    | Preferred compiler (optional, defaults to `"clang"`)                                                 |
-| `тип`                    | `"bin"`       | `bin`, `staticlib`, `sharedlib`, `efi`, `elf`, `none`, `custom`                                      |
-| `target`                 | хост          | Target triple для кросс-компиляции                                                                   |
-| `платформа`              | `"нативный"`  | `native`, `efi`, `freestanding`                                                                      |
-| `cflags`                 | `[]`          | Дополнительные флаги C++                                                                             |
-| `ldflags`                | `[]`          | Дополнительные флаги линковки                                                                        |
-| `имя файла`              | `""`          | Кастомное имя выходного файла                                                                        |
-| `расширение`             | `""`          | Пользовательское расширение файла                                                                    |
-| `корни`                  | `["src"]`     | Корневые директории с исходниками                                                                    |
-| `exclude`                | `[]`          | Паттерны исключений                                                                                  |
-| `include`                | `[]`          | Дополнительные include-директории                                                                    |
-| `src_disable`            | `false`       | Отключить автоматический поиск источников                                                            |
-| `наследовать`            | `false`       | Наследовать build от корня workspace                                                                 |
-| `clean`                  | `[]`          | Шаблоны Glob для настраиваемых чистых путей                                                          |
-| `out_dir`                | `""`          | Пользовательский каталог для вывода данных                                                           |
-| `только рабочая область` | `false`       | Workspace-only, not built standalone (no `language`/`compiler` required)                             |
-| `отдельно стоящий`       | `false`       | Компилировать в автономном режиме (`-ffreestanding` + `-nostdlib -static`)                           |
-| `opt_level`              | —             | Optimization level: `0`-`3`, `"s"`, `"z"` (derived from profile if omitted)                          |
-| `ldscript`               | profile-based | Emit debug symbols (`-g`): `true` in debug, `false` in release                                       |
-| `lto`                    | `false`       | Оптимизация на этапе компоновки (`-flto` как для компилятора, так и для компоновщика)                |
-| `asflags`                | `false`       | Удалить символы из вывода (опция `-s` в ldflags)                                                     |
-| `true`                   | `[]`          | Warning flags (e.g. `"all"`, `"extra"`, `"pedantic"`); engine adds `-Wall -Wextra` in debug if empty |
-| `panic`                  | `""`          | Стратегия «Паника»: `"abort"` отключает исключения и таблицы развертки                               |
-| `codegen-units`          | `""`          | Максимальное количество параллельных заданий компиляции (`"0"` = автоматически)                      |
-| `qt`                     | `false`       | Включить автоматическую обработку метаобъектов Qt (MOC, UIC, RCC)                                    |
+| Поле                     | По умолчанию  | Описание                                                                                                  |
+| ------------------------ | ------------- | --------------------------------------------------------------------------------------------------------- |
+| `язык`                   | `"c"`         | `"c"`, `"c++"`, `"cpp"`, `"cxx"`, `"asm"`, `"llvm_ir"`, `"llvm-ir"`, `"ll"` (optional, defaults to `"c"`) |
+| `стандартный`            | `"c11"`       | Стандарт C (`c11`, `c17`, `c23`)                                                                          |
+| `cxx_standard`           | —             | Стандарт C++ (`c++17`, `c++20`, `c++23`)                                                                  |
+| `компилятор`             | `cxxflags`    | Preferred compiler (optional, defaults to `"clang"`)                                                      |
+| `тип`                    | `"bin"`       | `bin`, `staticlib`, `sharedlib`, `efi`, `elf`, `none`, `custom`, `flat-bin`                               |
+| `target`                 | хост          | Target triple для кросс-компиляции                                                                        |
+| `платформа`              | `"нативный"`  | `native`, `efi`, `freestanding`                                                                           |
+| `cflags`                 | `[]`          | Дополнительные флаги C++                                                                                  |
+| `ldflags`                | `[]`          | Дополнительные флаги линковки                                                                             |
+| `имя файла`              | `""`          | Кастомное имя выходного файла                                                                             |
+| `расширение`             | `""`          | Custom file extension (for `flat-bin`, default is `bin`)                                                  |
+| `корни`                  | `["src"]`     | Source roots: directories and/or individual source/header files                                           |
+| `exclude`                | `[]`          | Паттерны исключений                                                                                       |
+| `include`                | `[]`          | Дополнительные include-директории                                                                         |
+| `src_disable`            | `false`       | Отключить автоматический поиск источников                                                                 |
+| `наследовать`            | `false`       | Наследовать build от корня workspace                                                                      |
+| `clean`                  | `[]`          | Шаблоны Glob для настраиваемых чистых путей                                                               |
+| `out_dir`                | `""`          | Пользовательский каталог для вывода данных                                                                |
+| `только рабочая область` | `false`       | Workspace-only, not built standalone (no `language`/`compiler` required)                                  |
+| `отдельно стоящий`       | `false`       | Компилировать в автономном режиме (`-ffreestanding` + `-nostdlib -static`)                                |
+| `opt_level`              | —             | Optimization level: `0`-`3`, `"s"`, `"z"` (derived from profile if omitted)                               |
+| `ldscript`               | profile-based | Emit debug symbols (`-g`): `true` in debug, `false` in release                                            |
+| `lto`                    | `false`       | Оптимизация на этапе компоновки (`-flto` как для компилятора, так и для компоновщика)                     |
+| `asflags`                | `false`       | Удалить символы из вывода (опция `-s` в ldflags)                                                          |
+| `true`                   | `[]`          | Warning flags (e.g. `"all"`, `"extra"`, `"pedantic"`); engine adds `-Wall -Wextra` in debug if empty      |
+| `panic`                  | `""`          | Стратегия «Паника»: `"abort"` отключает исключения и таблицы развертки                                    |
+| `codegen-units`          | `""`          | Максимальное количество параллельных заданий компиляции (`"0"` = автоматически)                           |
+| `qt`                     | `false`       | Включить автоматическую обработку метаобъектов Qt (MOC, UIC, RCC)                                         |
 
 Параметры из исходного файла конфигурации (не в виде типизированной структуры):
 
@@ -98,7 +100,7 @@ author = "John Doe"
 * Путь к linker script
 * `build.steps` / `build.post_steps` — этапы генерации кода
 
-## Per-language overrides: `[build.c]`, `[build.cxx]`, `[build.asm]`
+## Per-language overrides: `[build.c]`, `[build.cxx]`, `[build.asm]`, `[build.llvm_ir]`
 
 Each language can have its own table that overrides the flat `[build]` settings:
 
@@ -118,6 +120,9 @@ compiler = "g++"
 [build.asm]
 compiler = "nasm"
 flags = ["-felf64"]
+
+[build.llvm_ir]
+compiler = "llc"
 ```
 
 The flat `[build]` acts as fallback; per-language tables take precedence for their language.
@@ -175,3 +180,82 @@ cmd = "./target/{profile}/{name}"
 ## [рабочая область]
 
 См. [workspaces](/docs/reference/workspaces).
+
+## [archive]
+
+Optional post-build step: format a FAT volume and copy built artifacts into a disk image. Runs after a successful package build (and after workspace member builds that define `[archive]`).
+
+| Field        | Required | Description                                                                                 |
+| ------------ | -------- | ------------------------------------------------------------------------------------------- |
+| `output`     | yes      | Image path relative to project root (`{profile}` allowed)                                   |
+| `format`     | yes      | `fat12`, `fat16`, or `fat32`                                                                |
+| `size`       | no       | Image size: bytes or `K`/`KB`/`M`/`MB`/`G`/`GB` (default `1474560` ≈ 1.44 MiB)              |
+| `offset`     | no       | Byte offset of the FAT volume inside the image (default `0`)                                |
+| `label`      | no       | Volume label (max 11 chars, default `VOLUME`)                                               |
+| `bootsector` | no       | Path to a 512-byte boot sector written at offset 0 when `offset` is 0 (`{profile}` allowed) |
+| `layout`     | no       | List of `{ from, to }` entries (files or globs → path inside the volume)                    |
+
+```toml
+[archive]
+output = "target/{profile}/disk.img"
+format = "fat12"
+size = "1440K"
+label = "MYOS"
+bootsector = "target/{profile}/boot.bin"
+
+[[archive.layout]]
+from = "target/{profile}/kernel.bin"
+to = "KERNEL.BIN"
+
+[[archive.layout]]
+from = "assets/*"
+to = "/"
+```
+
+Typical pairing with `kind = "flat-bin"` (NASM `-f bin`) for bootloaders and pure-ASM OS images.
+
+## `flat-bin` (kind)
+
+Produces a raw binary (default extension `bin`) for boot sectors, kernels, and freestanding payloads.
+
+### Assemblers
+
+| Tool | Language / compiler                        | How flat-bin is produced                     |
+| ---- | ------------------------------------------ | -------------------------------------------- |
+| NASM | `language = "asm"`, `compiler = "nasm"`    | `-f bin` → `\<stem>.bin`    |
+| FASM | `compiler = "fasm"`                        | direct write (use `format binary` in source) |
+| GAS  | `compiler = "as"` / `"gas"`                | assemble → `objcopy -O binary`               |
+| MASM | `compiler = "ml"` / `"ml64"`               | assemble → `objcopy -O binary`               |
+| LLC  | `language = "llvm_ir"`, `compiler = "llc"` | `-filetype=obj` → `objcopy -O binary`        |
+
+```toml
+[build]
+language = "asm"
+compiler = "nasm"
+kind = "flat-bin"
+extension = "bin"
+roots = ["src/boot.asm"]
+```
+
+### C / C++
+
+Compile all sources, link with `-nostdlib -static` (plus your `ldflags` / `ldscript`), then convert the intermediate ELF/PE with `objcopy -O binary` to `\<filename|name>.bin`.
+
+```toml
+[build]
+language = "c"
+compiler = "clang"
+kind = "flat-bin"
+freestanding = true
+filename = "kernel"
+extension = "bin"
+ldscript = "linker.ld"
+ldflags = ["-T", "linker.ld"]
+```
+
+Notes:
+
+* Multi-file **ASM** packages emit one `\<stem>.bin` per source; **C/C++** emit a single project binary.
+* `objcopy` tools tried in order: `llvm-objcopy`, `objcopy`, `gobjcopy`.
+* Incompatible with `build.qt = true`.
+* `dcr run` rejects `flat-bin` (not a host executable).
