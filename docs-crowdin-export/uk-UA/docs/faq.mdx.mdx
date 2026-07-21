@@ -39,27 +39,6 @@ which clang
 
 Or specify explicitly via `[toolchain]` in `dcr.toml`.
 
-## openssl-sys build failed
-
-When building DCR from source:
-
-```
-error: failed to run custom build command for openssl-sys
-```
-
-**Solution:** Install OpenSSL development headers:
-
-```bash
-# Ubuntu/Debian
-sudo apt install libssl-dev
-
-# Fedora
-sudo dnf install openssl-devel
-
-# macOS
-brew install openssl
-```
-
 ## Ctrl+C during build
 
 DCR handles SIGINT: interrupts the current compilation and exits with non-zero code.
@@ -75,6 +54,12 @@ See [Cross-Compile Recipe](/docs/recipes/cross-to-windows).
 ## How to create a multi-package project?
 
 See [Workspace Recipe](/docs/recipes/multi-package-workspace).
+
+## Bootloader / pure NASM OS image
+
+Use `kind = "flat-bin"` (NASM `-f bin`) and optional `[archive]` for a FAT disk image.
+
+See [OS-dev recipe](/docs/recipes/os-flat-bin-archive).
 
 ## Lock file
 
