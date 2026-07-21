@@ -51,8 +51,9 @@ dcr gen vscode
 
 * **Incremental builds** — mtime + `.d` headers + SHA256 fingerprint
 * **Parallel compilation** — thread::scope, atomic task queue
-* **4 backends** — gcc/clang, MSVC/clang-cl, GAS (ARM), NASM (x86)
-* **7 project kinds** — bin, staticlib, sharedlib, efi, elf, none, custom
+* **7 backends** — gcc/clang (unix_cc), MSVC/clang-cl (msvc), GAS, NASM, MASM, FASM, LLVM IR
+* **8 project kinds** — bin, staticlib, sharedlib, efi, elf, none, custom, flat-bin
+* **Disk images** — optional `[archive]` packs FAT12/16/32 images after build
 * **Cross-compilation** — short names and full triples
 * **Profiles** — debug / release with field overrides
 * **Workspaces** — multi-package projects with topological sort
