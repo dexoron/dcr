@@ -56,7 +56,7 @@ moc = "moc {in} -o {out}"
 ### GAS / NASM / MASM / FASM / LLVM-IR
 
 * GAS: `-I`, `-c -o`, `--defsym`
-* NASM: `-I`, `-o`, `-D`, `-f` (format: win64/elf64/macho64/macho32/elf32)
+* NASM: `-I`, `-o`, `-D`, `-f` (format: win64/elf64/macho64/macho32/elf32; **`bin` when `kind = "flat-bin"`**)
 * MASM: `/nologo /c /Fo\<obj> <source>`
 * FASM: `<source> \<output>` (output path is the object file)
 * LLVM IR: `-filetype=obj <source> -o \<output>`
@@ -78,15 +78,20 @@ Three levels of incrementality:
 
 ## Build Kinds
 
-| Kind        | Type                            | Path (Linux example)                                                                                                       |
-| ----------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `bin`       | Executable                      | `target/\<triple>/\<profile>/\<name>` (.exe on Windows)                 |
-| `staticlib` | Static library                  | `target/\<triple>/\<profile>/lib\<name>.a` (.lib)                       |
-| `sharedlib` | Dynamic library                 | `target/\<triple>/\<profile>/lib\<name>.so` (.dll/.dylib)               |
-| `efi`       | UEFI application                | `target/\<triple>/\<profile>/\<name>.efi`                               |
-| `elf`       | ELF without stdlib              | `target/\<triple>/\<profile>/\<name>`                                   |
-| `none`      | Compile only, no link           | —                                                                                                                          |
-| `custom`    | Full filename+extension control | `target/\<triple>/\<profile>/\<filename>.\<extension>` |
+| Kind        | Type                            | Path (Linux example)                                                                                                                          |
+| ----------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bin`       | Executable                      | `target/\<triple>/\<profile>/\<name>` (.exe on Windows)                                    |
+| `staticlib` | Static library                  | `target/\<triple>/\<profile>/lib\<name>.a` (.lib)                                          |
+| `sharedlib` | Dynamic library                 | `target/\<triple>/\<profile>/lib\<name>.so` (.dll/.dylib)                                  |
+| `efi`       | UEFI application                | `target/\<triple>/\<profile>/\<name>.efi`                                                  |
+| `elf`       | ELF without stdlib              | `target/\<triple>/\<profile>/\<name>`                                                      |
+| `none`      | Compile only, no link           | —                                                                                                                                             |
+| `custom`    | Full filename+extension control | `target/\<triple>/\<profile>/\<filename>.\<extension>`                    |
+| `flat-bin`  | Raw binary                      | ASM: `\<stem>.bin` (NASM `-f bin` / FASM / GAS·MASM·LLC via objcopy); C/C++: `\<name>.bin` (link + objcopy) |
+
+## Disk images (`[archive]`)
+
+After a successful build, if `[archive]` is present in `dcr.toml`, DCR formats a FAT volume and copies files from `layout` into the image. See [dcr.toml → archive](/docs/reference/dcr-toml#archive).
 
 ## Build Steps
 
