@@ -57,14 +57,8 @@ dcr build --target aarch64-none-elf
 
 ## Целевой каталог
 
-В Linux с явным указанием цели:
+By default, the compilation output directories are structured as follows:
 
-```
-target/<triple>/<profile>/
-```
-
-В macOS/Windows или без указания целевой платформы:
-
-```
-target/<profile>/
-```
+* **Linux and BSD**: Always output to `target/\<triple>/\<profile>/` (using host triple if no target is specified).
+* **macOS and Windows (without target)**: Output to `target/\<profile>/`.
+* **macOS and Windows (with explicit target)**: Output to `target/\<triple>/\<profile>/`.
