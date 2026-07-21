@@ -110,8 +110,17 @@ pub fn run(args: &[String]) -> i32 {
         Err(_) => return 1,
     };
 
-    // Handle workspace-only root: delegate to workspace member
     if config.is_workspace_only() {
+        if let Some(cmd) = get_run_cmd(&config, &flags.profile, flags.target.as_deref(), "") {
+            let build_status = build(&args_for_build(&flags));
+            if build_status == 0 {
+                println!("\n    {} {}", colored("Running", BOLD_GREEN), cmd);
+                println!("--------------------------------");
+                return run_shell(&cmd);
+            }
+            return build_status;
+        }
+
         let ws = match crate::core::workspace::parse_workspace(
             &config,
             &flags.profile,
@@ -213,7 +222,11 @@ fn run_project(
 
     let kind = build_kind.trim();
     if run_cmd.is_none()
-        && (kind == "staticlib" || kind == "sharedlib" || kind == "efi" || kind == "elf")
+        && (kind == "staticlib"
+            || kind == "sharedlib"
+            || kind == "efi"
+            || kind == "elf"
+            || kind == "flat-bin")
     {
         return Err("Cannot run library build".to_string());
     }

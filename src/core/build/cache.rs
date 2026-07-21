@@ -107,6 +107,10 @@ fn build_cache_path(profile: &str, target_dir: Option<&str>) -> PathBuf {
 }
 
 fn build_output_path(ctx: &BuildContext) -> String {
+    if crate::utils::build::is_flat_bin(ctx.kind) {
+        return crate::core::build::builder::artifact::flat_output_path(ctx);
+    }
+
     let name = ctx.output_filename.unwrap_or(ctx.project_name);
     let ext = ctx.output_extension.unwrap_or("");
 
@@ -159,7 +163,13 @@ pub(crate) fn collect_header_files(
         if !root.exists() {
             continue;
         }
-        collect_header_files_rec(&root, &mut out, ctx.exclude_dirs, ctx.include_paths)?;
+        if root.is_file() {
+            if is_header_file(&root) {
+                out.push(root);
+            }
+        } else {
+            collect_header_files_rec(&root, &mut out, ctx.exclude_dirs, ctx.include_paths)?;
+        }
     }
     out.sort();
     out.dedup();

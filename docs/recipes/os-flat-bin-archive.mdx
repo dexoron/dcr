@@ -1,0 +1,89 @@
+---
+sidebar_label: OS-dev (flat-bin + archive)
+---
+
+# Pure ASM / boot image (flat-bin + archive)
+
+Minimal OS-dev style pipeline: assemble raw binaries with NASM, then pack a FAT floppy/image with an optional boot sector.
+
+## Project layout
+
+```
+myos/
+  dcr.toml
+  src/
+    boot.asm      # boot sector (512 bytes)
+    kernel.asm    # payload
+```
+
+For multiple flat artifacts, use a **workspace** (one member per binary) or separate packages; a single `flat-bin` package produces one binary per source stem.
+
+## Boot package (`flat-bin`)
+
+```toml
+[package]
+name = "boot"
+version = "0.1.0"
+
+[build]
+language = "asm"
+compiler = "nasm"
+kind = "flat-bin"
+extension = "bin"
+roots = ["src/boot.asm"]
+```
+
+```bash
+dcr build
+# → target/<…>/debug/boot.bin  (NASM -f bin, no link)
+```
+
+## Disk image after build
+
+```toml
+[archive]
+output = "target/{profile}/disk.img"
+format = "fat12"
+size = "1440K"
+label = "MYOS"
+bootsector = "target/{profile}/boot.bin"
+
+[[archive.layout]]
+from = "target/{profile}/kernel.bin"
+to = "KERNEL.BIN"
+```
+
+- `format`: `fat12`, `fat16`, or `fat32`
+- `size`: bytes or `K`/`KB`/`M`/`MB`/`G`/`GB` (default ~1.44 MiB)
+- `bootsector`: written only when `offset` is omitted or `0`
+- `from` may be a glob; `{profile}` is substituted in paths
+
+## C kernel → flat binary
+
+```toml
+[build]
+language = "c"
+compiler = "clang"
+kind = "flat-bin"
+freestanding = true
+filename = "kernel"
+extension = "bin"
+ldflags = ["-T", "linker.ld"]
+```
+
+Pipeline: objects → temporary linked ELF → `objcopy -O binary` → `kernel.bin`. Requires `objcopy` / `llvm-objcopy` in PATH.
+
+## Other assemblers
+
+| Tool | Notes |
+|------|--------|
+| **FASM** | Write `format binary` in the source; DCR writes `<stem>.bin` directly |
+| **GAS** | Assemble `.s` → obj → `objcopy -O binary` |
+| **LLC** | `language = "llvm_ir"` → obj → objcopy |
+| **MASM** | COFF obj → objcopy (needs binutils/LLVM objcopy) |
+
+## Notes
+
+- Single-file `roots` are supported: `roots = ["src/boot.asm"]`.
+- `--force` re-runs `build.steps` / `build.post_steps` as well as recompilation.
+- Prefer `kind = "elf"` if you need a relocatable ELF kernel without stripping to raw binary.

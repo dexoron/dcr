@@ -50,7 +50,11 @@ fn build_object(
         return Ok(());
     }
 
-    let format = nasm_format(ctx.platform);
+    let format = if crate::utils::build::is_flat_bin(ctx.kind) {
+        "bin"
+    } else {
+        nasm_format(ctx.platform)
+    };
 
     let mut cmd = Command::new(assembler);
     cmd.arg("-f")

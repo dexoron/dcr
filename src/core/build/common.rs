@@ -35,7 +35,15 @@ pub fn collect_sources(
 ) -> Result<Vec<String>, String> {
     let mut sources = Vec::new();
     for root in roots {
-        collect_sources_rec(root, extensions, &mut sources, exclude_dirs, include_paths)?;
+        if root.is_file() {
+            if let Some(ext) = root.extension().and_then(|e| e.to_str())
+                && extensions.contains(&ext.to_lowercase().as_str())
+            {
+                sources.push(root.to_string_lossy().to_string());
+            }
+        } else {
+            collect_sources_rec(root, extensions, &mut sources, exclude_dirs, include_paths)?;
+        }
     }
     sources.sort();
     Ok(sources)

@@ -18,7 +18,7 @@
 use crate::core::build::builder::BuildContext;
 use crate::core::build::builder::artifact;
 use crate::core::build::common;
-use crate::utils::build::is_bare_metal_target;
+use crate::utils::build::{is_bare_metal_target, is_compile_only, is_flat_bin};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -30,6 +30,9 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     } else {
         ctx.compiler
     };
+    if is_flat_bin(ctx.kind) && ctx.qt {
+        return Err("flat-bin is not supported with build.qt = true".to_string());
+    }
     let start_time = Instant::now();
     let obj_dir = match ctx.target_dir {
         Some(dir) => Path::new(dir).join("obj"),
@@ -54,6 +57,10 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
         ctx.include_paths,
     )?;
     let objects = build_objects(compiler, &sources, &obj_dir, ctx, "o", qt_include_path)?;
+
+    if is_compile_only(ctx.kind) && !is_flat_bin(ctx.kind) {
+        return Ok(common::elapsed_secs(start_time));
+    }
 
     if ctx.kind == "staticlib" {
         return artifact::archive_static(ctx, &objects, start_time);
@@ -138,7 +145,7 @@ fn build_object(
         cmd.arg("-fPIC");
     }
 
-    if (ctx.freestanding || is_bare_metal_target(ctx.target))
+    if (ctx.freestanding || is_bare_metal_target(ctx.target) || is_flat_bin(ctx.kind))
         && ctx.language.to_lowercase() != "asm"
     {
         cmd.arg("-ffreestanding");
@@ -174,8 +181,8 @@ fn build_object(
         }
     }
 
-    let use_dcr_defaults =
-        ctx.cflags.is_empty() && !(ctx.freestanding || is_bare_metal_target(ctx.target));
+    let use_dcr_defaults = ctx.cflags.is_empty()
+        && !(ctx.freestanding || is_bare_metal_target(ctx.target) || is_flat_bin(ctx.kind));
     if use_dcr_defaults {
         for flag in default_flags(ctx.profile) {
             cmd.arg(flag);

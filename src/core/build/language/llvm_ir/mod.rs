@@ -21,7 +21,7 @@ impl Language for LlvmIr {
 }
 
 pub fn build(ctx: &BuildContext) -> Result<f64, String> {
-    asm::build_assembly(ctx, "LLVM-IR", "llc", &["ll"], build_object)
+    asm::build_assembly_via_objcopy(ctx, "LLVM-IR", "llc", &["ll"], build_object)
 }
 
 pub(crate) fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String> {

@@ -86,6 +86,14 @@ pub fn normalize_kind(kind: &str) -> &str {
     if trimmed.is_empty() { "bin" } else { trimmed }
 }
 
+pub fn is_flat_bin(kind: &str) -> bool {
+    kind == "flat-bin"
+}
+
+pub fn is_compile_only(kind: &str) -> bool {
+    matches!(kind, "none" | "custom" | "flat-bin")
+}
+
 pub fn normalize_platform(platform: &str) -> Option<&str> {
     let trimmed = platform.trim();
     if trimmed.is_empty() {

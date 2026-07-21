@@ -6,7 +6,7 @@ use std::path::Path;
 use std::process::Command;
 
 pub fn build(ctx: &BuildContext) -> Result<f64, String> {
-    asm::build_assembly(ctx, "MASM", "ml", &["asm"], build_object)
+    asm::build_assembly_via_objcopy(ctx, "MASM", "ml", &["asm"], build_object)
 }
 
 pub(crate) fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String> {

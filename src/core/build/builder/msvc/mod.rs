@@ -16,8 +16,10 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::core::build::builder::BuildContext;
+use crate::core::build::builder::artifact;
 use crate::core::build::common;
 use crate::platform;
+use crate::utils::build::{is_compile_only, is_flat_bin};
 use std::fs;
 use std::path::Path;
 use std::process::Command;
@@ -33,6 +35,9 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     if lang.contains("asm") {
         return Err("MSVC backend does not support build.language with asm".to_string());
     }
+    if is_flat_bin(ctx.kind) && ctx.qt {
+        return Err("flat-bin is not supported with build.qt = true".to_string());
+    }
     let start_time = Instant::now();
     let sources = collect_sources(ctx)?;
     let obj_dir = match ctx.target_dir {
@@ -40,6 +45,14 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
         None => Path::new("./target").join(ctx.profile).join("obj"),
     };
     let objects = build_objects(compiler, &sources, &obj_dir, ctx, "obj")?;
+
+    if is_compile_only(ctx.kind) && !is_flat_bin(ctx.kind) {
+        return Ok(common::elapsed_secs(start_time));
+    }
+
+    if is_flat_bin(ctx.kind) {
+        return link_flat_msvc(ctx, compiler, &objects, &obj_dir, start_time);
+    }
 
     if ctx.kind == "staticlib" {
         let lib_path = platform::lib_path(ctx.profile, ctx.project_name, ctx.target_dir);
@@ -139,6 +152,61 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
         Ok(_) => Err("Build failed".to_string()),
         Err(err) => Err(format!("Build failed: {err}")),
     }
+}
+
+fn link_flat_msvc(
+    ctx: &BuildContext,
+    compiler: &str,
+    objects: &[String],
+    obj_dir: &Path,
+    start_time: Instant,
+) -> Result<f64, String> {
+    let out_path = artifact::flat_output_path(ctx);
+    if !common::needs_link(objects, &out_path) {
+        return Ok(common::elapsed_secs(start_time));
+    }
+    fs::create_dir_all(obj_dir).map_err(|e| format!("obj dir error: {e}"))?;
+    let intermediate = obj_dir
+        .join(format!("{}.flat.exe", ctx.project_name))
+        .to_string_lossy()
+        .to_string();
+
+    let mut cmd = Command::new(compiler);
+    cmd.arg("/nologo");
+    for obj in objects {
+        cmd.arg(obj);
+    }
+    for flag in ctx.cflags {
+        cmd.arg(flag);
+    }
+    for dir in ctx.lib_dirs {
+        cmd.arg(format!("/LIBPATH:{dir}"));
+    }
+    for lib in ctx.libs {
+        if lib.to_lowercase().ends_with(".lib") {
+            cmd.arg(lib);
+        } else {
+            cmd.arg(format!("{lib}.lib"));
+        }
+    }
+    cmd.arg(format!("/Fe:{intermediate}"));
+    if !ctx.ldflags.is_empty() {
+        cmd.arg("/link");
+        for flag in ctx.ldflags {
+            cmd.arg(flag);
+        }
+    }
+    if ctx.verbose || std::env::var("DCR_DEBUG").is_ok() {
+        eprintln!("[dcr] {:?}", cmd);
+    }
+    let status = cmd
+        .status()
+        .map_err(|e| format!("flat-bin link failed: {e}"))?;
+    if !status.success() {
+        return Err("flat-bin link failed".to_string());
+    }
+    artifact::objcopy_binary(ctx, &intermediate, &out_path)?;
+    Ok(common::elapsed_secs(start_time))
 }
 
 pub(crate) fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String> {

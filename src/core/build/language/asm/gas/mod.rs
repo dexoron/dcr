@@ -32,7 +32,7 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "as".to_string());
-    asm::build_assembly(ctx, "GAS", &as_path, &["s"], build_object)
+    asm::build_assembly_via_objcopy(ctx, "GAS", &as_path, &["s"], build_object)
 }
 
 pub(crate) fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String> {

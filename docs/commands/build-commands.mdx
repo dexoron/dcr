@@ -13,13 +13,15 @@ dcr build                         # debug profile
 dcr build --release               # release build
 dcr build --debug                 # explicit debug
 dcr build --target aarch64-unknown-linux-gnu
-dcr build --force                 # full rebuild
+dcr build --force                 # full rebuild (also re-runs build.steps / post_steps)
 dcr build --clean                 # clean + build
 dcr build --verbose               # show compilation commands
 dcr build --workspace pkg-a       # build specific workspace package
 ```
 
 Artifacts: `target/<triple>/<profile>/<binary-name>` (Linux with explicit target).
+
+With `[archive]` in `dcr.toml`, a FAT disk image is packed after a successful build.
 
 ## `dcr run`
 
@@ -28,7 +30,10 @@ Builds (if sources are newer than artifacts) and runs the binary.
 ```bash
 dcr run
 dcr run --release
+dcr run --force                   # force rebuild then run
 ```
+
+On a **workspace-only** root: if `[run].cmd` is set, that command is used after build; otherwise DCR delegates to a workspace member.
 
 ## `dcr clean`
 
