@@ -1,5 +1,51 @@
 # Changelog
 
+## [0.8.1] - 2026-07-20 "OS-Dev: flat-bin, FAT-образы / OS-Dev: flat-bin & FAT Images"
+
+### RU
+
+**Добавлено:**
+
+- **`build.kind = "flat-bin"`** — сырой бинарный артефакт (расширение по умолчанию `.bin`):
+  - **NASM** — `-f bin`, прямой вывод `<stem>.bin`
+  - **FASM** — прямой вывод (ожидается `format binary` в исходнике)
+  - **GAS / MASM / LLVM IR (`llc`)** — объект → `objcopy -O binary` → `<stem>.bin`
+  - **C/C++ (gcc/clang/MSVC)** — compile → link (nostdlib/static) → `objcopy -O binary` → `<name>.bin`
+  - Требуется `llvm-objcopy` / `objcopy` / `gobjcopy` в PATH (кроме NASM/FASM direct)
+- **Секция `[archive]`** — после успешной сборки DCR собирает образ диска (FAT12/16/32 через `fatfs`): размер, offset, volume label, опциональный bootsector (512 байт в начало при `offset = 0`) и `layout` (копирование файлов/glob в FS). Плейсхолдер `{profile}` в путях.
+- **Одиночные файлы в `build.roots`** — корень может быть файлом (`.c`, `.asm`, header), а не только каталогом; то же для сбора заголовков в cache.
+
+**Изменено:**
+
+- **`dcr build --force` / `dcr run --force`** — force также перезапускает `build.steps` и `build.post_steps`.
+- **`dcr run` на workspace-only root** — если задан `[run].cmd`, сначала build + run по конфигу корня; иначе делегирование члену workspace (как в 0.8.0).
+
+**Зависимости:**
+
+- `fatfs = "0.3"` для упаковки FAT-образов.
+
+### EN
+
+**Added:**
+
+- **`build.kind = "flat-bin"`** — raw binary artifact (default extension `.bin`):
+  - **NASM** — `-f bin`, direct `<stem>.bin`
+  - **FASM** — direct output (`format binary` in source)
+  - **GAS / MASM / LLVM IR (`llc`)** — object → `objcopy -O binary` → `<stem>.bin`
+  - **C/C++ (gcc/clang/MSVC)** — compile → link (`-nostdlib -static`) → `objcopy -O binary` → `<name>.bin`
+  - Needs `llvm-objcopy` / `objcopy` / `gobjcopy` in PATH (except NASM/FASM direct)
+- **`[archive]` section** — after a successful build, pack a disk image (FAT12/16/32 via `fatfs`): size, offset, volume label, optional bootsector (512 bytes at start when `offset = 0`), and `layout` (file/glob copy into the FS). `{profile}` substitution in paths.
+- **Single-file `build.roots`** — a root may be a file (`.c`, `.asm`, header), not only a directory; header collection in the cache follows the same rule.
+
+**Changed:**
+
+- **`dcr build --force` / `dcr run --force`** — force also re-runs `build.steps` and `build.post_steps`.
+- **`dcr run` on a workspace-only root** — if `[run].cmd` is set, build + run that command first; otherwise fall back to workspace member delegation (0.8.0 behavior).
+
+**Dependencies:**
+
+- `fatfs = "0.3"` for FAT image packing.
+
 ## [0.8.0] - 2026-07-18 "Модульный Движок Сборки, Новая Архитектура Ядра и Улучшение Workspaces / Modular Build Engine, New Core Architecture, & Workspace Improvements"
 
 ### RU

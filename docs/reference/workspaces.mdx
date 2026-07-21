@@ -43,7 +43,9 @@ dcr build                    # build all packages in dependency order
 dcr build --workspace app    # build only app (dependencies built automatically)
 ```
 
-When building a workspace, member outputs (libraries) are automatically added to include/lib paths of dependent packages.
+When building a workspace, DCR automatically injects include and library paths of dependent workspace members:
+- **Include Paths**: Automatically resolves and injects header directories of dependencies, including the member's `src/` directory, local `include/` directory, and the packaged `target/include` directory.
+- **Library Paths**: Injects compiled library search paths (`target/lib` as well as target-specific build folders) to allow automatic linking with member libraries.
 
 ## Clean
 

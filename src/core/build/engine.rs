@@ -165,6 +165,9 @@ fn build_all(
                 &mut *rep,
             )?;
         }
+        if let Some(archive) = &config.typed().archive {
+            super::archive::pack_archive(root, archive, profile)?;
+        }
         return Ok(0.0);
     }
 
@@ -843,7 +846,10 @@ fn build_project_at(
         version_suffix: &version_info.suffix,
         version_suffix_dash: &version_info.suffix_dash,
     };
-    let steps_dirty = build_steps_need_run(&build_steps, &step_vars)?;
+    let mut steps_dirty = build_steps_need_run(&build_steps, &step_vars)?;
+    if force {
+        steps_dirty = true;
+    }
     if steps_dirty {
         clean_generated_files(&build_generated)?;
         run_build_steps(
@@ -884,7 +890,10 @@ fn build_project_at(
     if ctx.package_type == Some("lib") || ctx.kind == "staticlib" || ctx.kind == "sharedlib" {
         package_library(&ctx, &headers, project_root)?;
     }
-    let post_steps_dirty = build_steps_need_run(&build_post_steps, &step_vars)?;
+    let mut post_steps_dirty = build_steps_need_run(&build_post_steps, &step_vars)?;
+    if force {
+        post_steps_dirty = true;
+    }
     if post_steps_dirty {
         run_build_steps(
             &build_post_steps,
@@ -896,6 +905,9 @@ fn build_project_at(
         )?;
     }
     verify_expectations(&build_expects, &step_vars)?;
+    if let Some(archive) = &config.typed().archive {
+        super::archive::pack_archive(project_root, archive, profile)?;
+    }
     Ok(())
 }
 fn find_target_root(dir: &str, fallback: &Path) -> PathBuf {

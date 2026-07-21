@@ -1,6 +1,6 @@
 [package]
 name = "dcr"
-version = "0.8.0"
+version = "0.8.1"
 edition = "2024"
 build = "build.rs"
 description = "DCR is a utility for managing C/C++ projects in a Cargo-like style."
@@ -69,6 +69,7 @@ toml = "1.0.3"
 toml_edit = "0.22"
 serde_json = "1"
 ctrlc = "3"
+fatfs = "0.3"
 
 [profile.release]
 opt-level = "z"

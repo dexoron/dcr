@@ -36,6 +36,7 @@ const VALID_KINDS: &[&str] = &[
     "elf",
     "none",
     "custom",
+    "flat-bin",
 ];
 
 #[derive(Debug)]
@@ -102,6 +103,27 @@ pub struct DcrConfig {
     pub toolchain: Option<ToolchainConfig>,
     #[serde(default)]
     pub workspace: BTreeMap<String, WorkspaceMemberConfig>,
+    #[serde(default)]
+    pub archive: Option<ArchiveConfig>,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Deserialize)]
+pub struct ArchiveConfig {
+    pub output: String,
+    pub format: String,
+    pub size: Option<String>,
+    pub offset: Option<String>,
+    pub label: Option<String>,
+    pub bootsector: Option<String>,
+    #[serde(default)]
+    pub layout: Vec<ArchiveLayout>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ArchiveLayout {
+    pub from: String,
+    pub to: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
