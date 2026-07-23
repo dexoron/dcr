@@ -90,7 +90,9 @@ fn run_compile(
     _rep: &mut dyn BuildReporter,
 ) -> Result<f64, String> {
     let start_time = Instant::now();
-    match build_project(ctx) {
+    let result = build_project(ctx);
+    common::finish_progress_line();
+    match result {
         Ok(times) => {
             let times = if times == 0.0 {
                 ((start_time.elapsed().as_secs_f64() * 100.0).trunc()) / 100.0
@@ -166,7 +168,17 @@ fn build_all(
             )?;
         }
         if let Some(archive) = &config.typed().archive {
-            super::archive::pack_archive(root, archive, profile)?;
+            #[cfg(feature = "archive")]
+            {
+                super::archive::pack_archive(root, archive, profile)?;
+            }
+            #[cfg(not(feature = "archive"))]
+            {
+                let _ = (archive, profile);
+                return Err(
+                    "disk image packing requires building dcr with --features archive".to_string(),
+                );
+            }
         }
         return Ok(0.0);
     }
@@ -777,10 +789,12 @@ fn build_project_at(
     let resolved_cflags: Vec<String> = resolved_cflags
         .iter()
         .map(|f| substitute_vars(f, &version_info, profile, &project_name))
+        .map(|f| absolutize_flag_path(&f, project_root, &["-isystem", "-idirafter", "-I", "-i"]))
         .collect();
     let modified_ldflags: Vec<String> = resolved_ldflags
         .iter()
         .map(|f| substitute_vars(f, &version_info, profile, &project_name))
+        .map(|f| absolutize_flag_path(&f, project_root, &["-L", "-T"]))
         .collect();
     let merged_include_dirs: Vec<String> = merged_include_dirs
         .iter()
@@ -876,11 +890,11 @@ fn build_project_at(
     if skip && !debug_enabled {
         return Ok(());
     }
-    rep.on_event(BuildEvent::Compiling {
-        name: &project_name,
-        version: &project_version,
-    });
     if !skip {
+        rep.on_event(BuildEvent::Compiling {
+            name: &project_name,
+            version: &project_version,
+        });
         run_compile(&ctx, cancel, rep)?;
         if cancel.load(Ordering::SeqCst) {
             return Err("Build interrupted".to_string());
@@ -906,10 +920,42 @@ fn build_project_at(
     }
     verify_expectations(&build_expects, &step_vars)?;
     if let Some(archive) = &config.typed().archive {
-        super::archive::pack_archive(project_root, archive, profile)?;
+        let out = archive.output.replace("{profile}", profile);
+        rep.on_event(BuildEvent::Packing { path: &out });
+        #[cfg(feature = "archive")]
+        {
+            super::archive::pack_archive(project_root, archive, profile)?;
+        }
+        #[cfg(not(feature = "archive"))]
+        {
+            let _ = (project_root, archive, profile, out);
+            return Err(
+                "disk image packing requires building dcr with --features archive".to_string(),
+            );
+        }
     }
     Ok(())
 }
+
+fn absolutize_flag_path(flag: &str, project_root: &Path, prefixes: &[&str]) -> String {
+    for prefix in prefixes {
+        if let Some(rest) = flag.strip_prefix(prefix) {
+            if rest.is_empty() {
+                return flag.to_string();
+            }
+            if rest.starts_with('/') || rest.starts_with('@') {
+                return flag.to_string();
+            }
+            if rest.len() >= 2 && rest.as_bytes()[1] == b':' {
+                return flag.to_string();
+            }
+            let abs = project_root.join(rest);
+            return format!("{prefix}{}", abs.to_string_lossy());
+        }
+    }
+    flag.to_string()
+}
+
 fn find_target_root(dir: &str, fallback: &Path) -> PathBuf {
     let p = Path::new(dir);
     for ancestor in p.ancestors() {
@@ -1093,4 +1139,36 @@ fn is_on_path(cmd: &str) -> bool {
     }
     std::env::var_os("PATH")
         .is_some_and(|paths| std::env::split_paths(&paths).any(|dir| dir.join(cmd).is_file()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::absolutize_flag_path;
+    use std::path::Path;
+
+    #[test]
+    fn absolutize_prefers_long_include_prefixes() {
+        let root = Path::new("/pkg");
+        let prefs = ["-isystem", "-idirafter", "-I", "-i"];
+        assert_eq!(
+            absolutize_flag_path("-isystemvendor/inc", root, &prefs),
+            "-isystem/pkg/vendor/inc"
+        );
+        assert_eq!(
+            absolutize_flag_path("-idiraftervendor/old", root, &prefs),
+            "-idirafter/pkg/vendor/old"
+        );
+        assert_eq!(
+            absolutize_flag_path("-I../inc", root, &prefs),
+            "-I/pkg/../inc"
+        );
+        assert_eq!(
+            absolutize_flag_path("-i../inc", root, &prefs),
+            "-i/pkg/../inc"
+        );
+        assert_eq!(
+            absolutize_flag_path("-I/usr/include", root, &prefs),
+            "-I/usr/include"
+        );
+    }
 }

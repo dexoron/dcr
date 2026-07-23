@@ -19,9 +19,7 @@ use crate::cli::build::build;
 use crate::cli::flags::parse_build_run_flags;
 use crate::core::build_config::Config;
 use crate::core::runner::run_binary;
-use crate::utils::build::{
-    default_target_triple, normalize_target_os, parse_version_info, substitute_vars,
-};
+use crate::utils::build::{normalize_target_os, parse_version_info, substitute_vars};
 use crate::utils::fs::find_project_root;
 use crate::utils::fs::with_dir;
 use crate::utils::log::error;
@@ -114,8 +112,11 @@ pub fn run(args: &[String]) -> i32 {
         if let Some(cmd) = get_run_cmd(&config, &flags.profile, flags.target.as_deref(), "") {
             let build_status = build(&args_for_build(&flags));
             if build_status == 0 {
-                println!("\n    {} {}", colored("Running", BOLD_GREEN), cmd);
-                println!("--------------------------------");
+                println!(
+                    "  {} {}",
+                    colored(&format!("{:<9}", "run"), BOLD_GREEN),
+                    cmd
+                );
                 return run_shell(&cmd);
             }
             return build_status;
@@ -186,10 +187,13 @@ fn run_project(
         .and_then(|v| v.as_str())
         .unwrap_or("");
 
-    // If no target specified, use default host target for target-specific config
     let mut target = flags.target.clone();
     if target.is_none() {
-        target = Some(default_target_triple());
+        let bt =
+            crate::cli::build::get_build_string_with_profile(&config, "target", &flags.profile);
+        if !bt.is_empty() {
+            target = Some(bt);
+        }
     }
 
     let build_kind = config
@@ -246,12 +250,18 @@ fn run_project(
     );
     if build_status == 0 {
         if let Some(cmd) = run_cmd {
-            println!("\n    {} {}", colored("Running", BOLD_GREEN), cmd);
-            println!("--------------------------------");
+            println!(
+                "  {} {}",
+                colored(&format!("{:<9}", "run"), BOLD_GREEN),
+                cmd
+            );
             return Ok(run_shell(&cmd));
         }
-        println!("\n    {} {}", colored("Running", BOLD_GREEN), bin_path);
-        println!("--------------------------------");
+        println!(
+            "  {} {}",
+            colored(&format!("{:<9}", "run"), BOLD_GREEN),
+            bin_path
+        );
         return Ok(run_binary(
             project_name,
             &flags.profile,

@@ -120,6 +120,7 @@ pub struct ArchiveConfig {
     pub layout: Vec<ArchiveLayout>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct ArchiveLayout {
     pub from: String,

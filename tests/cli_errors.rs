@@ -92,9 +92,17 @@ fn no_args_shows_help() {
 fn unknown_command_fails() {
     let dir = unique_sandbox_dir("unknown_cmd");
     let out = run_dcr(&["foobar"], &dir);
-    let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
-        stdout.contains("error") || stdout.contains("Unknown"),
+        !out.status.success(),
+        "unknown command should exit non-zero"
+    );
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        combined.contains("error") || combined.contains("Unknown"),
         "unknown command should print error"
     );
 }
@@ -104,9 +112,13 @@ fn build_without_toml_fails() {
     let dir = unique_sandbox_dir("build_no_toml");
     let out = run_dcr(&["build"], &dir);
     assert!(!out.status.success(), "build without dcr.toml should fail");
-    let stdout = String::from_utf8_lossy(&out.stdout);
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
     assert!(
-        stdout.contains("dcr.toml") || stdout.contains("not found"),
+        combined.contains("dcr.toml") || combined.contains("not found"),
         "should mention missing dcr.toml"
     );
 }
@@ -132,9 +144,13 @@ fn new_existing_dir_fails() {
     std::fs::create_dir_all(dir.join("hello")).expect("failed to create dir");
     let out = run_dcr(&["new", "hello"], &dir);
     assert!(!out.status.success(), "dcr new on existing dir should fail");
-    let stdout = String::from_utf8_lossy(&out.stdout);
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
     assert!(
-        stdout.contains("already exists") || stdout.contains("error"),
+        combined.contains("already exists") || combined.contains("error"),
         "should report dir already exists"
     );
 }
@@ -149,9 +165,13 @@ fn init_nonempty_dir_fails() {
         !out.status.success(),
         "dcr init in non-empty dir should fail"
     );
-    let stdout = String::from_utf8_lossy(&out.stdout);
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
     assert!(
-        stdout.contains("not empty") || stdout.contains("error"),
+        combined.contains("not empty") || combined.contains("error"),
         "should report dir not empty"
     );
 }
@@ -186,9 +206,13 @@ fn run_library_project_fails() {
     let envs = [("DCR_COMPILER", compiler)];
     let out = run_dcr_env(&["run"], &dir, &envs);
     assert!(!out.status.success(), "dcr run on staticlib should fail");
-    let stdout = String::from_utf8_lossy(&out.stdout);
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
     assert!(
-        stdout.contains("library") || stdout.contains("Cannot run"),
+        combined.contains("library") || combined.contains("Cannot run"),
         "should report cannot run library"
     );
 }
@@ -226,9 +250,13 @@ fn new_no_name_fails() {
     let dir = unique_sandbox_dir("new_noname");
     let out = run_dcr(&["new"], &dir);
     assert!(!out.status.success(), "dcr new without name should fail");
-    let stdout = String::from_utf8_lossy(&out.stdout);
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
     assert!(
-        stdout.contains("not specified") || stdout.contains("error"),
+        combined.contains("not specified") || combined.contains("error"),
         "should report name not specified"
     );
 }

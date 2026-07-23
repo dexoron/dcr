@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.8.2] - 2026-07-22 "CLI Progress, archive Feature, Workspace Path Fixes / CLI Progress, archive Feature, Workspace Path Fixes"
+
+### RU
+
+**Добавлено:**
+
+- **Прогресс компиляции `[N/M]`** — live-строка `compile  pkg v0.1.0  [12/41]` на TTY (stderr), чтобы длинные mono-package сборки не выглядели «зависшими».
+- **Свой стиль статуса build** — фиксированная колонка глаголов: `project`, `compile`, `dep`, `ready`, `pack`, `done`, `run` (не cargo-clone).
+- **Cargo feature `archive`** — `fatfs` и упаковка FAT-образов опциональны (`cargo build --features archive`). Release CI собирает с feature; без feature `[archive]` даёт явную ошибку.
+- **Интеграционные тесты** — `flat_bin_nasm_build`, `package_build_target_used_without_cli_flag`, усилен workspace `clean --all`.
+- **Расширенный CI** — unit + integration на Linux/macOS/Windows, отдельный job с `--features archive`, rust-cache, clippy default + all-features.
+
+**Изменено:**
+
+- **CLI host triple больше не форсится** — без `--target` используется `build.target` пакета/member (важно для bare-metal / post_steps ISO).
+- **Relative `-I`/`-L`/`-T` (и `-isystem`/`-idirafter`)** в cflags/ldflags абсолютизируются относительно корня пакета (workspace CWD = root).
+- **`dcr clean --all`** — не спамит `target not found` по members без локального `target/` (общий root `target/`).
+- **`error` / `warn`** — красный / жёлтый, вывод на stderr; `Подсказка:` → `Hint:`.
+- **`dcr --help` / man** — добавлены `add`, `lint`, `setup`; unknown command → exit code 1.
+- **Сообщения NotFound** — `linker not found: ld.lld …` / `{tool} not found …` вместо сырого `os error 2`.
+
+### EN
+
+**Added:**
+
+- **Compile progress `[N/M]`** — live TTY line `compile  pkg v0.1.0  [12/41]` so long mono-package builds do not look hung.
+- **DCR status verbs** — fixed-width column: `project`, `compile`, `dep`, `ready`, `pack`, `done`, `run`.
+- **Cargo feature `archive`** — optional `fatfs` / FAT packing (`cargo build --features archive`). Release CI builds with the feature; without it `[archive]` errors clearly.
+- **Integration tests** — `flat_bin_nasm_build`, package `build.target` without CLI flag, stricter workspace `clean --all`.
+- **Expanded CI** — unit + integration on Linux/macOS/Windows, archive feature job, rust-cache, clippy default + all-features.
+
+**Changed:**
+
+- **CLI no longer forces host triple** — without `--target`, package/member `build.target` is used (bare-metal / ISO post_steps).
+- **Relative `-I`/`-L`/`-T` (and `-isystem`/`-idirafter`)** in flags are absolutized against the package root when workspace CWD is the root.
+- **`dcr clean --all`** — no spam for members without a local `target/` (shared root `target/`).
+- **`error` / `warn`** — red / yellow on stderr; Russian `Подсказка:` → `Hint:`.
+- **`dcr --help` / man** — list `add`, `lint`, `setup`; unknown command exits 1.
+- **NotFound messages** — `linker not found: ld.lld …` / `{tool} not found …` instead of raw `os error 2`.
+
 ## [0.8.1] - 2026-07-20 "OS-Dev: flat-bin, FAT-образы / OS-Dev: flat-bin & FAT Images"
 
 ### RU
@@ -12,39 +52,25 @@
   - **GAS / MASM / LLVM IR (`llc`)** — объект → `objcopy -O binary` → `<stem>.bin`
   - **C/C++ (gcc/clang/MSVC)** — compile → link (nostdlib/static) → `objcopy -O binary` → `<name>.bin`
   - Требуется `llvm-objcopy` / `objcopy` / `gobjcopy` в PATH (кроме NASM/FASM direct)
-- **Секция `[archive]`** — после успешной сборки DCR собирает образ диска (FAT12/16/32 через `fatfs`): размер, offset, volume label, опциональный bootsector (512 байт в начало при `offset = 0`) и `layout` (копирование файлов/glob в FS). Плейсхолдер `{profile}` в путях.
-- **Одиночные файлы в `build.roots`** — корень может быть файлом (`.c`, `.asm`, header), а не только каталогом; то же для сбора заголовков в cache.
+- **Секция `[archive]`** — после успешной сборки DCR собирает образ диска (FAT12/16/32): размер, offset, volume label, опциональный bootsector и `layout`. С 0.8.2 — за feature `archive`.
+- **Одиночные файлы в `build.roots`** — корень может быть файлом (`.c`, `.asm`, header), а не только каталогом.
 
 **Изменено:**
 
 - **`dcr build --force` / `dcr run --force`** — force также перезапускает `build.steps` и `build.post_steps`.
-- **`dcr run` на workspace-only root** — если задан `[run].cmd`, сначала build + run по конфигу корня; иначе делегирование члену workspace (как в 0.8.0).
-
-**Зависимости:**
-
-- `fatfs = "0.3"` для упаковки FAT-образов.
+- **`dcr run` на workspace-only root** — если задан `[run].cmd`, сначала build + run по конфигу корня; иначе делегирование члену workspace.
 
 ### EN
 
 **Added:**
 
-- **`build.kind = "flat-bin"`** — raw binary artifact (default extension `.bin`):
-  - **NASM** — `-f bin`, direct `<stem>.bin`
-  - **FASM** — direct output (`format binary` in source)
-  - **GAS / MASM / LLVM IR (`llc`)** — object → `objcopy -O binary` → `<stem>.bin`
-  - **C/C++ (gcc/clang/MSVC)** — compile → link (`-nostdlib -static`) → `objcopy -O binary` → `<name>.bin`
-  - Needs `llvm-objcopy` / `objcopy` / `gobjcopy` in PATH (except NASM/FASM direct)
-- **`[archive]` section** — after a successful build, pack a disk image (FAT12/16/32 via `fatfs`): size, offset, volume label, optional bootsector (512 bytes at start when `offset = 0`), and `layout` (file/glob copy into the FS). `{profile}` substitution in paths.
-- **Single-file `build.roots`** — a root may be a file (`.c`, `.asm`, header), not only a directory; header collection in the cache follows the same rule.
+- **`build.kind = "flat-bin"`** — raw binary (default `.bin`) across NASM/FASM/GAS/MASM/LLC and C/C++ (objcopy where needed).
+- **`[archive]` section** — FAT12/16/32 disk images after build (from 0.8.2 gated by feature `archive`).
+- **Single-file `build.roots`**.
 
 **Changed:**
 
-- **`dcr build --force` / `dcr run --force`** — force also re-runs `build.steps` and `build.post_steps`.
-- **`dcr run` on a workspace-only root** — if `[run].cmd` is set, build + run that command first; otherwise fall back to workspace member delegation (0.8.0 behavior).
-
-**Dependencies:**
-
-- `fatfs = "0.3"` for FAT image packing.
+- **`--force`** re-runs steps/post_steps; workspace-only **`dcr run`** prefers root `[run].cmd` when set.
 
 ## [0.8.0] - 2026-07-18 "Модульный Движок Сборки, Новая Архитектура Ядра и Улучшение Workspaces / Modular Build Engine, New Core Architecture, & Workspace Improvements"
 

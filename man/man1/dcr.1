@@ -38,11 +38,14 @@ Display the dependency tree of the current project.
 .B fmt
 Format all C/C++ source files using clang-format.
 .TP
+.B lint [\fI\-\-fix\fR]
+Run clang-tidy static analysis on C/C++ sources.
+.TP
 .B gen \fI<subcommand>\fR
 Generate IDE integration files (vscode, clion, compile-commands, project-info).
 .TP
 .B setup
-Set up DCR registries for dependency resolution.
+Show configured package registries.
 .SH GLOBAL FLAGS
 .TP
 .B \-\-help

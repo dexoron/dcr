@@ -1,6 +1,6 @@
 [package]
 name = "dcr"
-version = "0.8.1"
+version = "0.8.2"
 edition = "2024"
 build = "build.rs"
 description = "DCR is a utility for managing C/C++ projects in a Cargo-like style."
@@ -59,6 +59,10 @@ assets = [
     { source = "man/man1/dcr-tree.1", dest = "/usr/share/man/man1/dcr-tree.1", mode = "644" },
 ]
 
+[features]
+default = []
+archive = ["dep:fatfs"]
+
 [dependencies]
 glob = "0.3"
 ureq = { version = "2.10", default-features = false, features = ["json", "native-certs"] }
@@ -69,7 +73,7 @@ toml = "1.0.3"
 toml_edit = "0.22"
 serde_json = "1"
 ctrlc = "3"
-fatfs = "0.3"
+fatfs = { version = "0.3", optional = true }
 
 [profile.release]
 opt-level = "z"

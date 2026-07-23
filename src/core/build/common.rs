@@ -16,15 +16,70 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use std::fs;
+use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
 static OUTPUT_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
+static PROGRESS_LABEL: OnceLock<Mutex<Option<String>>> = OnceLock::new();
+static PROGRESS_DIRTY: AtomicBool = AtomicBool::new(false);
 
 pub fn get_output_lock() -> &'static Mutex<()> {
     OUTPUT_MUTEX.get_or_init(|| Mutex::new(()))
+}
+
+fn progress_label_lock() -> &'static Mutex<Option<String>> {
+    PROGRESS_LABEL.get_or_init(|| Mutex::new(None))
+}
+
+pub fn set_progress_label(label: Option<String>) {
+    *progress_label_lock().lock().unwrap() = label;
+}
+
+pub fn finish_progress_line() {
+    let was_dirty = PROGRESS_DIRTY.swap(false, Ordering::SeqCst);
+    *progress_label_lock().lock().unwrap() = None;
+    if !was_dirty {
+        return;
+    }
+    if io::stderr().is_terminal() {
+        let _guard = get_output_lock().lock().unwrap();
+        let _ = writeln!(io::stderr());
+        let _ = io::stderr().flush();
+    }
+}
+
+pub fn interrupt_progress_for_output() {
+    if !PROGRESS_DIRTY.swap(false, Ordering::SeqCst) {
+        return;
+    }
+    if io::stderr().is_terminal() {
+        let _guard = get_output_lock().lock().unwrap();
+        let _ = writeln!(io::stderr());
+        let _ = io::stderr().flush();
+    }
+}
+
+fn report_compile_progress(done: usize, total: usize) {
+    let label = progress_label_lock().lock().unwrap().clone();
+    let Some(label) = label else {
+        return;
+    };
+    if !io::stderr().is_terminal() {
+        return;
+    }
+    let _guard = get_output_lock().lock().unwrap();
+    let msg = format!("{label}  [{done}/{total}]");
+    if PROGRESS_DIRTY.load(Ordering::SeqCst) {
+        eprint!("\r{msg:<80}");
+    } else {
+        eprint!("{msg}");
+    }
+    let _ = io::stderr().flush();
+    PROGRESS_DIRTY.store(true, Ordering::SeqCst);
 }
 
 pub fn collect_sources(
@@ -214,7 +269,12 @@ where
     };
 
     let counter = std::sync::atomic::AtomicUsize::new(0);
+    let completed = std::sync::atomic::AtomicUsize::new(0);
     let err_msg = std::sync::Mutex::new(None);
+
+    if total_tasks > 0 {
+        report_compile_progress(0, total_tasks);
+    }
 
     std::thread::scope(|s| {
         for _ in 0..num_threads {
@@ -236,6 +296,9 @@ where
                         }
                         break;
                     }
+
+                    let done = completed.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+                    report_compile_progress(done, total_tasks);
                 }
             });
         }
@@ -249,10 +312,21 @@ where
 }
 
 pub fn run_command_sync_output(cmd: &mut Command) -> Result<(), String> {
-    let output = cmd.output().map_err(|err| format!("Build failed: {err}"))?;
-    let _guard = OUTPUT_MUTEX.get_or_init(|| Mutex::new(())).lock().unwrap();
+    let program = cmd.get_program().to_string_lossy().into_owned();
+    let output = cmd.output().map_err(|err| {
+        if err.kind() == std::io::ErrorKind::NotFound {
+            format!("{program} not found (check PATH / [toolchain])")
+        } else {
+            format!("Build failed: {err}")
+        }
+    })?;
+    let has_out = !output.stdout.is_empty() || !output.stderr.is_empty();
+    if has_out {
+        interrupt_progress_for_output();
+    }
+    let _guard = get_output_lock().lock().unwrap();
     if !output.stdout.is_empty() {
-        print!("{}", String::from_utf8_lossy(&output.stdout));
+        eprint!("{}", String::from_utf8_lossy(&output.stdout));
     }
     if !output.stderr.is_empty() {
         eprint!("{}", String::from_utf8_lossy(&output.stderr));

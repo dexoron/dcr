@@ -130,7 +130,14 @@ pub(crate) fn link_flat_binary(
     if ctx.verbose || std::env::var("DCR_DEBUG").is_ok() {
         eprintln!("[dcr] {:?}", cmd);
     }
-    let output = cmd.output().map_err(|err| format!("Build failed: {err}"))?;
+    let program = cmd.get_program().to_string_lossy().into_owned();
+    let output = cmd.output().map_err(|err| {
+        if err.kind() == std::io::ErrorKind::NotFound {
+            format!("linker not found: {program} (check [toolchain].ld / PATH)")
+        } else {
+            format!("flat-bin link failed: {err}")
+        }
+    })?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -240,7 +247,15 @@ fn run(ctx: &BuildContext, mut cmd: Command, start_time: Instant) -> Result<f64,
     if ctx.verbose || std::env::var("DCR_DEBUG").is_ok() {
         eprintln!("[dcr] {:?}", cmd);
     }
-    let output = cmd.output().map_err(|err| format!("Build failed: {err}"))?;
+    let program = cmd.get_program().to_string_lossy().into_owned();
+    let output = cmd.output().map_err(|err| {
+        let msg = err.to_string();
+        if err.kind() == std::io::ErrorKind::NotFound {
+            format!("linker not found: {program} (check [toolchain].ld / PATH)")
+        } else {
+            format!("Build failed: {msg}")
+        }
+    })?;
     if output.status.success() {
         Ok(common::elapsed_secs(start_time))
     } else {

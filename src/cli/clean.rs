@@ -146,7 +146,10 @@ fn clean_from_root(root: &Path, flags: &CleanFlags) -> Result<(), String> {
         )?
     {
         for member in &workspace.members {
-            clean_project_at(&member.path, flags.profile.as_deref(), target.as_deref())?;
+            let member_target = member.path.join("target");
+            if member_target.is_dir() {
+                clean_project_at(&member.path, flags.profile.as_deref(), target.as_deref())?;
+            }
         }
     }
     clean_project_at(root, flags.profile.as_deref(), target.as_deref())
