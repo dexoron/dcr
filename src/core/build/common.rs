@@ -501,7 +501,11 @@ fn parse_d_file(content: &str) -> Vec<String> {
             }
             in_escape = false;
         } else if c == '\\' {
-            in_escape = true;
+            match chars.peek() {
+                Some('\n' | '\r' | ' ' | '\t' | '\\') => in_escape = true,
+                Some(_) => current_path.push('\\'),
+                None => current_path.push('\\'),
+            }
         } else if c.is_whitespace() {
             if !current_path.is_empty() {
                 deps.push(current_path.clone());
@@ -911,36 +915,25 @@ mod tests {
         fs::write(&header, "#define A 1").unwrap();
         fs::write(&obj, "").unwrap();
 
-        let past = SystemTime::now() - Duration::from_secs(30);
-        let now = SystemTime::now();
-        let future = now + Duration::from_secs(30);
+        let past = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
+        let mid = past + Duration::from_secs(100);
+        let future = mid + Duration::from_secs(100);
 
-        let past_t = FileTimes::new().set_modified(past);
-        File::options()
-            .write(true)
-            .open(&src)
-            .unwrap()
-            .set_times(past_t)
-            .unwrap();
-        File::options()
-            .write(true)
-            .open(&header)
-            .unwrap()
-            .set_times(past_t)
-            .unwrap();
-        let now_t = FileTimes::new().set_modified(now);
-        File::options()
-            .write(true)
-            .open(&obj)
-            .unwrap()
-            .set_times(now_t)
-            .unwrap();
+        for (path, t) in [(&src, past), (&header, past), (&obj, mid)] {
+            let times = FileTimes::new().set_modified(t);
+            File::options()
+                .write(true)
+                .open(path)
+                .unwrap()
+                .set_times(times)
+                .unwrap();
+        }
 
         let d_content = format!(
             "{}: {} {}",
-            obj.to_string_lossy(),
-            src.to_string_lossy(),
-            header.to_string_lossy()
+            obj.to_string_lossy().replace('\\', "/"),
+            src.to_string_lossy().replace('\\', "/"),
+            header.to_string_lossy().replace('\\', "/")
         );
         fs::write(&d_file, d_content).unwrap();
 
@@ -949,18 +942,25 @@ mod tests {
             "should be fresh"
         );
 
-        let future_t = FileTimes::new().set_modified(future);
+        let times = FileTimes::new().set_modified(future);
         File::options()
             .write(true)
             .open(&header)
             .unwrap()
-            .set_times(future_t)
+            .set_times(times)
             .unwrap();
 
         assert!(
             needs_rebuild(&src.to_string_lossy(), &obj.to_string_lossy()),
             "changed header should trigger rebuild"
         );
+    }
+
+    #[test]
+    fn parse_d_file_keeps_windows_path_separators() {
+        let content = r"target\obj\main.obj: src\main.c src\utils.h";
+        let deps = parse_d_file(content);
+        assert_eq!(deps, vec![r"src\main.c", r"src\utils.h"]);
     }
 
     #[test]

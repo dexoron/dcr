@@ -131,10 +131,14 @@ fn build_with_target_config() {
         "dcr build with target = \"linux\" should succeed"
     );
 
-    let artifact = default_artifact_path(&dir, &project_name);
+    let artifact = dir
+        .join("target")
+        .join("x86_64-unknown-linux-gnu")
+        .join("debug")
+        .join(&project_name);
     assert!(
         artifact.is_file(),
-        "artifact should be at default path target/x86_64-unknown-linux-gnu/debug/{}",
+        "artifact should be at target/x86_64-unknown-linux-gnu/debug/{} (build.target=linux), got missing; dir listing may differ on host",
         project_name
     );
 }
