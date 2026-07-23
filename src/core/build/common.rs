@@ -902,58 +902,38 @@ mod tests {
 
     #[test]
     fn needs_rebuild_header_modified() {
-        use std::fs::{File, FileTimes};
-        use std::time::{Duration, SystemTime};
-
         let dir = temp_dir("rebuild_header");
-        let src = dir.join("test.c");
-        let header = dir.join("test.h");
-        let obj = dir.join("test.o");
-        let d_file = dir.join("test.d");
+        fs::write(dir.join("test.c"), "int main() {}").unwrap();
+        fs::write(dir.join("test.h"), "#define A 1").unwrap();
+        fs::write(dir.join("test.o"), "").unwrap();
 
-        fs::write(&src, "int main() {}").unwrap();
-        fs::write(&header, "#define A 1").unwrap();
-        fs::write(&obj, "").unwrap();
+        let _guard = cwd_lock();
+        let prev = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&dir).unwrap();
 
-        let past = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
-        let mid = past + Duration::from_secs(100);
-        let future = mid + Duration::from_secs(100);
-
-        for (path, t) in [(&src, past), (&header, past), (&obj, mid)] {
-            let times = FileTimes::new().set_modified(t);
-            File::options()
-                .write(true)
-                .open(path)
-                .unwrap()
-                .set_times(times)
-                .unwrap();
-        }
-
-        let d_content = format!(
-            "{}: {} {}",
-            obj.to_string_lossy().replace('\\', "/"),
-            src.to_string_lossy().replace('\\', "/"),
-            header.to_string_lossy().replace('\\', "/")
-        );
-        fs::write(&d_file, d_content).unwrap();
-
+        fs::write("test.d", "test.o: test.c missing.h").unwrap();
         assert!(
-            !needs_rebuild(&src.to_string_lossy(), &obj.to_string_lossy()),
-            "should be fresh"
+            needs_rebuild("test.c", "test.o"),
+            "missing dep in .d must force rebuild"
         );
 
-        let times = FileTimes::new().set_modified(future);
-        File::options()
-            .write(true)
-            .open(&header)
-            .unwrap()
-            .set_times(times)
-            .unwrap();
-
+        fs::write("test.h", "#define A 1").unwrap();
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        fs::write("test.o", "obj").unwrap();
+        fs::write("test.d", "test.o: test.c test.h").unwrap();
         assert!(
-            needs_rebuild(&src.to_string_lossy(), &obj.to_string_lossy()),
+            !needs_rebuild("test.c", "test.o"),
+            "object newer than source and headers should be fresh"
+        );
+
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        fs::write("test.h", "#define A 2").unwrap();
+        assert!(
+            needs_rebuild("test.c", "test.o"),
             "changed header should trigger rebuild"
         );
+
+        std::env::set_current_dir(prev).unwrap();
     }
 
     #[test]

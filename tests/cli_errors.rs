@@ -304,19 +304,20 @@ fn staticlib_build() {
     let envs = [("DCR_COMPILER", compiler)];
     let out = run_dcr_env(&["build"], &dir, &envs);
     assert!(out.status.success(), "staticlib build should succeed");
-    // Check that a .a file exists
-    let lib_path = dir
-        .join("target")
-        .join("x86_64-unknown-linux-gnu")
-        .join("debug");
+    let lib_path = host_profile_dir(&dir, "debug");
     let has_lib = std::fs::read_dir(&lib_path)
         .map(|entries| {
-            entries
-                .filter_map(|e| e.ok())
-                .any(|e| e.file_name().to_string_lossy().ends_with(".a"))
+            entries.filter_map(|e| e.ok()).any(|e| {
+                let name = e.file_name().to_string_lossy().to_string();
+                name.ends_with(".a") || name.ends_with(".lib")
+            })
         })
         .unwrap_or(false);
-    assert!(has_lib, "staticlib should produce a .a file");
+    assert!(
+        has_lib,
+        "staticlib should produce a .a/.lib in {}",
+        lib_path.display()
+    );
 }
 
 #[test]
@@ -332,12 +333,11 @@ fn build_release_profile() {
     let envs = [("DCR_COMPILER", compiler)];
     let out = run_dcr_env(&["build", "--release"], &dir, &envs);
     assert!(out.status.success(), "release build should succeed");
+    let release_dir = host_profile_dir(&dir, "release");
     assert!(
-        dir.join("target")
-            .join("x86_64-unknown-linux-gnu")
-            .join("release")
-            .is_dir(),
-        "target/x86_64-unknown-linux-gnu/release should exist"
+        release_dir.is_dir(),
+        "release profile dir should exist: {}",
+        release_dir.display()
     );
 }
 
