@@ -158,7 +158,26 @@ pub fn is_excluded(path: &Path, exclude_dirs: &[PathBuf], include_paths: &[Strin
     if matches_patterns(path, include_paths, false) {
         return true;
     }
-    exclude_dirs.iter().any(|dir| path.starts_with(dir))
+    exclude_dirs.iter().any(|dir| path_is_under(path, dir))
+}
+
+fn path_is_under(path: &Path, prefix: &Path) -> bool {
+    if path.starts_with(prefix) {
+        return true;
+    }
+    match (fs::canonicalize(path), fs::canonicalize(prefix)) {
+        (Ok(p), Ok(pref)) => p.starts_with(pref),
+        _ => {
+            let p = path.to_string_lossy().replace('\\', "/");
+            let pref = prefix.to_string_lossy().replace('\\', "/");
+            if p == pref || p.starts_with(&format!("{pref}/")) {
+                return true;
+            }
+            let p = p.strip_prefix("/private").unwrap_or(&p);
+            let pref = pref.strip_prefix("/private").unwrap_or(&pref);
+            p == pref || p.starts_with(&format!("{pref}/"))
+        }
+    }
 }
 
 fn matches_patterns(path: &Path, patterns: &[String], positive: bool) -> bool {
@@ -379,7 +398,7 @@ pub fn object_path(obj_dir: &Path, source: &str, obj_ext: &str) -> String {
     } else {
         out.set_extension(obj_ext);
     }
-    out.to_string_lossy().to_string()
+    out.to_string_lossy().replace('\\', "/")
 }
 
 pub fn needs_rebuild(source: &str, object: &str) -> bool {
@@ -509,12 +528,18 @@ mod tests {
     static TEST_COUNTER: AtomicUsize = AtomicUsize::new(0);
     static CWD_LOCK: Mutex<()> = Mutex::new(());
 
+    fn cwd_lock() -> std::sync::MutexGuard<'static, ()> {
+        CWD_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
     fn temp_dir(prefix: &str) -> PathBuf {
         let n = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
         let dir = std::env::temp_dir().join(format!("dcr_test_{prefix}_{n}"));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
-        dir
+        fs::canonicalize(&dir).unwrap_or(dir)
     }
 
     fn default_roots() -> Vec<PathBuf> {
@@ -679,7 +704,7 @@ mod tests {
         fs::write(src.join("utils.c"), "").unwrap();
         fs::write(src.join("README.md"), "").unwrap(); // should be ignored
 
-        let _guard = CWD_LOCK.lock().unwrap();
+        let _guard = cwd_lock();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
         let include: Vec<String> = Vec::new();
@@ -703,7 +728,7 @@ mod tests {
         fs::write(src.join("other.cc"), "").unwrap();
         fs::write(src.join("skip.c"), "").unwrap(); // should be ignored
 
-        let _guard = CWD_LOCK.lock().unwrap();
+        let _guard = cwd_lock();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
         let include: Vec<String> = Vec::new();
@@ -721,7 +746,7 @@ mod tests {
         let src = dir.join("src");
         fs::create_dir_all(&src).unwrap();
 
-        let _guard = CWD_LOCK.lock().unwrap();
+        let _guard = cwd_lock();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
         let include: Vec<String> = Vec::new();
@@ -743,7 +768,7 @@ mod tests {
         fs::write(vendor.join("lib.c"), "").unwrap(); // should be excluded
 
         let exclude = vec![vendor.clone()];
-        let _guard = CWD_LOCK.lock().unwrap();
+        let _guard = cwd_lock();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
         let include: Vec<String> = Vec::new();
@@ -765,7 +790,7 @@ mod tests {
         fs::write(src.join("main.c"), "").unwrap();
         fs::write(sub.join("nested.c"), "").unwrap();
 
-        let _guard = CWD_LOCK.lock().unwrap();
+        let _guard = cwd_lock();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
         let include: Vec<String> = Vec::new();
@@ -789,7 +814,7 @@ mod tests {
 
         let exclude = vec![boot.clone()];
         let include = vec!["src/boot/arch/**".to_string()];
-        let _guard = CWD_LOCK.lock().unwrap();
+        let _guard = cwd_lock();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
         let roots = default_roots();
@@ -816,7 +841,7 @@ mod tests {
             "!src/legacy/**".to_string(),
             "src/legacy/allow/**".to_string(),
         ];
-        let _guard = CWD_LOCK.lock().unwrap();
+        let _guard = cwd_lock();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
         let roots = default_roots();
@@ -839,7 +864,7 @@ mod tests {
 
         let exclude: Vec<PathBuf> = Vec::new();
         let include = vec!["!src/gen/**".to_string()];
-        let _guard = CWD_LOCK.lock().unwrap();
+        let _guard = cwd_lock();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
         let roots = default_roots();
@@ -881,7 +906,7 @@ mod tests {
 
         fs::write(&src, "int main() {}").unwrap();
         fs::write(&header, "#define A 1").unwrap();
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::thread::sleep(std::time::Duration::from_millis(1100));
         fs::write(&obj, "").unwrap();
 
         let d_content = format!(
@@ -897,8 +922,8 @@ mod tests {
             "should be fresh"
         );
 
-        std::thread::sleep(std::time::Duration::from_millis(50));
-        fs::write(&header, "#define A 2").unwrap(); // modify header
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        fs::write(&header, "#define A 2").unwrap();
 
         assert!(
             needs_rebuild(&src.to_string_lossy(), &obj.to_string_lossy()),

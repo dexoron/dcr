@@ -219,16 +219,29 @@ mod tests {
 
     #[test]
     fn registry_package_root_accepts_package_dir_or_manifest_path() {
-        let pkg = serde_json::json!({ "path": "/tmp/pkg" });
+        let root = std::env::temp_dir().join(format!("dcr_reg_pkg_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let root_str = root.to_string_lossy().replace('\\', "/");
+
+        let pkg = serde_json::json!({ "path": root_str });
         assert_eq!(
-            package_root_from_registry_info(&pkg).unwrap(),
-            PathBuf::from("/tmp/pkg")
+            package_root_from_registry_info(&pkg)
+                .unwrap()
+                .to_string_lossy()
+                .replace('\\', "/"),
+            root_str
         );
 
-        let pkg = serde_json::json!({ "path": "/tmp/pkg/dcr.toml" });
+        let manifest = format!("{root_str}/dcr.toml");
+        let pkg = serde_json::json!({ "path": manifest });
         assert_eq!(
-            package_root_from_registry_info(&pkg).unwrap(),
-            PathBuf::from("/tmp/pkg")
+            package_root_from_registry_info(&pkg)
+                .unwrap()
+                .to_string_lossy()
+                .replace('\\', "/"),
+            root_str
         );
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

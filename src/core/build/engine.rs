@@ -950,7 +950,8 @@ fn absolutize_flag_path(flag: &str, project_root: &Path, prefixes: &[&str]) -> S
                 return flag.to_string();
             }
             let abs = project_root.join(rest);
-            return format!("{prefix}{}", abs.to_string_lossy());
+            let path = abs.to_string_lossy().replace('\\', "/");
+            return format!("{prefix}{path}");
         }
     }
     flag.to_string()
