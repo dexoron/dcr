@@ -34,32 +34,6 @@
 
 <table>
 <tr>
-<td><b>Linux (Dexoron Packages)</b></td>
-<td>
-
-See https://pkg.dexoron.su for settings youre packages manager
-
-**Arch Linux:**
-
-```sh
-sudo pacman -Sy dcr
-```
-
-**Debian/Ubuntu:**
-
-```sh
-sudo apt update && sudo apt install dcr
-```
-
-**Fedora/RHEL:**
-
-```sh
-sudo dnf install dcr
-```
-
-</td>
-</tr>
-<tr>
 <td><b>Arch Linux (AUR)</b></td>
 <td>
 
