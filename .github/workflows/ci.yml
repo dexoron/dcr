@@ -11,6 +11,8 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -Dwarnings
+  CARGO_INCREMENTAL: "0"
+  SCCACHE_GHA_ENABLED: "true"
 
 jobs:
   checks:
@@ -24,7 +26,13 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: dcr-ci
+          cache-all-crates: true
 
       - name: Format
         run: cargo fmt --all --check
@@ -52,7 +60,22 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: dcr-ci
+          cache-all-crates: true
+          cache-on-failure: true
+
+      - name: Cache apt packages
+        if: runner.os == 'Linux'
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-${{ runner.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
+          restore-keys: apt-${{ runner.os }}-
 
       - name: Install Linux tools
         if: runner.os == 'Linux'
@@ -64,7 +87,8 @@ jobs:
             nasm \
             clang-format \
             clang-tidy \
-            git
+            git \
+            llvm
 
       - name: Install macOS tools
         if: runner.os == 'macOS'
@@ -76,8 +100,11 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          choco install nasm -y
+          choco install nasm llvm -y
           echo "C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          if (Test-Path "C:\Program Files\LLVM\bin") {
+            echo "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          }
 
       - name: Unit tests (binary crate)
         run: cargo test --bins -- --nocapture
@@ -89,6 +116,10 @@ jobs:
         if: runner.os != 'Windows'
         run: cargo test --tests --features archive -- --nocapture
 
+      - name: sccache stats
+        if: always()
+        run: sccache --show-stats || true
+
   test-archive-linux:
     name: archive feature smoke
     needs: checks
@@ -99,15 +130,25 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: dcr-ci
+          cache-all-crates: true
 
       - name: Install tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential clang nasm
+          sudo apt-get install -y build-essential clang nasm llvm
 
       - name: Build with archive
         run: cargo build --features archive
 
       - name: Flat-bin + unit suite with archive
         run: cargo test --features archive --test cli_build --test cli_workspace --test cli_errors -- --nocapture
+
+      - name: sccache stats
+        if: always()
+        run: sccache --show-stats || true

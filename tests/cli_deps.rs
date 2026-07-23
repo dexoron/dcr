@@ -117,11 +117,15 @@ fn registry_dependency_is_built_from_cache() {
         "[registry.local]\nurl = \"file://local\"\npriority = 1\n",
     )
     .expect("failed to write registry config");
+    let dep_path = dep
+        .canonicalize()
+        .unwrap_or(dep.clone())
+        .to_string_lossy()
+        .replace('\\', "/");
     std::fs::write(
         dcr_home.join("index.json"),
         format!(
-            "{{\"packages\":[{{\"name\":\"mylib\",\"latest_version\":\"0.1.0\",\"path\":\"{}\"}}]}}",
-            dep.display()
+            "{{\"packages\":[{{\"name\":\"mylib\",\"latest_version\":\"0.1.0\",\"path\":\"{dep_path}\"}}]}}"
         ),
     )
     .expect("failed to write registry index");
@@ -151,11 +155,16 @@ fn registry_dependency_is_built_from_cache() {
     .expect("failed to write app source");
 
     let index_path = dcr_home.join("index.json");
-    let envs = [
+    let home_s = home.to_string_lossy().to_string();
+    let index_s = index_path.to_string_lossy().to_string();
+    let mut envs = vec![
         ("DCR_COMPILER", compiler),
-        ("HOME", home.to_str().unwrap()),
-        ("DCR_INDEX_PATH", index_path.to_str().unwrap()),
+        ("HOME", home_s.as_str()),
+        ("DCR_INDEX_PATH", index_s.as_str()),
     ];
+    if cfg!(windows) {
+        envs.push(("USERPROFILE", home_s.as_str()));
+    }
     let out = run_dcr_env(&["build"], &app, &envs);
     if !out.status.success() {
         eprintln!("stdout: {}", String::from_utf8_lossy(&out.stdout));

@@ -60,8 +60,13 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
             let elapsed = common::elapsed_secs(start_time);
             return Ok(elapsed);
         }
-        let mut cmd = Command::new(ctx.archiver.unwrap_or("lib"));
-        cmd.arg("/nologo").arg(format!("/OUT:{lib_path}"));
+        let archiver = ctx.archiver.unwrap_or("lib");
+        let mut cmd = Command::new(archiver);
+        if archiver == "lib" || archiver.eq_ignore_ascii_case("lib.exe") {
+            cmd.arg("/nologo").arg(format!("/OUT:{lib_path}"));
+        } else {
+            cmd.arg("rcs").arg(&lib_path);
+        }
         for obj in &objects {
             cmd.arg(obj);
         }

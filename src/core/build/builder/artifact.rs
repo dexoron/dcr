@@ -160,14 +160,12 @@ pub(crate) fn archive_static(
         return Ok(common::elapsed_secs(start_time));
     }
 
-    let archiver = ctx.archiver.unwrap_or(if cfg!(target_os = "windows") {
-        "lib"
-    } else {
-        "ar"
-    });
+    let archiver = ctx
+        .archiver
+        .unwrap_or_else(|| default_archiver(ctx.compiler));
 
     let mut cmd = Command::new(archiver);
-    if cfg!(target_os = "windows") && archiver == "lib" {
+    if cfg!(target_os = "windows") && is_msvc_lib(archiver) {
         cmd.arg("/nologo").arg(format!("/OUT:{lib_path}"));
     } else {
         cmd.arg("rcs").arg(&lib_path);
@@ -241,6 +239,26 @@ pub(crate) fn link_binary(
     }
     cmd.arg("-o").arg(out_path);
     run(ctx, cmd, start_time)
+}
+
+fn default_archiver(compiler: &str) -> &'static str {
+    let c = compiler.to_lowercase();
+    if cfg!(target_os = "windows") {
+        if c.contains("cl") && !c.contains("clang") {
+            "lib"
+        } else if c.contains("clang") {
+            "llvm-ar"
+        } else {
+            "ar"
+        }
+    } else {
+        "ar"
+    }
+}
+
+fn is_msvc_lib(archiver: &str) -> bool {
+    let a = archiver.to_lowercase();
+    a == "lib" || a == "lib.exe" || a.ends_with("\\lib.exe") || a.ends_with("/lib.exe")
 }
 
 fn run(ctx: &BuildContext, mut cmd: Command, start_time: Instant) -> Result<f64, String> {
