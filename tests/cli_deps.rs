@@ -117,16 +117,24 @@ fn registry_dependency_is_built_from_cache() {
         "[registry.local]\nurl = \"file://local\"\npriority = 1\n",
     )
     .expect("failed to write registry config");
-    let dep_path = dep
-        .canonicalize()
-        .unwrap_or(dep.clone())
-        .to_string_lossy()
-        .replace('\\', "/");
+    let dep_abs = dep.canonicalize().unwrap_or(dep.clone());
+    let mut dep_path = dep_abs.to_string_lossy().replace('\\', "/");
+    if let Some(rest) = dep_path.strip_prefix("//?/") {
+        dep_path = rest.to_string();
+    }
+    if dep_path.len() >= 3 && dep_path.as_bytes()[0] == b'/' && dep_path.as_bytes()[2] == b':' {
+        dep_path = dep_path[1..].to_string();
+    }
     std::fs::write(
         dcr_home.join("index.json"),
-        format!(
-            "{{\"packages\":[{{\"name\":\"mylib\",\"latest_version\":\"0.1.0\",\"path\":\"{dep_path}\"}}]}}"
-        ),
+        serde_json::json!({
+            "packages": [{
+                "name": "mylib",
+                "latest_version": "0.1.0",
+                "path": dep_path
+            }]
+        })
+        .to_string(),
     )
     .expect("failed to write registry index");
 
