@@ -89,14 +89,17 @@ fn build_run_clean_flags_normal_project() {
 
     let out = run_dcr_env(&["clean", "--release"], &dir, &envs);
     assert!(out.status.success(), "dcr clean --release should succeed");
-    let target_dir = "target/x86_64-unknown-linux-gnu".to_string();
+    let release_dir = host_profile_dir(&dir, "release");
+    let debug_dir = host_profile_dir(&dir, "debug");
     assert!(
-        !dir.join(&target_dir).join("release").exists(),
-        "target/x86_64-unknown-linux-gnu/release should be removed"
+        !release_dir.exists(),
+        "release profile dir should be removed: {}",
+        release_dir.display()
     );
     assert!(
-        dir.join(&target_dir).join("debug").is_dir(),
-        "target/x86_64-unknown-linux-gnu/debug should remain"
+        debug_dir.is_dir(),
+        "debug profile dir should remain: {}",
+        debug_dir.display()
     );
 
     let out = run_dcr_env(&["clean"], &dir, &envs);
@@ -225,15 +228,12 @@ roots = ["src"]
     assert!(out.status.success(), "flat-bin nasm build should succeed");
 
     let candidates = [
+        host_profile_dir(&dir, "debug").join("boot.bin"),
         dir.join("target/debug/boot.bin"),
-        dir.join("target").join(format!(
-            "{}-unknown-linux-gnu/debug/boot.bin",
-            std::env::consts::ARCH
-        )),
     ];
     assert!(
         candidates.iter().any(|p| p.is_file()),
-        "expected boot.bin under target/…/debug, candidates: {candidates:?}"
+        "expected boot.bin under host profile dir, candidates: {candidates:?}"
     );
 }
 

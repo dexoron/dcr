@@ -74,6 +74,32 @@ fn available_compiler() -> Option<&'static str> {
     None
 }
 
+fn host_profile_dir(project_root: &Path, profile: &str) -> PathBuf {
+    let target = project_root.join("target");
+    if cfg!(target_os = "linux") {
+        let arch = std::env::consts::ARCH;
+        let env = if cfg!(target_env = "musl") {
+            "musl"
+        } else {
+            "gnu"
+        };
+        target
+            .join(format!("{arch}-unknown-linux-{env}"))
+            .join(profile)
+    } else if cfg!(any(
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    )) {
+        let arch = std::env::consts::ARCH;
+        let os = std::env::consts::OS;
+        target.join(format!("{arch}-unknown-{os}")).join(profile)
+    } else {
+        target.join(profile)
+    }
+}
+
 // --- Tests ---
 
 #[test]
@@ -223,25 +249,24 @@ fn clean_specific_profile() {
     let out = run_dcr(&["init"], &dir);
     assert!(out.status.success(), "init should succeed");
 
-    // Create target/x86_64-unknown-linux-gnu/debug and release dirs
-    let target_base = "target/x86_64-unknown-linux-gnu";
-    std::fs::create_dir_all(dir.join(target_base).join("debug")).expect("create debug");
-    std::fs::write(dir.join(target_base).join("debug").join("dummy.o"), "x").expect("write");
-    std::fs::create_dir_all(dir.join(target_base).join("release")).expect("create release");
-    std::fs::write(dir.join(target_base).join("release").join("dummy.o"), "x").expect("write");
+    let debug_dir = host_profile_dir(&dir, "debug");
+    let release_dir = host_profile_dir(&dir, "release");
+    std::fs::create_dir_all(&debug_dir).expect("create debug");
+    std::fs::write(debug_dir.join("dummy.o"), "x").expect("write");
+    std::fs::create_dir_all(&release_dir).expect("create release");
+    std::fs::write(release_dir.join("dummy.o"), "x").expect("write");
 
-    // Clean only release
     let out = run_dcr(&["clean", "--release"], &dir);
     assert!(out.status.success(), "clean --release should succeed");
     assert!(
-        !dir.join(target_base).join("release").exists(),
-        "target/x86_64-unknown-linux-gnu/release should be removed"
+        !release_dir.exists(),
+        "release profile dir should be removed: {}",
+        release_dir.display()
     );
     assert!(
-        dir.join("target/x86_64-unknown-linux-gnu")
-            .join("debug")
-            .is_dir(),
-        "target/x86_64-unknown-linux-gnu/debug should remain"
+        debug_dir.is_dir(),
+        "debug profile dir should remain: {}",
+        debug_dir.display()
     );
 }
 

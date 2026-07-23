@@ -898,6 +898,9 @@ mod tests {
 
     #[test]
     fn needs_rebuild_header_modified() {
+        use std::fs::{File, FileTimes};
+        use std::time::{Duration, SystemTime};
+
         let dir = temp_dir("rebuild_header");
         let src = dir.join("test.c");
         let header = dir.join("test.h");
@@ -906,8 +909,32 @@ mod tests {
 
         fs::write(&src, "int main() {}").unwrap();
         fs::write(&header, "#define A 1").unwrap();
-        std::thread::sleep(std::time::Duration::from_millis(1100));
         fs::write(&obj, "").unwrap();
+
+        let past = SystemTime::now() - Duration::from_secs(30);
+        let now = SystemTime::now();
+        let future = now + Duration::from_secs(30);
+
+        let past_t = FileTimes::new().set_modified(past);
+        File::options()
+            .write(true)
+            .open(&src)
+            .unwrap()
+            .set_times(past_t)
+            .unwrap();
+        File::options()
+            .write(true)
+            .open(&header)
+            .unwrap()
+            .set_times(past_t)
+            .unwrap();
+        let now_t = FileTimes::new().set_modified(now);
+        File::options()
+            .write(true)
+            .open(&obj)
+            .unwrap()
+            .set_times(now_t)
+            .unwrap();
 
         let d_content = format!(
             "{}: {} {}",
@@ -922,8 +949,13 @@ mod tests {
             "should be fresh"
         );
 
-        std::thread::sleep(std::time::Duration::from_millis(1100));
-        fs::write(&header, "#define A 2").unwrap();
+        let future_t = FileTimes::new().set_modified(future);
+        File::options()
+            .write(true)
+            .open(&header)
+            .unwrap()
+            .set_times(future_t)
+            .unwrap();
 
         assert!(
             needs_rebuild(&src.to_string_lossy(), &obj.to_string_lossy()),

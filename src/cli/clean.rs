@@ -125,17 +125,27 @@ fn parse_clean_flags(args: &[String]) -> Result<CleanFlags, String> {
 fn clean_from_root(root: &Path, flags: &CleanFlags) -> Result<(), String> {
     let config = Config::open("./dcr.toml").map_err(|err| err.to_string())?;
 
-    let target = flags
-        .target
-        .clone()
-        .or_else(|| {
-            config
-                .get("build.target")
-                .and_then(|v| v.as_str())
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-        })
-        .or_else(|| Some(default_target_triple()));
+    let target = flags.target.clone().or_else(|| {
+        config
+            .get("build.target")
+            .and_then(|v| v.as_str())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+    });
+    let target = match target {
+        Some(t) => Some(crate::utils::build::normalize_target_os(&t).to_string()),
+        None if cfg!(target_os = "linux")
+            || cfg!(any(
+                target_os = "freebsd",
+                target_os = "openbsd",
+                target_os = "netbsd",
+                target_os = "dragonfly"
+            )) =>
+        {
+            Some(default_target_triple())
+        }
+        None => None,
+    };
 
     if flags.all
         && let Some(workspace) = parse_workspace(

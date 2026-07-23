@@ -56,14 +56,17 @@ fn workspace_build_and_clean_all() {
         "clean --all should not spam missing member target/: {combined}"
     );
 
-    let target_dir = "target/x86_64-unknown-linux-gnu";
+    let release_dir = host_profile_dir(&root, "release");
+    let debug_dir = host_profile_dir(&root, "debug");
     assert!(
-        !root.join(target_dir).join("release").exists(),
-        "root target/x86_64-unknown-linux-gnu/release should be removed"
+        !release_dir.exists(),
+        "root release profile dir should be removed: {}",
+        release_dir.display()
     );
     assert!(
-        root.join(target_dir).join("debug").exists(),
-        "root target/x86_64-unknown-linux-gnu/debug should remain"
+        debug_dir.exists(),
+        "root debug profile dir should remain: {}",
+        debug_dir.display()
     );
 
     let out = run_dcr_env(&["clean", "--all"], &root, &envs);
