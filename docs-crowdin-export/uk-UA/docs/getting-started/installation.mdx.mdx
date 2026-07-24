@@ -4,27 +4,63 @@ sidebar_label: Installation
 
 # Installation
 
-## Linux (Dexoron Packages)
+## dcrup (recommended)
 
-Configure your package manager at https://pkg.dexoron.su and install:
+Install and switch DCR versions (stable / dev / night, pin `0.8.2`, optional build from source).
 
-**Arch Linux**
-
-```sh
-sudo pacman -Sy dcr
-```
-
-**Debian/Ubuntu**
+### Linux / macOS / BSD / Windows (bash)
 
 ```sh
-sudo apt update && sudo apt install dcr
+curl -fsSL https://sh.dcr-tool.ru | sh -s -- self-install
+export PATH="$HOME/.dcr/bin:$PATH"
+dcrup install stable
 ```
 
-**Fedora/RHEL**
+Non-interactive install of DCR in one shot:
 
 ```sh
-sudo dnf install dcr
+curl -fsSL https://sh.dcr-tool.ru | sh -s -- install stable
+export PATH="$HOME/.dcr/bin:$PATH"
 ```
+
+### Windows (PowerShell)
+
+```powershell
+irm https://ps1.dcr-tool.ru | iex
+# or download then run:
+# irm https://ps1.dcr-tool.ru -OutFile dcrup.ps1
+# powershell -File .\dcrup.ps1 self-install
+# $env:Path += ";$env:USERPROFILE\.dcr\bin"
+dcrup install stable
+```
+
+Optional cmd bootstrap (if you prefer `curl` of the cmd shim):
+
+```bat
+curl -fsSL -o dcrup.cmd https://cmd.dcr-tool.ru
+```
+
+After `self-install`, the command is **`dcrup`** (no `.sh` / `.ps1`): shims live in `~/.dcr/bin` (Unix) or `%USERPROFILE%\.dcr\bin` (Windows `dcrup.cmd`).
+
+### Common dcrup commands
+
+```sh
+dcrup install stable              # latest stable prebuilt
+dcrup install 0.8.2               # pin → 0.8.2@stable
+dcrup install 0.8.2@dev
+dcrup install stable --libc musl  # Linux: musl asset (default: gnu)
+dcrup install stable --build      # cargo build --features archive
+dcrup install night               # always build from branch dev HEAD
+dcrup default 0.8.2
+dcrup update
+dcrup list
+dcrup show
+dcrup which
+```
+
+Layout: `~/.dcr/toolchains/\<id>/dcr` and `~/.dcr/bin/dcr` → active version.
+
+---
 
 ## Arch Linux (AUR)
 
@@ -45,11 +81,12 @@ brew install dcr
 sudo snap install dcrup
 ```
 
+> If classic Snap Store publishing is unavailable, install the `.snap` from [GitHub Releases](https://github.com/dexoron/dcr/releases/latest) with `--dangerous`.
+
 ## Nix (flake)
 
 ```sh
 nix run github:dexoron/dcr
-# or install to profile:
 nix profile install github:dexoron/dcr
 ```
 
@@ -59,48 +96,37 @@ nix profile install github:dexoron/dcr
 cargo install dcr
 ```
 
-## Linux / macOS (script)
+Note: crates.io builds may omit optional features. For FAT disk images (`[archive]`), prefer release binaries or:
 
 ```sh
-curl -fsSL https://dcr.dexoron.su/install.sh | sh
-```
-
-## BSD (script)
-
-```sh
-curl -fsSL https://dcr.dexoron.su/install_bsd.sh | sh
-```
-
-## Windows (PowerShell)
-
-```powershell
-irm https://dcr.dexoron.su/install.ps1 | iex
+cargo install dcr --features archive
 ```
 
 ## From source
 
 ```sh
 git clone https://github.com/dexoron/dcr.git
-cd dcr && cargo build --release
+cd dcr
+cargo build --release --features archive
 ln -sf "$PWD/target/release/dcr" ~/.local/bin/dcr
+# or manage versions with dcrup install night / --build
 ```
 
 ## Post-install
 
-Verify the installation:
-
 ```bash
 dcr --version
+dcrup show    # if installed via dcrup
 ```
 
-Man pages are available after installation:
+Man pages (package installs / release assets):
 
 ```bash
 man dcr
 man dcr-build
 ```
 
-To use the registry, create `~/.dcr/config.toml`:
+Registry (optional) — `~/.dcr/config.toml`:
 
 ```toml
 [registry.default]
