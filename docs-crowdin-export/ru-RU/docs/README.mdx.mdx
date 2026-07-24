@@ -8,15 +8,27 @@ sidebar_label: Введение
 <summary>Быстрая справка</summary>
 
 ```bash
-# Установка(Linux/MacOS скрипт)
-curl -fsSL https://dcr.dexoron.su/install.sh | sh
+# Installation (dcrup)
+curl -fsSL https://sh.dcr-tool.ru | sh -s -- self-install
+export PATH="$HOME/.dcr/bin:$PATH"
+dcrup install stable
 
-# Создать проект
+# Create a project
 dcr new my-app
 cd my-app
 
-# Собрать и запустить
+# Build and run
+dcr build
 dcr run
+
+# Run tests
+dcr test
+
+# Add a dependency
+dcr add fmt
+
+# Generate IDE files
+dcr gen vscode
 ```
 
 </details>
