@@ -8,8 +8,10 @@ sidebar_label: Introduction
 <summary>Quick reference</summary>
 
 ```bash
-# Installation
-curl -fsSL https://dcr.dexoron.su/install.sh | sh
+# Installation (dcrup)
+curl -fsSL https://sh.dcr-tool.ru | sh -s -- self-install
+export PATH="$HOME/.dcr/bin:$PATH"
+dcrup install stable
 
 # Create a project
 dcr new my-app
