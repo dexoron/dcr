@@ -42,10 +42,11 @@ cargo clippy --all-targets -- -D warnings
 
 ## CI
 
-В CI запускаются:
+CI runs (see `.github/workflows/ci.yml`):
 
 * `cargo fmt --check`
-* `cargo clippy --all-targets -- -D warnings`
+* `cargo clippy` (default + `--all-features`)
 * `cargo check --all-targets --all-features`
-* Сборка под Linux, macOS, Windows, FreeBSD, OpenBSD, NetBSD
-* Integration tests (compilation check)
+* Unit + integration tests on Linux, macOS, Windows
+* Extra Linux job with `--features archive` (FAT images)
+* Tools on runners: clang, nasm, clang-format/tidy (Linux)
