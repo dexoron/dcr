@@ -1,0 +1,64 @@
+---
+sidebar_label: Кросс-компиляция
+---
+
+# Кросс-компиляция
+
+## Сокращённые названия
+
+DCR поддерживает короткие имена платформ, которые автоматически раскрываются в полные triples:
+
+| Краткое название | Полный тройной             |
+| ---------------- | -------------------------- |
+| `linux`          | `x86_64-unknown-linux-gnu` |
+| `macos`          | `x86_64-apple-darwin`      |
+| `windows`        | `x86_64-pc-windows-msvc`   |
+
+```bash
+dcr build --target windows
+```
+
+## Полные тройки
+
+```bash
+dcr build --target aarch64-unknown-linux-gnu
+dcr build --target x86_64-pc-windows-gnu
+dcr build --target armv7-unknown-linux-gnueabihf
+```
+
+## clang --target
+
+При использовании clang DCR автоматически inject-ит `--target=\<triple>` в CFLAGS/CXXFLAGS.
+
+```toml
+[build]
+compiler = "clang"
+target = "aarch64-unknown-linux-gnu"
+# Авто: cflags = ["--target=aarch64-unknown-linux-gnu"]
+```
+
+## Bare-Metal
+
+Для целевых платформ, содержащих значения `none`, `-elf`, `eabi` или `baremetal`, DCR автоматически:
+
+1. Для none/elf/eabi/bare-metal target-ов отключаются DCR default флаги (нет `-I` системных путей, нет `-l` libc).
+2. **Вставляет `-ffreestanding`** на этапе компиляции и `-nostdlib -static` на этапе линковки
+
+Кроме того, можно явно включить автономный режим:
+
+```toml
+[build]
+freestanding = true
+```
+
+```bash
+dcr build --target aarch64-none-elf
+```
+
+## Целевой каталог
+
+By default, the compilation output directories are structured as follows:
+
+* **Linux and BSD**: Always output to `target/\<triple>/\<profile>/` (using host triple if no target is specified).
+* **macOS and Windows (without target)**: Output to `target/\<profile>/`.
+* **macOS and Windows (with explicit target)**: Output to `target/\<triple>/\<profile>/`.

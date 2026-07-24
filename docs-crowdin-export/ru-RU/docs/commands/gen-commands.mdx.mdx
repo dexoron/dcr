@@ -1,0 +1,73 @@
+---
+sidebar_label: Gen команды (vscode, clion, ...)
+---
+
+# Gen команды
+
+## `dcr gen \<target>`
+
+Генерирует файл интеграции с IDE.
+
+### vscode
+
+```bash
+dcr gen vscode
+```
+
+Создаёт:
+
+* `.vscode/tasks.json` — `build` задача (dcr build)
+* `.vscode/launch.json` — конфигурация запуска отладки
+* `.vscode/settings.json` — настройки C/C++ (clangd пути, includes)
+* `.vscode/extensions.json` — рекомендуемые расширения (vscode-clangd, vscode-lldb)
+
+### clion
+
+```bash
+dcr gen clion
+```
+
+Создаёт:
+
+* `.idea/externalTools.xml` — внешние инструменты (build, run, clean, test)
+* `.idea/customTargets.xml` — пользовательские цели сборки
+* `.idea/misc.xml` — настройки C/C++ проекта
+* `.idea/runConfigurations/\<name>.xml` — конфигурация запуска
+
+### compile-commands
+
+```bash
+dcr gen compile-commands
+```
+
+Генерирует `compile_commands.json` — стандартный формат для clangd, cpptools, статических анализаторов.
+
+### project-info
+
+```bash
+dcr gen project-info
+```
+
+Выводит JSON с метаданными проекта:
+
+```json
+[
+  {
+    "name": "my-app",
+    "version": "0.1.0",
+    "root": "/path/to/project",
+    "profile": "debug",
+    "language": "c",
+    "standard": "c17",
+    "cxx_standard": null,
+    "compiler": "/usr/bin/clang",
+    "kind": "bin",
+    "sources": ["src/main.c"],
+    "include_dirs": ["src"],
+    "lib_dirs": [],
+    "libs": [],
+    "cflags": ["-std=c17", "-O0", "-g"],
+    "ldflags": []
+  }
+]
+```

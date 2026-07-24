@@ -1,0 +1,64 @@
+---
+sidebar_label: Cross-compilation
+---
+
+# Cross-Compilation
+
+## Short Names
+
+DCR supports short platform names:
+
+| Short Name | Full Triple                |
+| ---------- | -------------------------- |
+| `linux`    | `x86_64-unknown-linux-gnu` |
+| `macos`    | `x86_64-apple-darwin`      |
+| `windows`  | `x86_64-pc-windows-msvc`   |
+
+```bash
+dcr build --target windows
+```
+
+## Full Triples
+
+```bash
+dcr build --target aarch64-unknown-linux-gnu
+dcr build --target x86_64-pc-windows-gnu      # mingw
+dcr build --target armv7-unknown-linux-gnueabihf
+```
+
+## clang --target
+
+When using clang, DCR injects `--target=\<triple>` into CFLAGS.
+
+```toml
+[build]
+compiler = "clang"
+target = "aarch64-unknown-linux-gnu"
+# Auto: cflags += ["--target=aarch64-unknown-linux-gnu"]
+```
+
+## Bare-Metal / Freestanding
+
+For targets containing `none`, `-elf`, `eabi`, or `baremetal`, DCR automatically:
+
+1. **Disables default flags** — no system include paths, no `-l` libc
+2. **Injects `-ffreestanding`** at compile time and `-nostdlib -static` at link time
+
+You can also enable freestanding mode explicitly:
+
+```toml
+[build]
+freestanding = true
+```
+
+```bash
+dcr build --target aarch64-none-elf
+```
+
+## Target Directory
+
+By default, the compilation output directories are structured as follows:
+
+* **Linux and BSD**: Always output to `target/\<triple>/\<profile>/` (using host triple if no target is specified).
+* **macOS and Windows (without target)**: Output to `target/\<profile>/`.
+* **macOS and Windows (with explicit target)**: Output to `target/\<triple>/\<profile>/`.

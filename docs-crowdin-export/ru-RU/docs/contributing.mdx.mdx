@@ -1,0 +1,52 @@
+---
+sidebar_label: Вклад
+---
+
+# Вклад
+
+## Настройка
+
+```bash
+git clone https://github.com/dexoron/dcr
+cd dcr
+cargo build
+```
+
+## Стиль написания кода
+
+Весь код форматируется через `cargo fmt`:
+
+```bash
+формат груза
+```
+
+## Линтер
+
+```bash
+cargo clippy --all-targets -- -D warnings
+```
+
+## Тесты
+
+```bash
+тест cargo --all-targets
+```
+
+## Процесс связей с общественностью
+
+1. Форкните репозиторий
+2. Создайте ветку: `git checkout -b feature/description`
+3. Внесите изменения
+4. Запустите `cargo fmt && cargo clippy --all-targets -- -D warnings && cargo test --all-targets`
+5. Откройте Pull Request
+
+## CI
+
+CI runs (see `.github/workflows/ci.yml`):
+
+* `cargo fmt --check`
+* `cargo clippy` (default + `--all-features`)
+* `cargo check --all-targets --all-features`
+* Unit + integration tests on Linux, macOS, Windows
+* Extra Linux job with `--features archive` (FAT images)
+* Tools on runners: clang, nasm, clang-format/tidy (Linux)

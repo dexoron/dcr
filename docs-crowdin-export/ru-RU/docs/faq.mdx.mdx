@@ -1,0 +1,66 @@
+---
+sidebar_label: Часто задаваемые вопросы
+---
+
+# Часто задаваемые вопросы
+
+## Реестр не найден
+
+```
+Ошибка: реестр не найден
+```
+
+**Решение:** Убедитесь, что файл `~/.dcr/config.toml` существует:
+
+```toml
+[registry.default]
+url = "https://index.dcr.pm"
+priority = 1
+```
+
+Если реестр кастомный, проверьте `DCR_INDEX_PATH`:
+
+```bash
+echo $DCR_INDEX_PATH
+```
+
+## Компилятор не найден
+
+```
+Ошибка: компилятор не найден
+```
+
+**Решение:** Убедитесь, что компилятор установлен и доступен в PATH.
+
+```bash
+какой gcc
+какой clang
+```
+
+Или укажите явно через `[toolchain]` или `DCR_COMPILER`.
+
+## Ctrl+C во время сборки
+
+DCR корректно обрабатывает SIGINT: прерывает текущую компиляцию и завершает процесс с ненулевым кодом.
+
+## Как создать библиотеку?
+
+[Library Recipe](/docs/recipes/library-project).
+
+## Как выполнить кросс-компиляцию для Windows?
+
+См. [Cross-Compile Recipe](/docs/recipes/cross-to-windows).
+
+## Как сделать мультипакетный проект?
+
+См. [Workspace Recipe](/docs/recipes/multi-package-workspace).
+
+## Bootloader / pure NASM OS image
+
+Use `kind = "flat-bin"` (NASM `-f bin`) and optional `[archive]` for a FAT disk image.
+
+See [OS-dev recipe](/docs/recipes/os-flat-bin-archive).
+
+## Lock-файл устарел
+
+При изменении зависимостей `dcr.lock` автоматически обновляется при следующем `dcr add`. Если нужно принудительно обновить — удалите `dcr.lock` и выполните `dcr build`.

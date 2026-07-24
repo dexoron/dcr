@@ -1,0 +1,53 @@
+---
+sidebar_label: Поддержка платформ
+---
+
+# Поддержка платформ
+
+## Тройные цели
+
+DCR нормализует target triple через `platform_triple::normalize_triple()`. Если задано имя платформы (short name), оно раскрывается в triple.
+
+### Linux
+
+```
+target/<arch>-unknown-linux-<env>/<profile>/
+```
+
+Architectures: `x86_64`, `aarch64`, `i686`, `armv7`, `riscv64` (host-detected).
+Environments: `gnu` (default), `musl`.
+
+Тип артефакта: ELF. Расширения: `.so` для sharedlib, `.a` для staticlib
+
+### macOS
+
+```
+target/<profile>/ (default) or target/<triple>/<profile>/ (with target)
+```
+
+Поддержка архитектур: `x86_64`, `aarch64`.
+
+`.dylib` для sharedlib, `.a` для staticlib
+
+### Windows
+
+```
+target/<profile>/ (default) or target/<triple>/<profile>/ (with target)
+```
+
+Поддержка архитектур: `x86_64`, `aarch64`.
+Environments: `msvc` (default), `gnu` (MinGW).
+
+Расширения: `.exe` (бинарный файл), `.lib` (статическая библиотека), `.dll` (общая библиотека), `.efi` (UEFI).
+
+### BSD
+
+```
+target/<arch>-unknown-<os>/<profile>/
+```
+
+Поддерживаемые системы: `freebsd`, `openbsd`, `netbsd`.
+
+## Определение хоста
+
+`platform_triple::host_triple()` возвращает тройку текущей системы. Используется как fallback, если `target` не указан.

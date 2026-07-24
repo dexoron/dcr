@@ -1,0 +1,66 @@
+---
+sidebar_label: Введение
+---
+
+# DCR — Инструмент сборки C/C++ & Пакетный менеджер
+
+<details>
+<summary>Быстрая справка</summary>
+
+```bash
+# Installation (dcrup)
+curl -fsSL https://sh.dcr-tool.ru | sh -s -- self-install
+export PATH="$HOME/.dcr/bin:$PATH"
+dcrup install stable
+
+# Create a project
+dcr new my-app
+cd my-app
+
+# Build and run
+dcr build
+dcr run
+
+# Run tests
+dcr test
+
+# Add a dependency
+dcr add fmt
+
+# Generate IDE files
+dcr gen vscode
+```
+
+</details>
+
+## Содержание
+
+| Раздел                                              | Описание                                     |
+| --------------------------------------------------- | -------------------------------------------- |
+| [Начало работы](/docs/getting-started/installation) | Установка и первые шаги                      |
+| [Команды](/docs/commands/project-commands)          | Все CLI-команды DCR                          |
+| [Ссылка](/docs/reference/dcr-toml)                  | Конфигурация, сборка, зависимости, платформы |
+| [Тестирование](/docs/testing/test-framework)        | Встроенный фреймворк тестирования            |
+| [Рецепты](/docs/recipes/cross-to-windows)           | Типовые сценарии                             |
+| [Интеграция с IDE](/docs/ide-integration)           | VS Code, CLion, compile_commands.json        |
+| [Автоматическое обновление](/docs/self-update)      | Автообновление                               |
+| [Часто задаваемые вопросы](/docs/faq)               | Частые вопросы                               |
+| [Журнал изменений](/docs/changelog)                 | История версий                               |
+| [Лицензия](/docs/license)                           | Лицензии DCR и вендорных библиотек           |
+| [Внести свой вклад](/docs/contributing)             | Разработка DCR                               |
+
+## Особенности
+
+* **Инкрементальная сборка** — mtime + `.d` headers + SHA256 fingerprint
+* **Параллельная компиляция** — thread::scope, атомарная очередь задач
+* **7 backends** — gcc/clang (unix_cc), MSVC/clang-cl (msvc), GAS, NASM, MASM, FASM, LLVM IR
+* **8 project kinds** — bin, staticlib, sharedlib, efi, elf, none, custom, flat-bin
+* **Disk images** — optional `[archive]` packs FAT12/16/32 images after build
+* **Cross-compilation** — short names (linux, windows, macos) и полные triples
+* **Профили** — debug / release с переопределением любого поля
+* **Workspaces** — мультипакетные проекты с топологической сортировкой
+* **Registry + Git + Path** — три механизма зависимостей
+* **Генерация IDE** — VS Code, CLion, compile_commands.json, JSON metadata
+* **pkg-config** — автоматический поиск системных библиотек
+* **Команда `--help` для каждой команды** — `dcr build --help`, `dcr new --help` и т. д.
+* **Справочные страницы** — `man dcr`, `man dcr-build`, `man dcr-new`
