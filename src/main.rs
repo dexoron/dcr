@@ -57,7 +57,7 @@ fn main() {
         "--update" => cli::flag_update::flag_update(rest),
         _ => {
             error("Unknown command or argument");
-            0
+            1
         }
     };
 

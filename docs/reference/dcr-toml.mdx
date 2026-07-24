@@ -183,6 +183,8 @@ See [workspaces](/docs/reference/workspaces).
 
 Optional post-build step: format a FAT volume and copy built artifacts into a disk image. Runs after a successful package build (and after workspace member builds that define `[archive]`).
 
+Requires DCR built with the `archive` Cargo feature (`cargo build --features archive`). Release binaries include this feature.
+
 | Field | Required | Description |
 |-------|----------|-------------|
 | `output` | yes | Image path relative to project root (`{profile}` allowed) |

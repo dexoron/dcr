@@ -29,9 +29,12 @@ pub fn help() -> i32 {
     println!("    init              Initialize the current directory as a project");
     println!("    build [--profile] Build the project (default: --debug)");
     println!("    run [--profile]   Build and run the project (default: --debug)");
+    println!("    add <name> ...    Add a dependency to dcr.toml");
     println!("    tree              Display the dependency tree");
     println!("    test              Run project tests (alias: tests)");
     println!("    fmt               Format all C/C++ source files using clang-format");
+    println!("    lint              Run clang-tidy on C/C++ sources");
+    println!("    setup             Show configured package registries");
     println!("    clean             Remove the target directory");
     println!("    gen <subcommand>  Generate IDE integration files");
     printc("FLAGS:", BOLD_GREEN);

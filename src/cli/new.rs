@@ -85,7 +85,7 @@ pub fn new(args: &[String]) -> i32 {
             "Directory `{}` already exists\n",
             colored(project_name, BOLD_CYAN)
         ));
-        printc("Подсказка:", BOLD_CYAN);
+        printc("Hint:", BOLD_CYAN);
         println!(
             "    Use `{}` to initialize an existing project\n    or specify a different project name",
             colored("dcr init", BOLD_CYAN)

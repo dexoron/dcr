@@ -74,6 +74,32 @@ fn available_compiler() -> Option<&'static str> {
     None
 }
 
+fn host_profile_dir(project_root: &Path, profile: &str) -> PathBuf {
+    let target = project_root.join("target");
+    if cfg!(target_os = "linux") {
+        let arch = std::env::consts::ARCH;
+        let env = if cfg!(target_env = "musl") {
+            "musl"
+        } else {
+            "gnu"
+        };
+        target
+            .join(format!("{arch}-unknown-linux-{env}"))
+            .join(profile)
+    } else if cfg!(any(
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    )) {
+        let arch = std::env::consts::ARCH;
+        let os = std::env::consts::OS;
+        target.join(format!("{arch}-unknown-{os}")).join(profile)
+    } else {
+        target.join(profile)
+    }
+}
+
 // --- Tests ---
 
 #[test]
@@ -92,9 +118,17 @@ fn no_args_shows_help() {
 fn unknown_command_fails() {
     let dir = unique_sandbox_dir("unknown_cmd");
     let out = run_dcr(&["foobar"], &dir);
-    let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
-        stdout.contains("error") || stdout.contains("Unknown"),
+        !out.status.success(),
+        "unknown command should exit non-zero"
+    );
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        combined.contains("error") || combined.contains("Unknown"),
         "unknown command should print error"
     );
 }
@@ -104,9 +138,13 @@ fn build_without_toml_fails() {
     let dir = unique_sandbox_dir("build_no_toml");
     let out = run_dcr(&["build"], &dir);
     assert!(!out.status.success(), "build without dcr.toml should fail");
-    let stdout = String::from_utf8_lossy(&out.stdout);
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
     assert!(
-        stdout.contains("dcr.toml") || stdout.contains("not found"),
+        combined.contains("dcr.toml") || combined.contains("not found"),
         "should mention missing dcr.toml"
     );
 }
@@ -132,9 +170,13 @@ fn new_existing_dir_fails() {
     std::fs::create_dir_all(dir.join("hello")).expect("failed to create dir");
     let out = run_dcr(&["new", "hello"], &dir);
     assert!(!out.status.success(), "dcr new on existing dir should fail");
-    let stdout = String::from_utf8_lossy(&out.stdout);
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
     assert!(
-        stdout.contains("already exists") || stdout.contains("error"),
+        combined.contains("already exists") || combined.contains("error"),
         "should report dir already exists"
     );
 }
@@ -149,9 +191,13 @@ fn init_nonempty_dir_fails() {
         !out.status.success(),
         "dcr init in non-empty dir should fail"
     );
-    let stdout = String::from_utf8_lossy(&out.stdout);
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
     assert!(
-        stdout.contains("not empty") || stdout.contains("error"),
+        combined.contains("not empty") || combined.contains("error"),
         "should report dir not empty"
     );
 }
@@ -186,9 +232,13 @@ fn run_library_project_fails() {
     let envs = [("DCR_COMPILER", compiler)];
     let out = run_dcr_env(&["run"], &dir, &envs);
     assert!(!out.status.success(), "dcr run on staticlib should fail");
-    let stdout = String::from_utf8_lossy(&out.stdout);
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
     assert!(
-        stdout.contains("library") || stdout.contains("Cannot run"),
+        combined.contains("library") || combined.contains("Cannot run"),
         "should report cannot run library"
     );
 }
@@ -199,25 +249,24 @@ fn clean_specific_profile() {
     let out = run_dcr(&["init"], &dir);
     assert!(out.status.success(), "init should succeed");
 
-    // Create target/x86_64-unknown-linux-gnu/debug and release dirs
-    let target_base = "target/x86_64-unknown-linux-gnu";
-    std::fs::create_dir_all(dir.join(target_base).join("debug")).expect("create debug");
-    std::fs::write(dir.join(target_base).join("debug").join("dummy.o"), "x").expect("write");
-    std::fs::create_dir_all(dir.join(target_base).join("release")).expect("create release");
-    std::fs::write(dir.join(target_base).join("release").join("dummy.o"), "x").expect("write");
+    let debug_dir = host_profile_dir(&dir, "debug");
+    let release_dir = host_profile_dir(&dir, "release");
+    std::fs::create_dir_all(&debug_dir).expect("create debug");
+    std::fs::write(debug_dir.join("dummy.o"), "x").expect("write");
+    std::fs::create_dir_all(&release_dir).expect("create release");
+    std::fs::write(release_dir.join("dummy.o"), "x").expect("write");
 
-    // Clean only release
     let out = run_dcr(&["clean", "--release"], &dir);
     assert!(out.status.success(), "clean --release should succeed");
     assert!(
-        !dir.join(target_base).join("release").exists(),
-        "target/x86_64-unknown-linux-gnu/release should be removed"
+        !release_dir.exists(),
+        "release profile dir should be removed: {}",
+        release_dir.display()
     );
     assert!(
-        dir.join("target/x86_64-unknown-linux-gnu")
-            .join("debug")
-            .is_dir(),
-        "target/x86_64-unknown-linux-gnu/debug should remain"
+        debug_dir.is_dir(),
+        "debug profile dir should remain: {}",
+        debug_dir.display()
     );
 }
 
@@ -226,9 +275,13 @@ fn new_no_name_fails() {
     let dir = unique_sandbox_dir("new_noname");
     let out = run_dcr(&["new"], &dir);
     assert!(!out.status.success(), "dcr new without name should fail");
-    let stdout = String::from_utf8_lossy(&out.stdout);
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
     assert!(
-        stdout.contains("not specified") || stdout.contains("error"),
+        combined.contains("not specified") || combined.contains("error"),
         "should report name not specified"
     );
 }
@@ -251,19 +304,20 @@ fn staticlib_build() {
     let envs = [("DCR_COMPILER", compiler)];
     let out = run_dcr_env(&["build"], &dir, &envs);
     assert!(out.status.success(), "staticlib build should succeed");
-    // Check that a .a file exists
-    let lib_path = dir
-        .join("target")
-        .join("x86_64-unknown-linux-gnu")
-        .join("debug");
+    let lib_path = host_profile_dir(&dir, "debug");
     let has_lib = std::fs::read_dir(&lib_path)
         .map(|entries| {
-            entries
-                .filter_map(|e| e.ok())
-                .any(|e| e.file_name().to_string_lossy().ends_with(".a"))
+            entries.filter_map(|e| e.ok()).any(|e| {
+                let name = e.file_name().to_string_lossy().to_string();
+                name.ends_with(".a") || name.ends_with(".lib")
+            })
         })
         .unwrap_or(false);
-    assert!(has_lib, "staticlib should produce a .a file");
+    assert!(
+        has_lib,
+        "staticlib should produce a .a/.lib in {}",
+        lib_path.display()
+    );
 }
 
 #[test]
@@ -279,12 +333,11 @@ fn build_release_profile() {
     let envs = [("DCR_COMPILER", compiler)];
     let out = run_dcr_env(&["build", "--release"], &dir, &envs);
     assert!(out.status.success(), "release build should succeed");
+    let release_dir = host_profile_dir(&dir, "release");
     assert!(
-        dir.join("target")
-            .join("x86_64-unknown-linux-gnu")
-            .join("release")
-            .is_dir(),
-        "target/x86_64-unknown-linux-gnu/release should exist"
+        release_dir.is_dir(),
+        "release profile dir should exist: {}",
+        release_dir.display()
     );
 }
 

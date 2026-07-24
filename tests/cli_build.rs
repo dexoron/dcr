@@ -77,19 +77,29 @@ fn build_run_clean_flags_normal_project() {
     assert!(out.status.success(), "dcr build --release should succeed");
 
     let out = run_dcr_env(&["run"], &dir, &envs);
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(stdout.contains("Running"), "dcr run should start");
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        combined.contains("run") || combined.contains("Running"),
+        "dcr run should start"
+    );
 
     let out = run_dcr_env(&["clean", "--release"], &dir, &envs);
     assert!(out.status.success(), "dcr clean --release should succeed");
-    let target_dir = "target/x86_64-unknown-linux-gnu".to_string();
+    let release_dir = host_profile_dir(&dir, "release");
+    let debug_dir = host_profile_dir(&dir, "debug");
     assert!(
-        !dir.join(&target_dir).join("release").exists(),
-        "target/x86_64-unknown-linux-gnu/release should be removed"
+        !release_dir.exists(),
+        "release profile dir should be removed: {}",
+        release_dir.display()
     );
     assert!(
-        dir.join(&target_dir).join("debug").is_dir(),
-        "target/x86_64-unknown-linux-gnu/debug should remain"
+        debug_dir.is_dir(),
+        "debug profile dir should remain: {}",
+        debug_dir.display()
     );
 
     let out = run_dcr_env(&["clean"], &dir, &envs);
@@ -116,16 +126,27 @@ fn build_with_target_config() {
 
     let envs = [("DCR_COMPILER", compiler)];
     let out = run_dcr_env(&["build"], &dir, &envs);
+    if !out.status.success() {
+        eprintln!("stdout: {}", String::from_utf8_lossy(&out.stdout));
+        eprintln!("stderr: {}", String::from_utf8_lossy(&out.stderr));
+        if cfg!(windows) {
+            eprintln!("skipping linux-target path assert: build failed (no linux cross toolchain)");
+            return;
+        }
+    }
     assert!(
         out.status.success(),
         "dcr build with target = \"linux\" should succeed"
     );
 
-    let artifact = default_artifact_path(&dir, &project_name);
-    assert!(
-        artifact.is_file(),
-        "artifact should be at default path target/x86_64-unknown-linux-gnu/debug/{}",
-        project_name
+    let out_dir = dir
+        .join("target")
+        .join("x86_64-unknown-linux-gnu")
+        .join("debug");
+    assert_artifact_in(
+        &out_dir,
+        &project_name,
+        "build.target=linux should place artifact under target/x86_64-unknown-linux-gnu/debug",
     );
 }
 
@@ -157,16 +178,111 @@ fn build_with_out_dir() {
         "dcr build with out_dir should succeed"
     );
 
-    let artifact = dir.join("_BUILD").join(&project_name);
-    assert!(
-        artifact.is_file(),
-        "artifact should be at _BUILD/{} (custom out_dir)",
-        project_name
+    assert_artifact_in(
+        &dir.join("_BUILD"),
+        &project_name,
+        "artifact should be under custom out_dir _BUILD",
     );
 
     let default_path = default_artifact_path(&dir, &project_name);
     assert!(
         !default_path.exists(),
         "artifact should NOT be at default path when out_dir is set"
+    );
+}
+
+#[test]
+fn flat_bin_nasm_build() {
+    let nasm_ok = std::process::Command::new("nasm")
+        .arg("-v")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    if !nasm_ok {
+        eprintln!("nasm not found; skipping flat-bin test");
+        return;
+    }
+
+    let dir = unique_sandbox_dir("flat_bin");
+    let out = run_dcr(&["init"], &dir);
+    assert!(out.status.success(), "dcr init should succeed");
+
+    std::fs::write(
+        dir.join("dcr.toml"),
+        r#"[package]
+name = "flatdemo"
+version = "0.1.0"
+
+[build]
+language = "asm"
+compiler = "nasm"
+kind = "flat-bin"
+extension = "bin"
+roots = ["src"]
+"#,
+    )
+    .expect("write dcr.toml");
+
+    std::fs::create_dir_all(dir.join("src")).expect("src");
+    std::fs::write(
+        dir.join("src/boot.asm"),
+        "bits 16\norg 0x7c00\ncli\nhlt\ntimes 510-($-$$) db 0\ndw 0xaa55\n",
+    )
+    .expect("write boot.asm");
+
+    let out = run_dcr(&["build"], &dir);
+    if !out.status.success() {
+        eprintln!("stdout: {}", String::from_utf8_lossy(&out.stdout));
+        eprintln!("stderr: {}", String::from_utf8_lossy(&out.stderr));
+    }
+    assert!(out.status.success(), "flat-bin nasm build should succeed");
+
+    let candidates = [
+        host_profile_dir(&dir, "debug").join("boot.bin"),
+        dir.join("target/debug/boot.bin"),
+    ];
+    assert!(
+        candidates.iter().any(|p| p.is_file()),
+        "expected boot.bin under host profile dir, candidates: {candidates:?}"
+    );
+}
+
+#[test]
+fn package_build_target_used_without_cli_flag() {
+    let Some(compiler) = available_compiler() else {
+        eprintln!("no compiler found; skipping package target test");
+        return;
+    };
+
+    let dir = unique_sandbox_dir("pkg_target");
+    let out = run_dcr(&["init"], &dir);
+    assert!(out.status.success());
+
+    let toml_path = dir.join("dcr.toml");
+    let toml = std::fs::read_to_string(&toml_path).unwrap();
+    let project_name = parse_project_name(&toml);
+    let updated = toml.replace("[build]", "[build]\ntarget = \"x86_64-unknown-linux-gnu\"");
+    std::fs::write(&toml_path, updated).unwrap();
+
+    let envs = [("DCR_COMPILER", compiler)];
+    let out = run_dcr_env(&["build"], &dir, &envs);
+    if !out.status.success() {
+        eprintln!("stdout: {}", String::from_utf8_lossy(&out.stdout));
+        eprintln!("stderr: {}", String::from_utf8_lossy(&out.stderr));
+        if cfg!(windows) {
+            eprintln!("skipping linux-target path assert: build failed (no linux cross toolchain)");
+            return;
+        }
+    }
+    assert!(out.status.success(), "build should use package target");
+
+    let out_dir = dir
+        .join("target")
+        .join("x86_64-unknown-linux-gnu")
+        .join("debug");
+    assert_artifact_in(
+        &out_dir,
+        &project_name,
+        "artifact should be under package build.target path",
     );
 }

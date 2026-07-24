@@ -85,12 +85,7 @@ pub fn package_root_from_registry_info(pkg_info: &JsonValue) -> Result<PathBuf, 
         return Err("Registry package path is empty".to_string());
     }
 
-    let path = Path::new(raw_path);
-    let full_path = if path.is_absolute() {
-        path.to_path_buf()
-    } else {
-        get_registry_cache_root().join(path)
-    };
+    let full_path = registry_path_to_pathbuf(raw_path.trim());
 
     if full_path.file_name().and_then(|v| v.to_str()) == Some("dcr.toml") {
         return full_path
@@ -100,6 +95,39 @@ pub fn package_root_from_registry_info(pkg_info: &JsonValue) -> Result<PathBuf, 
     }
 
     Ok(full_path)
+}
+
+pub fn registry_path_to_pathbuf(raw: &str) -> PathBuf {
+    let s = raw.trim();
+    if let Some(rest) = s.strip_prefix("file://") {
+        if rest.len() >= 3 && rest.as_bytes()[0] == b'/' && rest.as_bytes()[2] == b':' {
+            return PathBuf::from(&rest[1..]);
+        }
+        if rest.len() >= 2 && rest.as_bytes()[1] == b':' {
+            return PathBuf::from(rest);
+        }
+        if rest.starts_with('/') {
+            return PathBuf::from(rest);
+        }
+        return PathBuf::from(format!("/{rest}"));
+    }
+
+    let mut s = s.replace('\\', "/");
+    if let Some(rest) = s.strip_prefix("//?/") {
+        s = rest.to_string();
+    } else if let Some(rest) = s.strip_prefix("//./") {
+        s = rest.to_string();
+    }
+    if s.len() >= 3 && s.as_bytes()[0] == b'/' && s.as_bytes()[2] == b':' {
+        s = s[1..].to_string();
+    }
+
+    let path = PathBuf::from(&s);
+    if path.is_absolute() || (s.len() >= 2 && s.as_bytes()[1] == b':') || s.starts_with('/') {
+        path
+    } else {
+        get_registry_cache_root().join(path)
+    }
 }
 
 pub fn registry_include_dir(dep_root: &Path) -> PathBuf {
@@ -219,16 +247,44 @@ mod tests {
 
     #[test]
     fn registry_package_root_accepts_package_dir_or_manifest_path() {
-        let pkg = serde_json::json!({ "path": "/tmp/pkg" });
+        let root = std::env::temp_dir().join(format!("dcr_reg_pkg_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let root_str = root.to_string_lossy().replace('\\', "/");
+
+        let pkg = serde_json::json!({ "path": root_str });
         assert_eq!(
-            package_root_from_registry_info(&pkg).unwrap(),
-            PathBuf::from("/tmp/pkg")
+            package_root_from_registry_info(&pkg)
+                .unwrap()
+                .to_string_lossy()
+                .replace('\\', "/"),
+            root_str
         );
 
-        let pkg = serde_json::json!({ "path": "/tmp/pkg/dcr.toml" });
+        let manifest = format!("{root_str}/dcr.toml");
+        let pkg = serde_json::json!({ "path": manifest });
         assert_eq!(
-            package_root_from_registry_info(&pkg).unwrap(),
-            PathBuf::from("/tmp/pkg")
+            package_root_from_registry_info(&pkg)
+                .unwrap()
+                .to_string_lossy()
+                .replace('\\', "/"),
+            root_str
         );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn registry_path_strips_windows_extended_prefix() {
+        let p = registry_path_to_pathbuf("//?/D:/cache/mylib");
+        let s = p.to_string_lossy().replace('\\', "/");
+        assert_eq!(s, "D:/cache/mylib");
+
+        let p2 = registry_path_to_pathbuf("/D:/cache/mylib");
+        let s2 = p2.to_string_lossy().replace('\\', "/");
+        assert_eq!(s2, "D:/cache/mylib");
+
+        let p3 = registry_path_to_pathbuf("file:///D:/cache/mylib");
+        let s3 = p3.to_string_lossy().replace('\\', "/");
+        assert_eq!(s3, "D:/cache/mylib");
     }
 }

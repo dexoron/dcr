@@ -15,27 +15,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::utils::text::{BOLD_CYAN, colored};
+use crate::utils::text::{BOLD_RED, BOLD_YELLOW, colored};
 
 #[allow(dead_code)]
 pub fn error(msg: &str) {
-    println!("{}: {msg}", colored("error", BOLD_CYAN),);
+    eprintln!("{}: {msg}", colored("error", BOLD_RED));
 }
 
 #[allow(dead_code)]
 pub fn warn(msg: &str) {
-    println!("{}: {msg}", colored("warn", BOLD_CYAN),);
+    eprintln!("{}: {msg}", colored("warn", BOLD_YELLOW));
 }
-
-// #[allow(dead_code)]
-// pub fn info(msg: &str) {
-//     println!("{}: {msg}", colored("info", BOLD));
-// }
-//
-// #[allow(dead_code)]
-// pub fn ok(msg: &str) {
-//     println!(
-//         "{}: {msg}",
-//         colored("ok", &(BRIGHT_GREEN.to_owned() + BOLD))
-//     );
-// }

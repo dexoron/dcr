@@ -45,14 +45,31 @@ fn workspace_build_and_clean_all() {
         out.status.success(),
         "workspace clean --all --release should succeed"
     );
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let spam = combined.matches("Directory target not found").count();
+    assert!(
+        spam <= 1,
+        "clean --all should not spam missing member target/: {combined}"
+    );
 
-    let target_dir = "target/x86_64-unknown-linux-gnu";
+    let release_dir = host_profile_dir(&root, "release");
+    let debug_dir = host_profile_dir(&root, "debug");
     assert!(
-        !root.join(target_dir).join("release").exists(),
-        "root target/x86_64-unknown-linux-gnu/release should be removed"
+        !release_dir.exists(),
+        "root release profile dir should be removed: {}",
+        release_dir.display()
     );
     assert!(
-        root.join(target_dir).join("debug").exists(),
-        "root target/x86_64-unknown-linux-gnu/debug should remain"
+        debug_dir.exists(),
+        "root debug profile dir should remain: {}",
+        debug_dir.display()
     );
+
+    let out = run_dcr_env(&["clean", "--all"], &root, &envs);
+    assert!(out.status.success(), "workspace clean --all should succeed");
+    assert!(!root.join("target").exists(), "root target/ should be gone");
 }

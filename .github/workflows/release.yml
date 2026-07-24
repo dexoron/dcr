@@ -223,9 +223,9 @@ jobs:
       - name: Build
         run: |
           if [ "${{ matrix.target }}" != "x86_64-unknown-linux-gnu" ]; then
-            cargo zigbuild --release --target ${{ matrix.target }}
+            cargo zigbuild --release --features archive --target ${{ matrix.target }}
           else
-            cargo build --release --target ${{ matrix.target }}
+            cargo build --release --features archive --target ${{ matrix.target }}
           fi
 
       - name: Prepare Artifact
@@ -298,9 +298,9 @@ jobs:
         run: |
           cargo install cargo-deb
           if [ "${{ matrix.target }}" != "x86_64-unknown-linux-gnu" ]; then
-            cargo zigbuild --release --target ${{ matrix.target }}
+            cargo zigbuild --release --features archive --target ${{ matrix.target }}
           else
-            cargo build --release --target ${{ matrix.target }}
+            cargo build --release --features archive --target ${{ matrix.target }}
           fi
           cargo deb --no-build --target ${{ matrix.target }}
           mkdir -p dist-packages && cp target/${{ matrix.target }}/debian/*.deb dist-packages/
@@ -311,9 +311,9 @@ jobs:
         run: |
           cargo install cargo-generate-rpm
           if [ "${{ matrix.target }}" != "x86_64-unknown-linux-gnu" ]; then
-            cargo zigbuild --release --target ${{ matrix.target }}
+            cargo zigbuild --release --features archive --target ${{ matrix.target }}
           else
-            cargo build --release --target ${{ matrix.target }}
+            cargo build --release --features archive --target ${{ matrix.target }}
           fi
           cargo generate-rpm --target ${{ matrix.target }}
           mkdir -p dist-packages && cp target/${{ matrix.target }}/generate-rpm/*.rpm dist-packages/
@@ -322,7 +322,7 @@ jobs:
       - name: Build Snap Package
         if: matrix.package_type == 'snap'
         run: |
-          cargo build --release
+          cargo build --release --features archive
           mkdir -p packaging/snap/dist/bin
           cp target/release/dcr packaging/snap/dist/bin/
           cp -r man packaging/snap/dist/man
@@ -364,7 +364,7 @@ jobs:
             cd "\$srcdir/\$pkgname-${PKGVER_ORIG}"
             unset CFLAGS CXXFLAGS LDFLAGS
             export RUSTFLAGS="-C linker=cc"
-            cargo build --release --locked
+            cargo build --release --locked --features archive
           }
           package() {
             cd "\$srcdir/dcr-${PKGVER_ORIG}"
@@ -454,7 +454,7 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Build
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --features archive --target ${{ matrix.target }}
 
       - name: Prepare Artifact
         run: |
@@ -499,7 +499,7 @@ jobs:
           run: |
             export PATH="/usr/local/bin:/usr/local/sbin:$PATH"
             pkg install -y rust perl5 gmake
-            cargo build --release
+            cargo build --release --features archive
 
       - name: Prepare FreeBSD Artifact
         if: matrix.system == 'freebsd'
@@ -517,7 +517,7 @@ jobs:
           run: |
             export PATH="/usr/local/bin:$PATH"
             pkg_add rust perl gmake
-            cargo build --release
+            cargo build --release --features archive
 
       - name: Prepare OpenBSD Artifact
         if: matrix.system == 'openbsd'
@@ -537,7 +537,7 @@ jobs:
             mkdir -p /tmp/bin
             ln -sf /usr/pkg/bin/gmake /tmp/bin/make
             export PATH="/tmp/bin:/usr/pkg/bin:/usr/pkg/sbin:$PATH"
-            cargo build --release
+            cargo build --release --features archive
 
       - name: Prepare NetBSD Artifact
         if: matrix.system == 'netbsd'
@@ -585,7 +585,7 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Build
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --features archive --target ${{ matrix.target }}
 
       - name: Prepare Artifact
         shell: pwsh
@@ -654,7 +654,7 @@ jobs:
             cd "\$srcdir/\$pkgname-${PKGVER_ORIG}"
             unset CFLAGS CXXFLAGS LDFLAGS
             export RUSTFLAGS="-C linker=cc"
-            cargo build --release --locked
+            cargo build --release --locked --features archive
           }
 
           package() {
@@ -919,7 +919,7 @@ jobs:
             cd "\$srcdir/dcr-${PKGVER_ORIG}"
             unset CFLAGS CXXFLAGS LDFLAGS
             export RUSTFLAGS="-C linker=cc"
-            cargo build --release --locked
+            cargo build --release --locked --features archive
           }
 
           package() {

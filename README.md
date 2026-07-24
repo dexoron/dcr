@@ -34,32 +34,6 @@
 
 <table>
 <tr>
-<td><b>Linux (Dexoron Packages)</b></td>
-<td>
-
-See https://pkg.dexoron.su for settings youre packages manager
-
-**Arch Linux:**
-
-```sh
-sudo pacman -Sy dcr
-```
-
-**Debian/Ubuntu:**
-
-```sh
-sudo apt update && sudo apt install dcr
-```
-
-**Fedora/RHEL:**
-
-```sh
-sudo dnf install dcr
-```
-
-</td>
-</tr>
-<tr>
 <td><b>Arch Linux (AUR)</b></td>
 <td>
 
@@ -103,21 +77,28 @@ cargo install dcr
 </td>
 </tr>
 <tr>
-<td><b>Linux / macOS (script)</b></td>
+<td><b>dcrup (Linux / macOS / BSD / Windows(Bash))</b></td>
 <td>
 
 ```sh
-curl -fsSL https://dcr.dexoron.su/install.sh | sh
+curl -fsSL https://sh.dcr-tool.ru | sh -s -- self-install
+export PATH="$HOME/.dcr/bin:$PATH"
+dcrup install stable
 ```
 
 </td>
 </tr>
 <tr>
-<td><b>BSD (script)</b></td>
+<td><b>dcrup (Windows PowerShell)</b></td>
 <td>
 
-```sh
-curl -fsSL https://dcr.dexoron.su/install_bsd.sh | sh
+```powershell
+irm https://ps1.dcr-tool.ru | iex
+# or:
+# irm https://ps1.dcr-tool.ru -OutFile dcrup.ps1
+# powershell -File .\dcrup.ps1 self-install
+# $env:Path += ";$env:USERPROFILE\.dcr\bin"
+dcrup install stable
 ```
 
 </td>
@@ -136,22 +117,12 @@ sudo snap install --classic --dangerous dcrup_*.snap
 </td>
 </tr>
 <tr>
-<td><b>Windows (PowerShell)</b></td>
-<td>
-
-```powershell
-irm https://dcr.dexoron.su/install.ps1 | iex
-```
-
-</td>
-</tr>
-<tr>
 <td><b>From source</b></td>
 <td>
 
 ```sh
 git clone https://github.com/dexoron/dcr.git
-cd dcr && cargo build --release
+cd dcr && cargo build --release --features archive
 ln -sf "$PWD/target/release/dcr" ~/.local/bin/dcr
 ```
 

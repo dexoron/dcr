@@ -242,10 +242,13 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        std::fs::create_dir_all(root.join("target/lib")).unwrap();
+        std::fs::create_dir_all(root.join("target").join("lib")).unwrap();
         let mut paths = Vec::new();
         push_default_lib_dirs(&mut paths, &root);
-        assert!(paths.iter().any(|p| p.ends_with("target/lib")));
+        assert!(paths.iter().any(|p| {
+            let n = p.replace('\\', "/");
+            n.ends_with("target/lib")
+        }));
         let _ = std::fs::remove_dir_all(root);
     }
 }

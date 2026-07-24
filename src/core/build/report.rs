@@ -69,6 +69,9 @@ pub enum BuildEvent<'a> {
         name: &'a str,
         version: &'a str,
     },
+    Packing {
+        path: &'a str,
+    },
     CompilerOutput {
         stream: &'a str,
         text: &'a str,

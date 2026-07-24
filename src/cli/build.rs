@@ -17,17 +17,28 @@
 
 use crate::cli::clean::clean;
 use crate::cli::flags::parse_build_run_flags;
+use crate::core::build::common;
 use crate::core::build::{BuildEvent, BuildReporter, BuildRequest, run_build};
 use crate::core::build_config::Config;
-use crate::utils::build::default_target_triple;
 use crate::utils::fs::find_project_root;
 use crate::utils::log::error;
-use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
+use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, BOLD_YELLOW, colored, printc};
+use std::io::IsTerminal;
 use std::sync::{Arc, atomic::AtomicBool};
 
 pub use crate::core::build::get_build_string_with_profile;
 
+fn status(verb: &str, style: &str) -> String {
+    colored(&format!("{verb:<9}"), style)
+}
+
 struct CliReporter;
+
+impl CliReporter {
+    fn line(&self, verb: &str, style: &str, rest: &str) {
+        eprintln!("  {} {}", status(verb, style), rest);
+    }
+}
 
 impl BuildReporter for CliReporter {
     fn on_event(&mut self, event: BuildEvent<'_>) {
@@ -37,73 +48,57 @@ impl BuildReporter for CliReporter {
                 total,
                 target,
             } => {
-                println!("    Building target {} of {}: {}", index, total, target);
+                common::finish_progress_line();
+                self.line("target", BOLD_CYAN, &format!("{index}/{total}  {target}"));
             }
             BuildEvent::ProjectStart {
                 name,
                 profile,
                 target,
             } => {
-                println!(
-                    "    Building project `{}`\n    Profile: {}\n      Target: {}",
-                    colored(name, BOLD_GREEN),
-                    colored(profile, BOLD_GREEN),
-                    colored(target, BOLD_GREEN)
+                common::finish_progress_line();
+                self.line(
+                    "project",
+                    BOLD_CYAN,
+                    &format!("{name}  ({profile}, {target})"),
                 );
             }
             BuildEvent::DepBuilding { name, version } => {
-                print!(
-                    "\r{:100}\r      {} {} v{}",
-                    "",
-                    colored("Building", BOLD_GREEN),
-                    name,
-                    version
-                );
-                std::io::Write::flush(&mut std::io::stdout()).unwrap();
+                common::finish_progress_line();
+                self.line("dep", BOLD_YELLOW, &format!("{name} v{version}"));
             }
             BuildEvent::DepReady {
                 name,
                 version,
                 rebuilt,
             } => {
+                common::finish_progress_line();
                 if rebuilt {
-                    print!(
-                        "\r{:100}\r       {} {} v{}",
-                        "",
-                        colored("Ready", BOLD_GREEN),
-                        name,
-                        version
-                    );
-                    println!();
-                } else {
-                    println!(
-                        "      {} {} v{}",
-                        colored("Ready", BOLD_GREEN),
-                        name,
-                        version
-                    );
+                    self.line("ready", BOLD_GREEN, &format!("{name} v{version}"));
                 }
             }
             BuildEvent::Compiling { name, version } => {
-                println!(
-                    "   {} {} v{}",
-                    colored("Compiling", BOLD_GREEN),
-                    name,
-                    version
-                );
+                common::finish_progress_line();
+                let label = format!("  {} {} v{}", status("compile", BOLD_GREEN), name, version);
+                common::set_progress_label(Some(label.clone()));
+                if !std::io::stderr().is_terminal() {
+                    eprintln!("{label}");
+                }
+            }
+            BuildEvent::Packing { path } => {
+                common::finish_progress_line();
+                self.line("pack", BOLD_CYAN, path);
             }
             BuildEvent::Finished { secs } => {
-                println!(
-                    "    {} Build completed successfully in {} seconds",
-                    colored("✔", BOLD_GREEN),
-                    colored(&secs.to_string(), BOLD_GREEN)
-                );
+                common::finish_progress_line();
+                self.line("done", BOLD_GREEN, &format!("in {secs}s"));
             }
             BuildEvent::CompilerOutput { stream, text } => {
+                common::interrupt_progress_for_output();
                 if stream == "stderr" {
-                    eprintln!("{}", text);
+                    eprint!("{text}");
                 } else {
-                    println!("{}", text);
+                    print!("{text}");
                 }
             }
         }
@@ -166,14 +161,11 @@ pub fn build(args: &[String]) -> i32 {
         if let Ok(config) = Config::open(config_path.to_str().unwrap())
             && !config.is_workspace_only()
         {
-            let bt = get_build_string_with_profile(&config, "target", "debug");
+            let bt = get_build_string_with_profile(&config, "target", &flags.profile);
             if !bt.is_empty() {
                 flags.target = Some(bt);
             }
         }
-    }
-    if flags.target.is_none() {
-        flags.target = Some(default_target_triple());
     }
     if flags.clean {
         let mut clean_args = Vec::new();
@@ -193,6 +185,7 @@ pub fn build(args: &[String]) -> i32 {
     match run_build(&root, &req, &mut reporter) {
         Ok(_) => 0,
         Err(err) => {
+            common::finish_progress_line();
             error(&err.message);
             1
         }

@@ -92,10 +92,63 @@ pub fn parse_project_name(toml: &str) -> String {
 }
 
 #[allow(dead_code)]
+pub fn host_profile_dir(project_root: &Path, profile: &str) -> PathBuf {
+    let target = project_root.join("target");
+    if cfg!(target_os = "linux") {
+        let arch = std::env::consts::ARCH;
+        let env = if cfg!(target_env = "musl") {
+            "musl"
+        } else {
+            "gnu"
+        };
+        target
+            .join(format!("{arch}-unknown-linux-{env}"))
+            .join(profile)
+    } else if cfg!(any(
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    )) {
+        let arch = std::env::consts::ARCH;
+        let os = std::env::consts::OS;
+        target.join(format!("{arch}-unknown-{os}")).join(profile)
+    } else {
+        target.join(profile)
+    }
+}
+
+#[allow(dead_code)]
+pub fn bin_name(project_name: &str) -> String {
+    if cfg!(windows) {
+        format!("{project_name}.exe")
+    } else {
+        project_name.to_string()
+    }
+}
+
+#[allow(dead_code)]
 pub fn default_artifact_path(project_root: &Path, project_name: &str) -> PathBuf {
-    project_root
-        .join("target")
-        .join("x86_64-unknown-linux-gnu")
-        .join("debug")
-        .join(project_name)
+    host_profile_dir(project_root, "debug").join(bin_name(project_name))
+}
+
+#[allow(dead_code)]
+pub fn artifact_candidates(dir: &Path, project_name: &str) -> Vec<PathBuf> {
+    let base = bin_name(project_name);
+    let bare = project_name.to_string();
+    vec![
+        dir.join(&base),
+        dir.join(&bare),
+        dir.join(format!("{project_name}.exe")),
+    ]
+}
+
+#[allow(dead_code)]
+pub fn assert_artifact_in(dir: &Path, project_name: &str, ctx: &str) {
+    let candidates = artifact_candidates(dir, project_name);
+    assert!(
+        candidates.iter().any(|p| p.is_file()),
+        "{ctx}: expected binary in {}, candidates: {candidates:?}",
+        dir.display()
+    );
 }

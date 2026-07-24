@@ -16,15 +16,70 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use std::fs;
+use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
 static OUTPUT_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
+static PROGRESS_LABEL: OnceLock<Mutex<Option<String>>> = OnceLock::new();
+static PROGRESS_DIRTY: AtomicBool = AtomicBool::new(false);
 
 pub fn get_output_lock() -> &'static Mutex<()> {
     OUTPUT_MUTEX.get_or_init(|| Mutex::new(()))
+}
+
+fn progress_label_lock() -> &'static Mutex<Option<String>> {
+    PROGRESS_LABEL.get_or_init(|| Mutex::new(None))
+}
+
+pub fn set_progress_label(label: Option<String>) {
+    *progress_label_lock().lock().unwrap() = label;
+}
+
+pub fn finish_progress_line() {
+    let was_dirty = PROGRESS_DIRTY.swap(false, Ordering::SeqCst);
+    *progress_label_lock().lock().unwrap() = None;
+    if !was_dirty {
+        return;
+    }
+    if io::stderr().is_terminal() {
+        let _guard = get_output_lock().lock().unwrap();
+        let _ = writeln!(io::stderr());
+        let _ = io::stderr().flush();
+    }
+}
+
+pub fn interrupt_progress_for_output() {
+    if !PROGRESS_DIRTY.swap(false, Ordering::SeqCst) {
+        return;
+    }
+    if io::stderr().is_terminal() {
+        let _guard = get_output_lock().lock().unwrap();
+        let _ = writeln!(io::stderr());
+        let _ = io::stderr().flush();
+    }
+}
+
+fn report_compile_progress(done: usize, total: usize) {
+    let label = progress_label_lock().lock().unwrap().clone();
+    let Some(label) = label else {
+        return;
+    };
+    if !io::stderr().is_terminal() {
+        return;
+    }
+    let _guard = get_output_lock().lock().unwrap();
+    let msg = format!("{label}  [{done}/{total}]");
+    if PROGRESS_DIRTY.load(Ordering::SeqCst) {
+        eprint!("\r{msg:<80}");
+    } else {
+        eprint!("{msg}");
+    }
+    let _ = io::stderr().flush();
+    PROGRESS_DIRTY.store(true, Ordering::SeqCst);
 }
 
 pub fn collect_sources(
@@ -103,7 +158,26 @@ pub fn is_excluded(path: &Path, exclude_dirs: &[PathBuf], include_paths: &[Strin
     if matches_patterns(path, include_paths, false) {
         return true;
     }
-    exclude_dirs.iter().any(|dir| path.starts_with(dir))
+    exclude_dirs.iter().any(|dir| path_is_under(path, dir))
+}
+
+fn path_is_under(path: &Path, prefix: &Path) -> bool {
+    if path.starts_with(prefix) {
+        return true;
+    }
+    match (fs::canonicalize(path), fs::canonicalize(prefix)) {
+        (Ok(p), Ok(pref)) => p.starts_with(pref),
+        _ => {
+            let p = path.to_string_lossy().replace('\\', "/");
+            let pref = prefix.to_string_lossy().replace('\\', "/");
+            if p == pref || p.starts_with(&format!("{pref}/")) {
+                return true;
+            }
+            let p = p.strip_prefix("/private").unwrap_or(&p);
+            let pref = pref.strip_prefix("/private").unwrap_or(&pref);
+            p == pref || p.starts_with(&format!("{pref}/"))
+        }
+    }
 }
 
 fn matches_patterns(path: &Path, patterns: &[String], positive: bool) -> bool {
@@ -214,7 +288,12 @@ where
     };
 
     let counter = std::sync::atomic::AtomicUsize::new(0);
+    let completed = std::sync::atomic::AtomicUsize::new(0);
     let err_msg = std::sync::Mutex::new(None);
+
+    if total_tasks > 0 {
+        report_compile_progress(0, total_tasks);
+    }
 
     std::thread::scope(|s| {
         for _ in 0..num_threads {
@@ -236,6 +315,9 @@ where
                         }
                         break;
                     }
+
+                    let done = completed.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+                    report_compile_progress(done, total_tasks);
                 }
             });
         }
@@ -249,10 +331,21 @@ where
 }
 
 pub fn run_command_sync_output(cmd: &mut Command) -> Result<(), String> {
-    let output = cmd.output().map_err(|err| format!("Build failed: {err}"))?;
-    let _guard = OUTPUT_MUTEX.get_or_init(|| Mutex::new(())).lock().unwrap();
+    let program = cmd.get_program().to_string_lossy().into_owned();
+    let output = cmd.output().map_err(|err| {
+        if err.kind() == std::io::ErrorKind::NotFound {
+            format!("{program} not found (check PATH / [toolchain])")
+        } else {
+            format!("Build failed: {err}")
+        }
+    })?;
+    let has_out = !output.stdout.is_empty() || !output.stderr.is_empty();
+    if has_out {
+        interrupt_progress_for_output();
+    }
+    let _guard = get_output_lock().lock().unwrap();
     if !output.stdout.is_empty() {
-        print!("{}", String::from_utf8_lossy(&output.stdout));
+        eprint!("{}", String::from_utf8_lossy(&output.stdout));
     }
     if !output.stderr.is_empty() {
         eprint!("{}", String::from_utf8_lossy(&output.stderr));
@@ -305,7 +398,7 @@ pub fn object_path(obj_dir: &Path, source: &str, obj_ext: &str) -> String {
     } else {
         out.set_extension(obj_ext);
     }
-    out.to_string_lossy().to_string()
+    out.to_string_lossy().replace('\\', "/")
 }
 
 pub fn needs_rebuild(source: &str, object: &str) -> bool {
@@ -408,7 +501,11 @@ fn parse_d_file(content: &str) -> Vec<String> {
             }
             in_escape = false;
         } else if c == '\\' {
-            in_escape = true;
+            match chars.peek() {
+                Some('\n' | '\r' | ' ' | '\t' | '\\') => in_escape = true,
+                Some(_) => current_path.push('\\'),
+                None => current_path.push('\\'),
+            }
         } else if c.is_whitespace() {
             if !current_path.is_empty() {
                 deps.push(current_path.clone());
@@ -435,12 +532,18 @@ mod tests {
     static TEST_COUNTER: AtomicUsize = AtomicUsize::new(0);
     static CWD_LOCK: Mutex<()> = Mutex::new(());
 
+    fn cwd_lock() -> std::sync::MutexGuard<'static, ()> {
+        CWD_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
     fn temp_dir(prefix: &str) -> PathBuf {
         let n = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
         let dir = std::env::temp_dir().join(format!("dcr_test_{prefix}_{n}"));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
-        dir
+        fs::canonicalize(&dir).unwrap_or(dir)
     }
 
     fn default_roots() -> Vec<PathBuf> {
@@ -605,7 +708,7 @@ mod tests {
         fs::write(src.join("utils.c"), "").unwrap();
         fs::write(src.join("README.md"), "").unwrap(); // should be ignored
 
-        let _guard = CWD_LOCK.lock().unwrap();
+        let _guard = cwd_lock();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
         let include: Vec<String> = Vec::new();
@@ -629,7 +732,7 @@ mod tests {
         fs::write(src.join("other.cc"), "").unwrap();
         fs::write(src.join("skip.c"), "").unwrap(); // should be ignored
 
-        let _guard = CWD_LOCK.lock().unwrap();
+        let _guard = cwd_lock();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
         let include: Vec<String> = Vec::new();
@@ -647,7 +750,7 @@ mod tests {
         let src = dir.join("src");
         fs::create_dir_all(&src).unwrap();
 
-        let _guard = CWD_LOCK.lock().unwrap();
+        let _guard = cwd_lock();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
         let include: Vec<String> = Vec::new();
@@ -669,7 +772,7 @@ mod tests {
         fs::write(vendor.join("lib.c"), "").unwrap(); // should be excluded
 
         let exclude = vec![vendor.clone()];
-        let _guard = CWD_LOCK.lock().unwrap();
+        let _guard = cwd_lock();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
         let include: Vec<String> = Vec::new();
@@ -691,7 +794,7 @@ mod tests {
         fs::write(src.join("main.c"), "").unwrap();
         fs::write(sub.join("nested.c"), "").unwrap();
 
-        let _guard = CWD_LOCK.lock().unwrap();
+        let _guard = cwd_lock();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
         let include: Vec<String> = Vec::new();
@@ -715,7 +818,7 @@ mod tests {
 
         let exclude = vec![boot.clone()];
         let include = vec!["src/boot/arch/**".to_string()];
-        let _guard = CWD_LOCK.lock().unwrap();
+        let _guard = cwd_lock();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
         let roots = default_roots();
@@ -742,7 +845,7 @@ mod tests {
             "!src/legacy/**".to_string(),
             "src/legacy/allow/**".to_string(),
         ];
-        let _guard = CWD_LOCK.lock().unwrap();
+        let _guard = cwd_lock();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
         let roots = default_roots();
@@ -765,7 +868,7 @@ mod tests {
 
         let exclude: Vec<PathBuf> = Vec::new();
         let include = vec!["!src/gen/**".to_string()];
-        let _guard = CWD_LOCK.lock().unwrap();
+        let _guard = cwd_lock();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
         let roots = default_roots();
@@ -800,36 +903,44 @@ mod tests {
     #[test]
     fn needs_rebuild_header_modified() {
         let dir = temp_dir("rebuild_header");
-        let src = dir.join("test.c");
-        let header = dir.join("test.h");
-        let obj = dir.join("test.o");
-        let d_file = dir.join("test.d");
+        fs::write(dir.join("test.c"), "int main() {}").unwrap();
+        fs::write(dir.join("test.h"), "#define A 1").unwrap();
+        fs::write(dir.join("test.o"), "").unwrap();
 
-        fs::write(&src, "int main() {}").unwrap();
-        fs::write(&header, "#define A 1").unwrap();
-        std::thread::sleep(std::time::Duration::from_millis(50));
-        fs::write(&obj, "").unwrap();
+        let _guard = cwd_lock();
+        let prev = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&dir).unwrap();
 
-        let d_content = format!(
-            "{}: {} {}",
-            obj.to_string_lossy(),
-            src.to_string_lossy(),
-            header.to_string_lossy()
-        );
-        fs::write(&d_file, d_content).unwrap();
-
+        fs::write("test.d", "test.o: test.c missing.h").unwrap();
         assert!(
-            !needs_rebuild(&src.to_string_lossy(), &obj.to_string_lossy()),
-            "should be fresh"
+            needs_rebuild("test.c", "test.o"),
+            "missing dep in .d must force rebuild"
         );
 
-        std::thread::sleep(std::time::Duration::from_millis(50));
-        fs::write(&header, "#define A 2").unwrap(); // modify header
-
+        fs::write("test.h", "#define A 1").unwrap();
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        fs::write("test.o", "obj").unwrap();
+        fs::write("test.d", "test.o: test.c test.h").unwrap();
         assert!(
-            needs_rebuild(&src.to_string_lossy(), &obj.to_string_lossy()),
+            !needs_rebuild("test.c", "test.o"),
+            "object newer than source and headers should be fresh"
+        );
+
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        fs::write("test.h", "#define A 2").unwrap();
+        assert!(
+            needs_rebuild("test.c", "test.o"),
             "changed header should trigger rebuild"
         );
+
+        std::env::set_current_dir(prev).unwrap();
+    }
+
+    #[test]
+    fn parse_d_file_keeps_windows_path_separators() {
+        let content = r"target\obj\main.obj: src\main.c src\utils.h";
+        let deps = parse_d_file(content);
+        assert_eq!(deps, vec![r"src\main.c", r"src\utils.h"]);
     }
 
     #[test]
