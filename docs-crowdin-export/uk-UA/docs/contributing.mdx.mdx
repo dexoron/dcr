@@ -42,10 +42,11 @@ cargo test --all-targets
 
 ## CI
 
-CI runs:
+CI runs (see `.github/workflows/ci.yml`):
 
 * `cargo fmt --check`
-* `cargo clippy --all-targets -- -D warnings`
+* `cargo clippy` (default + `--all-features`)
 * `cargo check --all-targets --all-features`
-* Build on Linux, macOS, Windows
-* Integration tests (compilation check)
+* Unit + integration tests on Linux, macOS, Windows
+* Extra Linux job with `--features archive` (FAT images)
+* Tools on runners: clang, nasm, clang-format/tidy (Linux)
