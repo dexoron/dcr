@@ -4,6 +4,25 @@ sidebar_label: Changelog
 
 # Changelog
 
+## 0.8.2 (2026-07-22)
+
+### Added
+
+* **Compile progress `[N/M]`** — live TTY status line (`compile  pkg v0.1.0  [12/41]`) so long mono-package builds do not look hung.
+* **DCR status style** — fixed-width verbs: `project`, `compile`, `dep`, `ready`, `pack`, `done`, `run`.
+* **Cargo feature `archive`** — optional FAT packing via `fatfs` (`cargo build --features archive`). Release CI builds with the feature; without it `[archive]` fails with a clear message.
+* **Tests** — `flat_bin_nasm_build`, package `build.target` without CLI `--target`, stricter workspace `clean --all`.
+* **CI expansion** — unit + integration on Linux/macOS/Windows, archive feature job, rust-cache, clippy default + all-features (see `.github/workflows/ci.yml`).
+
+### Changed
+
+* **No forced host triple from CLI** — without `--target`, package/member `build.target` is honored (bare-metal / ISO `post_steps` paths).
+* **Relative include/lib flags** (`-I`, `-i`, `-isystem`, `-idirafter`, `-L`, `-T`) absolutized against the package root under workspace builds.
+* **`dcr clean --all`** — no spam for members without a local `target/` (shared root `target/`).
+* **`error` / `warn`** — red / yellow on stderr; CLI fully English (`Hint:`).
+* **Help / man** — list `add`, `lint`, `setup`; unknown command exits with code 1.
+* **Tool NotFound** — `linker not found: ld.lld …` / `{tool} not found …` instead of raw `os error 2`.
+
 ## 0.8.1 (2026-07-20)
 
 ### Added
@@ -14,17 +33,13 @@ sidebar_label: Changelog
   * **GAS / MASM / LLC** — object → `objcopy -O binary` → `\<stem>.bin`
   * **C/C++** — objects → freestanding link → `objcopy -O binary` → `\<name>.bin`
   * Requires `llvm-objcopy` / `objcopy` / `gobjcopy` except for NASM/FASM direct emit
-* **`[archive]` section** — after a successful build, pack a FAT disk image (`fatfs`): `output`, `format` (`fat12`/`fat16`/`fat32`), optional `size` (default 1.44 MiB), `offset`, `label`, `bootsector`, and `layout` (`from` → `to`, supports globs). `{profile}` works in paths.
+* **`[archive]` section** — FAT12/16/32 disk images after build (`output`, `format`, `size`, `offset`, `label`, `bootsector`, `layout`). From 0.8.2 requires feature `archive`.
 * **Single-file `build.roots`** — a root may be a single source or header file, not only a directory.
 
 ### Changed
 
 * **`--force`** also re-runs `build.steps` and `build.post_steps`.
 * **`dcr run` on workspace-only root** — if `[run].cmd` is set, run that after build; otherwise delegate to a workspace member.
-
-### Dependencies
-
-* `fatfs = "0.3"` for FAT image packing.
 
 ## 0.8.0 (2026-07-18)
 
