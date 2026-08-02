@@ -19,10 +19,15 @@ use crate::platform;
 use std::path::Path;
 use std::process::Command;
 
-pub fn run_binary(project_name: &str, profile: &str, target_dir: Option<&str>) -> i32 {
+pub fn run_binary(
+    project_name: &str,
+    profile: &str,
+    target_dir: Option<&str>,
+    bin_args: &[String],
+) -> i32 {
     let bin_path = platform::bin_path(profile, project_name, target_dir);
     if Path::new(&bin_path).exists() {
-        let status = Command::new(&bin_path).status();
+        let status = Command::new(&bin_path).args(bin_args).status();
         match status {
             Ok(s) => {
                 return s.code().unwrap_or(0);

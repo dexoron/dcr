@@ -8,9 +8,13 @@ dcr-run \- Build and run a DCR project
 [\fB\-\-force\fR]
 [\fB\-\-clean\fR]
 [\fB\-\-verbose\fR]
+[\fB\-\-\fR \fI<args>...\fR]
 .SH DESCRIPTION
 Builds and runs the project. Only available for projects with
 \fBkind = "bin"\fR.
+Arguments after a bare
+.B \-\-
+are forwarded to the built binary (cargo-style).
 .SH OPTIONS
 .TP
 .B \-\-debug
@@ -30,6 +34,14 @@ Clean before building.
 .TP
 .B \-\-verbose
 Print detailed build output.
+.TP
+.B \-\- \fI<args>...\fR
+Arguments passed to the built binary.
+.SH EXAMPLES
+.nf
+dcr run --release -- --test_help
+dcr run -- --foo bar
+.fi
 .SH SEE ALSO
 .BR dcr (1),
 .BR dcr-build (1)

@@ -36,10 +36,10 @@ use crate::core::build_config::Config;
 use crate::core::deps::{register, resolve_deps};
 use crate::core::workspace::parse_workspace;
 use crate::utils::build::{
-    get_bool_with_profile, get_config_opt, get_config_str, get_language_with_profile,
-    is_bare_metal_target, normalize_kind, normalize_platform, normalize_target,
-    normalize_target_os, parse_version_info, prepend_clang_target_flag, primary_language,
-    resolve_compiler, resolve_pkg_config_flags, resolve_tool, substitute_vars,
+    default_target_triple, get_bool_with_profile, get_config_opt, get_config_str,
+    get_language_with_profile, is_bare_metal_target, normalize_kind, normalize_platform,
+    normalize_target, normalize_target_os, parse_version_info, prepend_clang_target_flag,
+    primary_language, resolve_compiler, resolve_pkg_config_flags, resolve_tool, substitute_vars,
 };
 use crate::utils::fs::check_dir;
 use std::fs;
@@ -187,15 +187,27 @@ fn build_all(
     let project_version = get_config_str(&config, "package.version");
 
     let targets_to_build: Vec<Option<String>> = if let Some(t) = target {
-        vec![Some(normalize_target_os(t).to_string())]
+        let normalized = normalize_target_os(t);
+        if normalized.is_empty() {
+            vec![Some(default_target_triple())]
+        } else {
+            vec![Some(normalized.to_string())]
+        }
     } else {
         let config_targets = get_targets(&config, profile)?;
         if config_targets.is_empty() {
-            vec![None]
+            vec![Some(default_target_triple())]
         } else {
             config_targets
                 .into_iter()
-                .map(|t| Some(normalize_target_os(&t).to_string()))
+                .map(|t| {
+                    let normalized = normalize_target_os(&t);
+                    if normalized.is_empty() {
+                        Some(default_target_triple())
+                    } else {
+                        Some(normalized.to_string())
+                    }
+                })
                 .collect()
         }
     };
@@ -344,12 +356,32 @@ fn build_project_at(
     }
     let project_name = get_config_str(&config, "package.name");
     let project_version = get_config_str(&config, "package.version");
+    let host_target = default_target_triple();
     let build_target_config = get_build_string_with_profile(&config, "target", profile);
-    let build_target = target.or(if build_target_config.is_empty() {
-        None
-    } else {
-        Some(build_target_config.as_str())
-    });
+    let build_target_owned = target
+        .filter(|t| !t.trim().is_empty())
+        .map(|t| {
+            let normalized = normalize_target_os(t);
+            if normalized.is_empty() {
+                host_target.clone()
+            } else {
+                normalized.to_string()
+            }
+        })
+        .or_else(|| {
+            if build_target_config.is_empty() {
+                None
+            } else {
+                let normalized = normalize_target_os(&build_target_config);
+                if normalized.is_empty() {
+                    None
+                } else {
+                    Some(normalized.to_string())
+                }
+            }
+        })
+        .unwrap_or(host_target);
+    let build_target = Some(build_target_owned.as_str());
     let build_language = get_language_with_profile(&config, profile)?;
     let build_qt = get_bool_with_profile(&config, "qt", profile, false);
     let lang_key = primary_language(&build_language);
@@ -530,27 +562,26 @@ fn build_project_at(
                 root.join(&rel).to_string_lossy().to_string()
             }
             None => {
-                let base_dir =
-                    if let Some(rel) = normalize_target(build_target.unwrap_or(""), profile) {
-                        PathBuf::from(rel)
+                let base_dir = if let Some(rel) = normalize_target(&build_target_owned, profile) {
+                    PathBuf::from(rel)
+                } else {
+                    let default_dir = if cfg!(target_os = "linux") {
+                        let arch = std::env::consts::ARCH;
+                        format!("{arch}-unknown-linux-gnu/{profile}")
+                    } else if cfg!(any(
+                        target_os = "freebsd",
+                        target_os = "openbsd",
+                        target_os = "netbsd",
+                        target_os = "dragonfly"
+                    )) {
+                        let arch = std::env::consts::ARCH;
+                        let os = std::env::consts::OS;
+                        format!("{arch}-unknown-{os}/{profile}")
                     } else {
-                        let default_dir = if cfg!(target_os = "linux") {
-                            let arch = std::env::consts::ARCH;
-                            format!("{arch}-unknown-linux-gnu/{profile}")
-                        } else if cfg!(any(
-                            target_os = "freebsd",
-                            target_os = "openbsd",
-                            target_os = "netbsd",
-                            target_os = "dragonfly"
-                        )) {
-                            let arch = std::env::consts::ARCH;
-                            let os = std::env::consts::OS;
-                            format!("{arch}-unknown-{os}/{profile}")
-                        } else {
-                            profile.to_string()
-                        };
-                        Path::new("target").join(&default_dir)
+                        profile.to_string()
                     };
+                    Path::new("target").join(&default_dir)
+                };
                 project_root.join(base_dir).to_string_lossy().to_string()
             }
         }
