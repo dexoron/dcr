@@ -358,6 +358,8 @@ fn build_project_at(
     let project_version = get_config_str(&config, "package.version");
     let host_target = default_target_triple();
     let build_target_config = get_build_string_with_profile(&config, "target", profile);
+    let has_explicit_target =
+        target.is_some_and(|t| !t.trim().is_empty()) || !build_target_config.is_empty();
     let build_target_owned = target
         .filter(|t| !t.trim().is_empty())
         .map(|t| {
@@ -562,8 +564,11 @@ fn build_project_at(
                 root.join(&rel).to_string_lossy().to_string()
             }
             None => {
-                let base_dir = if let Some(rel) = normalize_target(&build_target_owned, profile) {
-                    PathBuf::from(rel)
+                let base_dir = if has_explicit_target {
+                    PathBuf::from(
+                        normalize_target(&build_target_owned, profile)
+                            .expect("explicit build target must be non-empty"),
+                    )
                 } else {
                     let default_dir = if cfg!(target_os = "linux") {
                         let arch = std::env::consts::ARCH;
