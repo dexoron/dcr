@@ -59,12 +59,13 @@ pub fn run(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
         printc("USAGE:", BOLD_GREEN);
         printc(
-            "    dcr run [--debug | --release] [--target <triple>] [--force] [--clean] [--verbose]",
+            "    dcr run [--debug | --release] [--target <triple>] [--force] [--clean] [--verbose] [-- <args>...]",
             BOLD_CYAN,
         );
         println!();
         printc("DESCRIPTION:", BOLD_GREEN);
         println!("    Builds and runs the project. Only available for kind = \"bin\".");
+        println!("    Arguments after `--` are passed to the built binary (cargo-style).");
         println!();
         printc("OPTIONS:", BOLD_GREEN);
         println!("    --debug              Run with debug profile (default)");
@@ -73,6 +74,7 @@ pub fn run(args: &[String]) -> i32 {
         println!("    --force              Force a full rebuild");
         println!("    --clean              Clean before building");
         println!("    --verbose            Print detailed build output");
+        println!("    -- <args>...         Arguments forwarded to the binary");
         return 0;
     }
 
@@ -112,12 +114,13 @@ pub fn run(args: &[String]) -> i32 {
         if let Some(cmd) = get_run_cmd(&config, &flags.profile, flags.target.as_deref(), "") {
             let build_status = build(&args_for_build(&flags));
             if build_status == 0 {
+                let display = display_run_cmd(&cmd, &flags.bin_args);
                 println!(
                     "  {} {}",
                     colored(&format!("{:<9}", "run"), BOLD_GREEN),
-                    cmd
+                    display
                 );
-                return run_shell(&cmd);
+                return run_shell_with_args(&cmd, &flags.bin_args);
             }
             return build_status;
         }
@@ -250,32 +253,36 @@ fn run_project(
     );
     if build_status == 0 {
         if let Some(cmd) = run_cmd {
+            let display = display_run_cmd(&cmd, &flags.bin_args);
             println!(
                 "  {} {}",
                 colored(&format!("{:<9}", "run"), BOLD_GREEN),
-                cmd
+                display
             );
-            return Ok(run_shell(&cmd));
+            return Ok(run_shell_with_args(&cmd, &flags.bin_args));
         }
+        let display = display_bin_run(&bin_path, &flags.bin_args);
         println!(
             "  {} {}",
             colored(&format!("{:<9}", "run"), BOLD_GREEN),
-            bin_path
+            display
         );
         return Ok(run_binary(
             project_name,
             &flags.profile,
             normalized_target_dir.as_deref(),
+            &flags.bin_args,
         ));
     }
 
     let fallback_code = if let Some(cmd) = run_cmd {
-        run_shell(&cmd)
+        run_shell_with_args(&cmd, &flags.bin_args)
     } else {
         run_binary(
             project_name,
             &flags.profile,
             normalized_target_dir.as_deref(),
+            &flags.bin_args,
         )
     };
     if fallback_code != 1 {
@@ -342,6 +349,62 @@ fn run_shell(cmd: &str) -> i32 {
         Ok(s) if s.success() => 0,
         Ok(s) => s.code().unwrap_or(1),
         Err(_) => 1,
+    }
+}
+
+fn run_shell_with_args(cmd: &str, bin_args: &[String]) -> i32 {
+    if bin_args.is_empty() {
+        return run_shell(cmd);
+    }
+    let mut full = cmd.to_string();
+    for arg in bin_args {
+        full.push(' ');
+        full.push_str(&shell_escape(arg));
+    }
+    run_shell(&full)
+}
+
+fn display_run_cmd(cmd: &str, bin_args: &[String]) -> String {
+    if bin_args.is_empty() {
+        return cmd.to_string();
+    }
+    let mut display = cmd.to_string();
+    for arg in bin_args {
+        display.push(' ');
+        display.push_str(arg);
+    }
+    display
+}
+
+fn display_bin_run(bin_path: &str, bin_args: &[String]) -> String {
+    if bin_args.is_empty() {
+        return bin_path.to_string();
+    }
+    let mut display = bin_path.to_string();
+    for arg in bin_args {
+        display.push(' ');
+        display.push_str(arg);
+    }
+    display
+}
+
+fn shell_escape(arg: &str) -> String {
+    if cfg!(target_os = "windows") {
+        // cmd.exe: wrap in double quotes and escape embedded quotes.
+        let escaped = arg.replace('"', "\\\"");
+        format!("\"{escaped}\"")
+    } else {
+        // POSIX sh: single-quote and escape embedded single quotes as '\''.
+        let mut out = String::from("'");
+        for ch in arg.chars() {
+            if ch == '\'' {
+                out.push_str("'\\''");
+            } else {
+                out.push(ch);
+            }
+        }
+        out.push('\'');
+        out
     }
 }
 

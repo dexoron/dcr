@@ -1,5 +1,51 @@
 # Changelog
 
+## [0.8.3] - 2026-08-03 "Конфигурация host target, аргументы run и нативные пути артефактов / Host Target Config, Run Args & Native Artifact Paths"
+
+### RU
+
+**Добавлено:**
+
+- **`dcr run -- <args>...`** — cargo-style: всё после bare `--` передаётся собранному бинарнику  
+  (`dcr run --release -- --test_help`). Работает и для прямого запуска, и для `[run].cmd`.
+- **Интеграционные / unit-тесты** — host target sections применяют `ldflags` без `--target`; проброс аргументов после `--`; парсер `split_double_dash`.
+
+**Изменено:**
+
+- **Native-сборка резолвит host triple** — без `--target` / без `build.target` конфиг-секции вида  
+  `[build.x86_64-unknown-linux-gnu]` (и аналоги host) снова применяются (`cflags` / `ldflags` / toolchain).  
+  Раньше target был «пустым», секции молча игнорировались, а артефакты уже лежали под host triple — линковка без `-L`/`-l`.
+- **Пустой target** — `normalize_target_os("")` больше не warn'ит `Unknown target ''`.
+- **`dcr run --help` / man `dcr-run`** — документирован разделитель `--` и forwarding args.
+
+**Исправлено:**
+
+- **Нативные пути артефактов на Windows и macOS** — без явного `--target` / `build.target` артефакты снова сохраняются в `target/<profile>`, поэтому `dcr run` и flat-bin находят результат сборки.
+- Target-specific `ldflags` на native Linux/macOS/Windows (host triple) не доходили до линкера.
+- Ложный warning на пустой target string.
+
+### EN
+
+**Added:**
+
+- **`dcr run -- <args>...`** — cargo-style: arguments after a bare `--` are forwarded to the built binary  
+  (`dcr run --release -- --test_help`). Works for direct binary runs and `[run].cmd`.
+- **Tests** — host target sections apply `ldflags` without CLI `--target`; run-arg forwarding; `split_double_dash` unit tests.
+
+**Changed:**
+
+- **Native builds resolve the host triple** — without `--target` / without package `build.target`, host sections such as  
+  `[build.x86_64-unknown-linux-gnu]` (and host equivalents) apply again (`cflags` / `ldflags` / toolchain).  
+  Previously the target was empty, those sections were silently ignored while artifacts already used the host triple path — link failed without `-L`/`-l` (e.g. sandbox micro-lang + `libsct-elf`).
+- **Empty target** — `normalize_target_os("")` no longer warns `Unknown target ''`.
+- **`dcr run --help` / man `dcr-run`** — document `--` and argument forwarding.
+
+**Fixed:**
+
+- **Native artifact paths on Windows and macOS** — without an explicit `--target` / `build.target`, artifacts again use `target/<profile>`, so `dcr run` and flat-bin find the build output.
+- Target-specific `ldflags` on native host builds not reaching the linker.
+- Spurious warning for an empty target string.
+
 ## [0.8.2] - 2026-07-22 "CLI Progress, archive Feature, Workspace Path Fixes / CLI Progress, archive Feature, Workspace Path Fixes"
 
 ### RU
@@ -215,25 +261,31 @@
 ### RU
 
 **Добавлено:**
+
 - Учтён `target_env` в `default_target_triple()` — Linux (gnu/musl) и Windows (msvc/gnu) теперь используют правильное окружение, а не хардкод.
 
 **Исправлено:**
+
 - **Сборка на macOS Apple Silicon падала с `_main` undefined** — `--target=` теперь передаётся и в ldflags, не только в cflags. `default_target_triple()` на macOS использует `std::env::consts::ARCH` вместо хардкода `x86_64`.
 - **Бейджи GitHub Stars и GPL-3.0 не рендерились в README** — блок бейджей переведён на чистый HTML.
 
 **Изменено:**
+
 - Вычисление таргета по умолчанию вынесено в общую функцию `default_target_triple()` — устранено дублирование в build, run, clean.
 
 ### EN
 
 **Added:**
+
 - `default_target_triple()` now respects `target_env` — Linux (gnu/musl) and Windows (msvc/gnu) use the correct environment instead of hardcoded values.
 
 **Fixed:**
+
 - **macOS Apple Silicon builds failed with `_main` undefined** — `--target=` is now passed to ldflags, not just cflags. `default_target_triple()` uses `std::env::consts::ARCH` on macOS instead of hardcoded `x86_64`.
 - **GitHub Stars and GPL-3.0 badges not rendering in README** — badge block converted to pure HTML.
 
 **Changed:**
+
 - Default target resolution extracted into shared `default_target_triple()` — removed duplication across build, run, clean.
 
 ## [0.7.1] - 2026-06-02 "Мультиархитектурное расширение / The Multi-Arch Expansion"
@@ -241,6 +293,7 @@
 ### RU
 
 **Добавлено:**
+
 - Вывод `--help` для всех команд с цветным форматированием.
 - man-страницы (12 штук в `man/man1/`) и их установка во всех пакетах.
 - Валидация имен проектов в `dcr init` и `dcr new` (только ASCII буквы, цифры, `_` и `-`).
@@ -251,6 +304,7 @@
 - Пакеты AUR (`dcr-dev`, `dcr-dev-bin`) и сборка Snap в CI.
 
 **Изменено:**
+
 - Функция `validate_package_name` стала публичной.
 - Команды `gen`, `tree`, `fmt`, `setup` больше не игнорируют аргументы и используют цветной вывод.
 - Инструкция в README изменена с `| bash` на `| sh` для POSIX.
@@ -268,6 +322,7 @@
 ### EN
 
 **Added:**
+
 - `--help` for all commands with styled headers and usage lines.
 - Man pages (12 troff man pages in `man/man1/`) and their installation across all packaging formats.
 - Project name validation in `dcr init` and `dcr new` (ASCII letters, digits, `_`, `-` only).
@@ -278,6 +333,7 @@
 - AUR packages (`dcr-dev`, `dcr-dev-bin`) and Snap build in CI.
 
 **Changed:**
+
 - `validate_package_name` made public and callable from CLI commands directly.
 - `gen.rs`, `tree.rs`, `fmt.rs`, `setup.rs` no longer ignore arguments and use styled output.
 - README install instructions changed from `| bash` to `| sh` for POSIX compatibility.
@@ -454,6 +510,7 @@ Added:
   ```
 
   Produces `KERNEL.EFI` (works for `bin`, `staticlib`, and `sharedlib`).
+
 - Automatic injection of `--target=<build.target>` into compiler flags when `build.target` is set in `dcr.toml`. This greatly simplifies clang-based cross-compilation (especially for bare-metal targets like `aarch64-none-elf`).
 - Bare-metal targets (containing `none`, `-elf`, `eabi`, `baremetal`) no longer receive DCR's internal default flags (`-g`, `-Wall`, `-Wextra`, `-fno-omit-frame-pointer`, `-DDCR_DEBUG`, etc.). Prevents unwanted sections (`.comment`, debug info, etc.) that break custom linker scripts when `inherit = true`.
 - `build.ldscript` in `dcr.toml` — linker script path passed as `-T <path>` to the linker. Essential for bare-metal/embedded/freestanding targets.
@@ -488,28 +545,28 @@ Fixed:
 
 - Path dependencies now work correctly: `dcr add` stores them as `{ path =
 "./..." }` tables, `is_registry_dep` properly distinguishes registry strings
-from path/git strings, and `deps/mod.rs` resolves both table-form and
-legacy string-form path dependencies
+  from path/git strings, and `deps/mod.rs` resolves both table-form and
+  legacy string-form path dependencies
 - Registry dependency paths no longer hardcoded to `project_root/dcr-index`;
-now use `package_root_from_registry_info()` which resolves relative to the
-registry cache root (`~/.dcr/`)
+  now use `package_root_from_registry_info()` which resolves relative to the
+  registry cache root (`~/.dcr/`)
 - Registry dependencies are now actually built: `build_project_at()` is
-called when `include_dir` or `lib_dir` is missing
+  called when `include_dir` or `lib_dir` is missing
 
 Added:
 
 - `SIGINT`/`Ctrl+C` handler via `ctrlc` crate — `dcr build` now checks
-`BUILD_INTERRUPTED` flag at key points and aborts cleanly
+  `BUILD_INTERRUPTED` flag at key points and aborts cleanly
 - `utils/build.rs` — extracted shared utilities: `parse_version_info`,
-`normalize_target_os`, `resolve_compiler`, `primary_language`,
-`resolve_pkg_config_flags` and config helpers. Eliminates code duplication
-between `cli/build.rs`, `cli/run.rs`, `cli/clean.rs`, `cli/gen.rs`
+  `normalize_target_os`, `resolve_compiler`, `primary_language`,
+  `resolve_pkg_config_flags` and config helpers. Eliminates code duplication
+  between `cli/build.rs`, `cli/run.rs`, `cli/clean.rs`, `cli/gen.rs`
 - `utils/fs.rs::with_dir` — extracted common directory-scoped execution
 - `run_command_sync_output` in `builder/common.rs` with global `OUTPUT_MUTEX`
-— synchronized compiler output across all backends (unix_cc, gas, nasm, msvc)
+  — synchronized compiler output across all backends (unix_cc, gas, nasm, msvc)
 - New helper functions in `deps/register.rs`: `get_registry_cache_root`,
-`package_root_from_registry_info`, `registry_include_dir`, `registry_lib_dir`,
-`path_from_string_dep`
+  `package_root_from_registry_info`, `registry_include_dir`, `registry_lib_dir`,
+  `path_from_string_dep`
 - Unit tests for `register.rs` (`is_registry_dep`, `package_root_from_registry_info`),
   `deps/mod.rs` (`path_dep_path`, `push_default_lib_dirs`),
   `utils/build.rs` (`normalize_target_os`, `parse_version_info`)

@@ -154,7 +154,7 @@ dependencies = [
 
 [[package]]
 name = "dcr"
-version = "0.8.2"
+version = "0.8.3"
 dependencies = [
  "ctrlc",
  "fatfs",

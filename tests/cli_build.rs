@@ -87,6 +87,33 @@ fn build_run_clean_flags_normal_project() {
         "dcr run should start"
     );
 
+    std::fs::write(
+        dir.join("src/main.c"),
+        r#"#include <stdio.h>
+int main(int argc, char **argv) {
+    for (int i = 1; i < argc; i++) {
+        printf("ARG:%s\n", argv[i]);
+    }
+    return 0;
+}
+"#,
+    )
+    .expect("rewrite main.c");
+    let out = run_dcr_env(&["run", "--force", "--", "--test_help", "foo"], &dir, &envs);
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        out.status.success(),
+        "dcr run -- <args> should succeed:\n{combined}"
+    );
+    assert!(
+        combined.contains("ARG:--test_help") && combined.contains("ARG:foo"),
+        "binary should receive args after `--`:\n{combined}"
+    );
+
     let out = run_dcr_env(&["clean", "--release"], &dir, &envs);
     assert!(out.status.success(), "dcr clean --release should succeed");
     let release_dir = host_profile_dir(&dir, "release");
@@ -284,5 +311,59 @@ fn package_build_target_used_without_cli_flag() {
         &out_dir,
         &project_name,
         "artifact should be under package build.target path",
+    );
+}
+
+#[test]
+fn host_target_section_ldflags_apply_without_cli_target() {
+    let Some(compiler) = available_compiler() else {
+        eprintln!("no compiler found; skipping host target ldflags test");
+        return;
+    };
+
+    let dir = unique_sandbox_dir("host_ldflags");
+    let out = run_dcr(&["init"], &dir);
+    assert!(out.status.success(), "dcr init should succeed");
+
+    let host = if cfg!(target_os = "linux") {
+        let arch = std::env::consts::ARCH;
+        let env = if cfg!(target_env = "musl") {
+            "musl"
+        } else {
+            "gnu"
+        };
+        format!("{arch}-unknown-linux-{env}")
+    } else if cfg!(target_os = "macos") {
+        format!("{}-apple-darwin", std::env::consts::ARCH)
+    } else if cfg!(target_os = "windows") {
+        let env = if cfg!(target_env = "gnu") {
+            "gnu"
+        } else {
+            "msvc"
+        };
+        format!("{}-pc-windows-{env}", std::env::consts::ARCH)
+    } else {
+        eprintln!("unsupported host for host_target_section test; skipping");
+        return;
+    };
+
+    let toml_path = dir.join("dcr.toml");
+    let toml = std::fs::read_to_string(&toml_path).expect("read dcr.toml");
+    let updated = format!(
+        "{toml}\n[build.{host}]\nldflags = [\"-Wl,-rpath,/nonexistent-dcr-host-ldflags\"]\n"
+    );
+    std::fs::write(&toml_path, updated).expect("write dcr.toml");
+
+    let envs = [("DCR_COMPILER", compiler), ("DCR_DEBUG", "1")];
+    let out = run_dcr_env(&["build", "--force"], &dir, &envs);
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        combined.contains("-Wl,-rpath,/nonexistent-dcr-host-ldflags")
+            || combined.contains("rpath,/nonexistent-dcr-host-ldflags"),
+        "host target section ldflags must be applied on native build:\n{combined}"
     );
 }

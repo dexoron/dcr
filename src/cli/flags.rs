@@ -25,16 +25,25 @@ pub struct BuildRunFlags {
     pub force: bool,
     pub clean: bool,
     pub verbose: bool,
+    pub bin_args: Vec<String>,
+}
+
+pub fn split_double_dash(args: &[String]) -> (&[String], &[String]) {
+    match args.iter().position(|a| a == "--") {
+        Some(i) => (&args[..i], &args[i + 1..]),
+        None => (args, &[]),
+    }
 }
 
 pub fn parse_build_run_flags(args: &[String]) -> Result<BuildRunFlags, i32> {
+    let (dcr_args, bin_args_slice) = split_double_dash(args);
     let mut profile = PROFILE.to_string();
     let mut target = None;
     let mut workspace = None;
     let mut force = false;
     let mut clean = false;
     let mut verbose = false;
-    let mut iter = args.iter();
+    let mut iter = dcr_args.iter();
 
     while let Some(arg) = iter.next() {
         if !arg.starts_with("--") {
@@ -91,5 +100,38 @@ pub fn parse_build_run_flags(args: &[String]) -> Result<BuildRunFlags, i32> {
         force,
         clean,
         verbose,
+        bin_args: bin_args_slice.to_vec(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn s(args: &[&str]) -> Vec<String> {
+        args.iter().map(|a| a.to_string()).collect()
+    }
+
+    #[test]
+    fn split_double_dash_empty_tail() {
+        let args = s(&["--release", "--force"]);
+        let (left, right) = split_double_dash(&args);
+        assert_eq!(left, &s(&["--release", "--force"]));
+        assert!(right.is_empty());
+    }
+
+    #[test]
+    fn split_double_dash_with_bin_args() {
+        let args = s(&["--release", "--", "--test_help", "x"]);
+        let (left, right) = split_double_dash(&args);
+        assert_eq!(left, &s(&["--release"]));
+        assert_eq!(right, &s(&["--test_help", "x"]));
+    }
+
+    #[test]
+    fn parse_run_flags_forwards_after_double_dash() {
+        let flags = parse_build_run_flags(&s(&["--release", "--", "--test_help"])).unwrap();
+        assert_eq!(flags.profile, "release");
+        assert_eq!(flags.bin_args, s(&["--test_help"]));
+    }
 }

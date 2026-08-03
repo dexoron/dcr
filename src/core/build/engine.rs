@@ -36,10 +36,10 @@ use crate::core::build_config::Config;
 use crate::core::deps::{register, resolve_deps};
 use crate::core::workspace::parse_workspace;
 use crate::utils::build::{
-    get_bool_with_profile, get_config_opt, get_config_str, get_language_with_profile,
-    is_bare_metal_target, normalize_kind, normalize_platform, normalize_target,
-    normalize_target_os, parse_version_info, prepend_clang_target_flag, primary_language,
-    resolve_compiler, resolve_pkg_config_flags, resolve_tool, substitute_vars,
+    default_target_triple, get_bool_with_profile, get_config_opt, get_config_str,
+    get_language_with_profile, is_bare_metal_target, normalize_kind, normalize_platform,
+    normalize_target, normalize_target_os, parse_version_info, prepend_clang_target_flag,
+    primary_language, resolve_compiler, resolve_pkg_config_flags, resolve_tool, substitute_vars,
 };
 use crate::utils::fs::check_dir;
 use std::fs;
@@ -159,6 +159,7 @@ fn build_all(
                 &member.path,
                 profile,
                 target,
+                target.is_some_and(|t| !t.trim().is_empty()),
                 &[],
                 force,
                 verbose,
@@ -186,22 +187,34 @@ fn build_all(
     let project_name = get_config_str(&config, "package.name");
     let project_version = get_config_str(&config, "package.version");
 
-    let targets_to_build: Vec<Option<String>> = if let Some(t) = target {
-        vec![Some(normalize_target_os(t).to_string())]
+    let targets_to_build: Vec<(Option<String>, bool)> = if let Some(t) = target {
+        let normalized = normalize_target_os(t);
+        if normalized.is_empty() {
+            vec![(Some(default_target_triple()), true)]
+        } else {
+            vec![(Some(normalized.to_string()), true)]
+        }
     } else {
         let config_targets = get_targets(&config, profile)?;
         if config_targets.is_empty() {
-            vec![None]
+            vec![(Some(default_target_triple()), false)]
         } else {
             config_targets
                 .into_iter()
-                .map(|t| Some(normalize_target_os(&t).to_string()))
+                .map(|t| {
+                    let normalized = normalize_target_os(&t);
+                    if normalized.is_empty() {
+                        (Some(default_target_triple()), true)
+                    } else {
+                        (Some(normalized.to_string()), true)
+                    }
+                })
                 .collect()
         }
     };
 
     let start_time = Instant::now();
-    for (i, build_target) in targets_to_build.iter().enumerate() {
+    for (i, (build_target, explicit_target)) in targets_to_build.iter().enumerate() {
         if cancel.load(Ordering::SeqCst) {
             return Err("Build interrupted".to_string());
         }
@@ -226,6 +239,7 @@ fn build_all(
                         &member.path,
                         profile,
                         build_target.as_deref(),
+                        *explicit_target,
                         &[],
                         force,
                         verbose,
@@ -239,6 +253,7 @@ fn build_all(
                     &ws,
                     profile,
                     build_target.as_deref(),
+                    *explicit_target,
                     force,
                     verbose,
                     Some(root),
@@ -251,6 +266,7 @@ fn build_all(
                     root,
                     profile,
                     build_target.as_deref(),
+                    *explicit_target,
                     &excludes,
                     force,
                     verbose,
@@ -264,6 +280,7 @@ fn build_all(
                 root,
                 profile,
                 build_target.as_deref(),
+                *explicit_target,
                 &[],
                 force,
                 verbose,
@@ -283,6 +300,7 @@ fn build_workspace(
     workspace: &crate::core::workspace::Workspace,
     profile: &str,
     target: Option<&str>,
+    explicit_target: bool,
     force: bool,
     verbose: bool,
     workspace_root: Option<&Path>,
@@ -294,6 +312,7 @@ fn build_workspace(
             &member.path,
             profile,
             target,
+            explicit_target,
             &[],
             force,
             verbose,
@@ -310,6 +329,7 @@ fn build_project_at(
     project_root: &Path,
     profile: &str,
     target: Option<&str>,
+    explicit_target: bool,
     exclude_dirs: &[std::path::PathBuf],
     force: bool,
     verbose: bool,
@@ -344,12 +364,43 @@ fn build_project_at(
     }
     let project_name = get_config_str(&config, "package.name");
     let project_version = get_config_str(&config, "package.version");
+    let host_target = default_target_triple();
     let build_target_config = get_build_string_with_profile(&config, "target", profile);
-    let build_target = target.or(if build_target_config.is_empty() {
-        None
-    } else {
-        Some(build_target_config.as_str())
-    });
+    let has_explicit_target = explicit_target || !build_target_config.is_empty();
+    let explicit_build_target = explicit_target
+        .then_some(target)
+        .flatten()
+        .filter(|t| !t.trim().is_empty())
+        .map(|t| {
+            let normalized = normalize_target_os(t);
+            if normalized.is_empty() {
+                host_target.clone()
+            } else {
+                normalized.to_string()
+            }
+        });
+    let configured_build_target = || {
+        if build_target_config.is_empty() {
+            None
+        } else {
+            let normalized = normalize_target_os(&build_target_config);
+            if normalized.is_empty() {
+                None
+            } else {
+                Some(normalized.to_string())
+            }
+        }
+    };
+    let implicit_build_target = || {
+        target
+            .filter(|t| !t.trim().is_empty())
+            .map(|t| normalize_target_os(t).to_string())
+    };
+    let build_target_owned = explicit_build_target
+        .or_else(configured_build_target)
+        .or_else(implicit_build_target)
+        .unwrap_or(host_target);
+    let build_target = Some(build_target_owned.as_str());
     let build_language = get_language_with_profile(&config, profile)?;
     let build_qt = get_bool_with_profile(&config, "qt", profile, false);
     let lang_key = primary_language(&build_language);
@@ -530,27 +581,29 @@ fn build_project_at(
                 root.join(&rel).to_string_lossy().to_string()
             }
             None => {
-                let base_dir =
-                    if let Some(rel) = normalize_target(build_target.unwrap_or(""), profile) {
-                        PathBuf::from(rel)
+                let base_dir = if has_explicit_target {
+                    PathBuf::from(
+                        normalize_target(&build_target_owned, profile)
+                            .expect("explicit build target must be non-empty"),
+                    )
+                } else {
+                    let default_dir = if cfg!(target_os = "linux") {
+                        let arch = std::env::consts::ARCH;
+                        format!("{arch}-unknown-linux-gnu/{profile}")
+                    } else if cfg!(any(
+                        target_os = "freebsd",
+                        target_os = "openbsd",
+                        target_os = "netbsd",
+                        target_os = "dragonfly"
+                    )) {
+                        let arch = std::env::consts::ARCH;
+                        let os = std::env::consts::OS;
+                        format!("{arch}-unknown-{os}/{profile}")
                     } else {
-                        let default_dir = if cfg!(target_os = "linux") {
-                            let arch = std::env::consts::ARCH;
-                            format!("{arch}-unknown-linux-gnu/{profile}")
-                        } else if cfg!(any(
-                            target_os = "freebsd",
-                            target_os = "openbsd",
-                            target_os = "netbsd",
-                            target_os = "dragonfly"
-                        )) {
-                            let arch = std::env::consts::ARCH;
-                            let os = std::env::consts::OS;
-                            format!("{arch}-unknown-{os}/{profile}")
-                        } else {
-                            profile.to_string()
-                        };
-                        Path::new("target").join(&default_dir)
+                        profile.to_string()
                     };
+                    Path::new("target").join(&default_dir)
+                };
                 project_root.join(base_dir).to_string_lossy().to_string()
             }
         }
@@ -694,6 +747,7 @@ fn build_project_at(
                         &dep_root,
                         profile,
                         build_target,
+                        has_explicit_target,
                         &[],
                         force,
                         verbose,

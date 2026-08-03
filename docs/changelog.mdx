@@ -4,6 +4,28 @@ sidebar_label: Changelog
 
 # Changelog
 
+## 0.8.3 (2026-08-03)
+
+### Added
+
+- **`dcr run -- <args>...`** — cargo-style argument forwarding after a bare `--`  
+  (`dcr run --release -- --test_help`). Applies to direct binary runs and `[run].cmd`.
+- **Tests** — host target section `ldflags` without CLI `--target`; run-arg forwarding; `split_double_dash` unit tests.
+
+### Changed
+
+- **Native builds resolve the host triple** — without `--target` / package `build.target`, host sections such as  
+  `[build.x86_64-unknown-linux-gnu]` apply again (`cflags` / `ldflags` / toolchain).  
+  Previously the target was empty and those sections were ignored while artifacts already used the host triple path.
+- **Empty target** — no more `Unknown target ''` warning.
+- **`dcr run --help` / man `dcr-run`** — document `--` forwarding.
+
+### Fixed
+
+- **Native artifact paths on Windows and macOS** — without an explicit `--target` / `build.target`, artifacts use `target/<profile>`, so `dcr run` and flat-bin find the build output.
+- Target-specific `ldflags` missing on native host builds (e.g. micro-lang + `libsct-elf`).
+- Spurious empty-target warning.
+
 ## 0.8.2 (2026-07-22)
 
 ### Added

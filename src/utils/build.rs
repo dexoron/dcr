@@ -105,6 +105,7 @@ pub fn normalize_platform(platform: &str) -> Option<&str> {
 
 pub fn normalize_target_os(target: &str) -> &str {
     match target {
+        "" => "",
         "linux" => "x86_64-unknown-linux-gnu",
         "macos" => "x86_64-apple-darwin",
         "windows" => "x86_64-pc-windows-msvc",
@@ -515,6 +516,7 @@ mod tests {
 
     #[test]
     fn normalize_target_short_names() {
+        assert_eq!(normalize_target_os(""), "");
         assert_eq!(normalize_target_os("linux"), "x86_64-unknown-linux-gnu");
         assert_eq!(normalize_target_os("macos"), "x86_64-apple-darwin");
         assert_eq!(normalize_target_os("windows"), "x86_64-pc-windows-msvc");
