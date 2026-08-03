@@ -159,6 +159,7 @@ fn build_all(
                 &member.path,
                 profile,
                 target,
+                target.is_some_and(|t| !t.trim().is_empty()),
                 &[],
                 force,
                 verbose,
@@ -186,26 +187,26 @@ fn build_all(
     let project_name = get_config_str(&config, "package.name");
     let project_version = get_config_str(&config, "package.version");
 
-    let targets_to_build: Vec<Option<String>> = if let Some(t) = target {
+    let targets_to_build: Vec<(Option<String>, bool)> = if let Some(t) = target {
         let normalized = normalize_target_os(t);
         if normalized.is_empty() {
-            vec![Some(default_target_triple())]
+            vec![(Some(default_target_triple()), true)]
         } else {
-            vec![Some(normalized.to_string())]
+            vec![(Some(normalized.to_string()), true)]
         }
     } else {
         let config_targets = get_targets(&config, profile)?;
         if config_targets.is_empty() {
-            vec![Some(default_target_triple())]
+            vec![(Some(default_target_triple()), false)]
         } else {
             config_targets
                 .into_iter()
                 .map(|t| {
                     let normalized = normalize_target_os(&t);
                     if normalized.is_empty() {
-                        Some(default_target_triple())
+                        (Some(default_target_triple()), true)
                     } else {
-                        Some(normalized.to_string())
+                        (Some(normalized.to_string()), true)
                     }
                 })
                 .collect()
@@ -213,7 +214,7 @@ fn build_all(
     };
 
     let start_time = Instant::now();
-    for (i, build_target) in targets_to_build.iter().enumerate() {
+    for (i, (build_target, explicit_target)) in targets_to_build.iter().enumerate() {
         if cancel.load(Ordering::SeqCst) {
             return Err("Build interrupted".to_string());
         }
@@ -238,6 +239,7 @@ fn build_all(
                         &member.path,
                         profile,
                         build_target.as_deref(),
+                        *explicit_target,
                         &[],
                         force,
                         verbose,
@@ -251,6 +253,7 @@ fn build_all(
                     &ws,
                     profile,
                     build_target.as_deref(),
+                    *explicit_target,
                     force,
                     verbose,
                     Some(root),
@@ -263,6 +266,7 @@ fn build_all(
                     root,
                     profile,
                     build_target.as_deref(),
+                    *explicit_target,
                     &excludes,
                     force,
                     verbose,
@@ -276,6 +280,7 @@ fn build_all(
                 root,
                 profile,
                 build_target.as_deref(),
+                *explicit_target,
                 &[],
                 force,
                 verbose,
@@ -295,6 +300,7 @@ fn build_workspace(
     workspace: &crate::core::workspace::Workspace,
     profile: &str,
     target: Option<&str>,
+    explicit_target: bool,
     force: bool,
     verbose: bool,
     workspace_root: Option<&Path>,
@@ -306,6 +312,7 @@ fn build_workspace(
             &member.path,
             profile,
             target,
+            explicit_target,
             &[],
             force,
             verbose,
@@ -322,6 +329,7 @@ fn build_project_at(
     project_root: &Path,
     profile: &str,
     target: Option<&str>,
+    explicit_target: bool,
     exclude_dirs: &[std::path::PathBuf],
     force: bool,
     verbose: bool,
@@ -358,9 +366,10 @@ fn build_project_at(
     let project_version = get_config_str(&config, "package.version");
     let host_target = default_target_triple();
     let build_target_config = get_build_string_with_profile(&config, "target", profile);
-    let has_explicit_target =
-        target.is_some_and(|t| !t.trim().is_empty()) || !build_target_config.is_empty();
-    let build_target_owned = target
+    let has_explicit_target = explicit_target || !build_target_config.is_empty();
+    let explicit_build_target = explicit_target
+        .then_some(target)
+        .flatten()
         .filter(|t| !t.trim().is_empty())
         .map(|t| {
             let normalized = normalize_target_os(t);
@@ -369,19 +378,27 @@ fn build_project_at(
             } else {
                 normalized.to_string()
             }
-        })
-        .or_else(|| {
-            if build_target_config.is_empty() {
+        });
+    let configured_build_target = || {
+        if build_target_config.is_empty() {
+            None
+        } else {
+            let normalized = normalize_target_os(&build_target_config);
+            if normalized.is_empty() {
                 None
             } else {
-                let normalized = normalize_target_os(&build_target_config);
-                if normalized.is_empty() {
-                    None
-                } else {
-                    Some(normalized.to_string())
-                }
+                Some(normalized.to_string())
             }
-        })
+        }
+    };
+    let implicit_build_target = || {
+        target
+            .filter(|t| !t.trim().is_empty())
+            .map(|t| normalize_target_os(t).to_string())
+    };
+    let build_target_owned = explicit_build_target
+        .or_else(configured_build_target)
+        .or_else(implicit_build_target)
         .unwrap_or(host_target);
     let build_target = Some(build_target_owned.as_str());
     let build_language = get_language_with_profile(&config, profile)?;
@@ -730,6 +747,7 @@ fn build_project_at(
                         &dep_root,
                         profile,
                         build_target,
+                        has_explicit_target,
                         &[],
                         force,
                         verbose,
