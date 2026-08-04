@@ -134,7 +134,7 @@ pub fn resolve_artifact_target_dir(
             .into_owned();
     }
 
-    let base = if has_explicit_target || !build_target.trim().is_empty() {
+    let base = if has_explicit_target {
         let triple = {
             let n = normalize_target_os(build_target.trim());
             if n.is_empty() {
@@ -644,27 +644,18 @@ mod tests {
     fn resolve_artifact_target_dir_native_and_workspace() {
         let root = Path::new("/proj");
         let ws = Path::new("/ws");
-        let native = resolve_artifact_target_dir(root, None, "debug", "", "", false);
-        if cfg!(target_os = "linux")
-            || cfg!(any(
-                target_os = "freebsd",
-                target_os = "openbsd",
-                target_os = "netbsd",
-                target_os = "dragonfly"
-            ))
-        {
-            assert!(native.contains(&default_target_triple()));
-            assert!(native.ends_with("debug") || native.contains("/debug"));
-        } else {
-            assert!(
-                native.ends_with("debug")
-                    || native.ends_with("debug\\")
-                    || native.contains("target")
-            );
-        }
-        let ws_dir = resolve_artifact_target_dir(root, Some(ws), "debug", "", "", false);
+        let host = default_target_triple();
+        let native = resolve_artifact_target_dir(root, None, "debug", &host, "", false);
+        let expected_native = root.join(native_host_target_rel("debug"));
+        assert_eq!(native, expected_native.to_string_lossy());
+
+        let explicit =
+            resolve_artifact_target_dir(root, None, "debug", "x86_64-unknown-linux-gnu", "", true);
+        assert!(explicit.contains("x86_64-unknown-linux-gnu"));
+
+        let ws_dir = resolve_artifact_target_dir(root, Some(ws), "debug", &host, "", false);
         assert!(ws_dir.starts_with("/ws") || ws_dir.contains("ws"));
-        assert!(ws_dir.contains(&default_target_triple()) || cfg!(windows));
+        assert!(ws_dir.contains(&host) || cfg!(windows));
         let out = resolve_artifact_target_dir(root, None, "debug", "", "dist", false);
         assert!(out.contains("dist"));
     }

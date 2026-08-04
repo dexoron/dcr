@@ -350,33 +350,39 @@ mod tests {
         let p = resolve_artifact_path("bin", "debug", "hello", None, None, None).unwrap();
         if cfg!(target_os = "linux") {
             let arch = std::env::consts::ARCH;
-            assert_eq!(p, format!("./target/{arch}-unknown-linux-gnu/debug/hello"));
+            let expected = Path::new("./target")
+                .join(format!("{arch}-unknown-linux-gnu"))
+                .join("debug")
+                .join("hello");
+            assert_eq!(p, expected.to_string_lossy());
         } else if cfg!(windows) {
-            assert_eq!(p, "./target/debug/hello.exe");
+            let expected = Path::new("./target").join("debug").join("hello.exe");
+            assert_eq!(p, expected.to_string_lossy());
         } else {
-            assert_eq!(p, "./target/debug/hello");
+            let expected = Path::new("./target").join("debug").join("hello");
+            assert_eq!(p, expected.to_string_lossy());
         }
     }
 
     #[test]
     fn resolve_bin_custom_target_dir() {
         let p = resolve_artifact_path("bin", "debug", "hello", Some("/out"), None, None).unwrap();
-        if cfg!(windows) {
-            assert_eq!(p, "/out/hello.exe");
-        } else {
-            assert_eq!(p, "/out/hello");
-        }
+        let name = if cfg!(windows) { "hello.exe" } else { "hello" };
+        let expected = Path::new("/out").join(name);
+        assert_eq!(p, expected.to_string_lossy());
     }
 
     #[test]
     fn resolve_staticlib() {
         let p = resolve_artifact_path("staticlib", "release", "mylib", Some("dist"), None, None)
             .unwrap();
-        if cfg!(windows) {
-            assert_eq!(p, "dist/mylib.lib");
+        let name = if cfg!(windows) {
+            "mylib.lib"
         } else {
-            assert_eq!(p, "dist/libmylib.a");
-        }
+            "libmylib.a"
+        };
+        let expected = Path::new("dist").join(name);
+        assert_eq!(p, expected.to_string_lossy());
     }
 
     #[test]
