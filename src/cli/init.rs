@@ -159,6 +159,10 @@ pub fn init(args: &[String]) -> i32 {
         }
     }
 
+    if let Err(e) = crate::utils::fs::ensure_gitignore_has_dcr(std::path::Path::new(".")) {
+        warn(&format!("Failed to update .gitignore: {e}"));
+    }
+
     println!(
         "Project `{}` successfully created\n",
         colored(project_name.as_str(), BOLD_GREEN)

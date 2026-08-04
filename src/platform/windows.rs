@@ -15,37 +15,52 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use super::path_util::{default_bin_rel, default_lib_rel, join_dir, with_exe_suffix};
+
 pub fn bin_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
+    let file = with_exe_suffix(name);
     match target_dir {
-        Some(dir) => format!("{}/{}.exe", dir.trim_end_matches('/'), name),
-        None => format!("./target/{profile}/{name}.exe"),
+        Some(dir) => join_dir(dir, &file),
+        None => default_bin_rel(profile, &file, None),
     }
 }
 
 pub fn lib_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
+    let file = if name.to_ascii_lowercase().ends_with(".lib") {
+        name.to_string()
+    } else {
+        format!("{name}.lib")
+    };
     match target_dir {
-        Some(dir) => format!("{}/{}.lib", dir.trim_end_matches('/'), name),
-        None => format!("./target/{profile}/{name}.lib"),
+        Some(dir) => join_dir(dir, &file),
+        None => default_lib_rel(profile, &file, None),
     }
 }
 
 pub fn elf_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
-    match target_dir {
-        Some(dir) => format!("{}/{}.exe", dir.trim_end_matches('/'), name),
-        None => format!("./target/{profile}/{name}.exe"),
-    }
+    bin_path(profile, name, target_dir)
 }
 
 pub fn efi_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
+    let file = if name.to_ascii_lowercase().ends_with(".efi") {
+        name.to_string()
+    } else {
+        format!("{name}.efi")
+    };
     match target_dir {
-        Some(dir) => format!("{}/{}.efi", dir.trim_end_matches('/'), name),
-        None => format!("./target/{profile}/{name}.efi"),
+        Some(dir) => join_dir(dir, &file),
+        None => default_lib_rel(profile, &file, None),
     }
 }
 
 pub fn shared_lib_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
+    let file = if name.to_ascii_lowercase().ends_with(".dll") {
+        name.to_string()
+    } else {
+        format!("{name}.dll")
+    };
     match target_dir {
-        Some(dir) => format!("{}/{}.dll", dir.trim_end_matches('/'), name),
-        None => format!("./target/{profile}/{name}.dll"),
+        Some(dir) => join_dir(dir, &file),
+        None => default_lib_rel(profile, &file, None),
     }
 }

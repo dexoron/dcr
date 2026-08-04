@@ -30,6 +30,64 @@ pub(crate) fn artifact_dir(ctx: &BuildContext) -> PathBuf {
     }
 }
 
+pub fn resolve_artifact_path(
+    kind: &str,
+    profile: &str,
+    project_name: &str,
+    target_dir: Option<&str>,
+    output_filename: Option<&str>,
+    output_extension: Option<&str>,
+) -> Option<String> {
+    if crate::utils::build::is_flat_bin(kind) {
+        let name = output_filename.unwrap_or(project_name);
+        let ext = output_extension.unwrap_or("bin");
+        let file = if ext.is_empty() {
+            name.to_string()
+        } else {
+            format!("{name}.{ext}")
+        };
+        let dir = match target_dir {
+            Some(dir) => Path::new(dir).to_path_buf(),
+            None => Path::new("./target").join(profile),
+        };
+        return Some(dir.join(file).to_string_lossy().to_string());
+    }
+
+    if matches!(kind, "none" | "custom") {
+        return None;
+    }
+
+    let name = output_filename.unwrap_or(project_name);
+    let ext = output_extension.unwrap_or("");
+    let final_name = if ext.is_empty() {
+        name.to_string()
+    } else {
+        format!("{}.{}", name, ext)
+    };
+
+    let path = match kind {
+        "staticlib" => platform::lib_path(profile, &final_name, target_dir),
+        "sharedlib" => platform::shared_lib_path(profile, &final_name, target_dir),
+        "efi" => platform::efi_path(profile, &final_name, target_dir),
+        "elf" => platform::elf_path(profile, &final_name, target_dir),
+        _ => platform::bin_path(profile, &final_name, target_dir),
+    };
+    Some(path)
+}
+
+pub fn absolute_artifact_path(project_root: &Path, relative_or_abs: &str) -> PathBuf {
+    let p = Path::new(relative_or_abs);
+    let joined = if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        let stripped = relative_or_abs
+            .strip_prefix("./")
+            .unwrap_or(relative_or_abs);
+        project_root.join(stripped)
+    };
+    crate::utils::fs::canonicalize_path(&joined)
+}
+
 pub(crate) fn flat_output_path(ctx: &BuildContext) -> String {
     let name = ctx.output_filename.unwrap_or(ctx.project_name);
     let ext = ctx.output_extension.unwrap_or("bin");
@@ -280,5 +338,68 @@ fn run(ctx: &BuildContext, mut cmd: Command, start_time: Instant) -> Result<f64,
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
         Err(format!("Build failed:\nstdout: {stdout}\nstderr: {stderr}"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_bin_default() {
+        let p = resolve_artifact_path("bin", "debug", "hello", None, None, None).unwrap();
+        if cfg!(target_os = "linux") {
+            let arch = std::env::consts::ARCH;
+            assert_eq!(p, format!("./target/{arch}-unknown-linux-gnu/debug/hello"));
+        } else if cfg!(windows) {
+            assert_eq!(p, "./target/debug/hello.exe");
+        } else {
+            assert_eq!(p, "./target/debug/hello");
+        }
+    }
+
+    #[test]
+    fn resolve_bin_custom_target_dir() {
+        let p = resolve_artifact_path("bin", "debug", "hello", Some("/out"), None, None).unwrap();
+        if cfg!(windows) {
+            assert_eq!(p, "/out/hello.exe");
+        } else {
+            assert_eq!(p, "/out/hello");
+        }
+    }
+
+    #[test]
+    fn resolve_staticlib() {
+        let p = resolve_artifact_path("staticlib", "release", "mylib", Some("dist"), None, None)
+            .unwrap();
+        if cfg!(windows) {
+            assert_eq!(p, "dist/mylib.lib");
+        } else {
+            assert_eq!(p, "dist/libmylib.a");
+        }
+    }
+
+    #[test]
+    fn resolve_with_filename_ext() {
+        let p = resolve_artifact_path(
+            "bin",
+            "debug",
+            "pkg",
+            Some("/out"),
+            Some("KERNEL"),
+            Some("ELF"),
+        )
+        .unwrap();
+        assert_eq!(
+            p,
+            std::path::Path::new("/out")
+                .join("KERNEL.ELF")
+                .to_string_lossy()
+        );
+    }
+
+    #[test]
+    fn resolve_none_kind() {
+        assert!(resolve_artifact_path("none", "debug", "x", None, None, None).is_none());
     }
 }

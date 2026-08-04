@@ -1,5 +1,65 @@
 # Changelog
 
+## [0.8.4] - 2026-08-04 "Инфраструктура .dcr/ и интеграция с IDE / Internal .dcr/ Layout & IDE Integration"
+
+### RU
+
+**Добавлено:**
+
+- **Директория `.dcr/`** — единый machine-readable источник фактов о сборке для IDE/расширений:
+  - `.dcr/compile_commands.json`
+  - `.dcr/build-info.json` (`schemaVersion`, `artifact_path`, `profile`, …)
+  - `.dcr/toolchain.json` (compiler/debugger paths, moc/uic/rcc)
+  - `.dcr/ide/` (заготовки lock-файлов для расширений)
+- **`dcr gen project-info`** — поля `target`, `target_dir`, `artifact_path`, `artifact_kind`, `source_roots`, `include_globs`, `exclude_globs`; пути абсолютные/канонические.
+- **`dcr build --print-artifact-path`** — после успешной сборки одна строка absolute path на stdout.
+- **`dcr gen … --quiet` / `-q`** — без human-лога на stdout для `compile-commands` / `project-info`.
+- **`.clangd`** — при первом `gen` создаётся с `CompilationDatabase: .dcr` (маркер `# managed by dcr gen`); ручной `.clangd` не перезаписывается.
+- **Хелперы** `canonicalize_path`, `atomic_write`, `ensure_dcr_dir`; pure `resolve_artifact_path` через `platform::*`.
+- **`dcr new` / `dcr init`** — `.dcr/` в `.gitignore`.
+
+**Изменено (breaking):**
+
+- **`compile_commands.json` перенесён** из корня проекта в **`.dcr/compile_commands.json`**.  
+  clangd находит базу через `.clangd` / `clangd.arguments --compile-commands-dir=.dcr`.  
+  CLion `misc.xml` и VSCode `settings.json` обновлены под новый путь.
+- **Атомарная запись** `compile_commands.json` (tmp + rename).
+- **`gen vscode` / `gen clion` launch/run** — `program`/`executable` через тот же artifact resolver, что `project-info` / `build-info.json` (Linux triple, Windows `.exe`, custom `target`/`filename`).
+
+**Исправлено:**
+
+- Launch-конфиги больше не указывают `target/<profile>/<name>` без triple на Linux.
+- Симлинки/mount: root и пути в compile database канонизируются best-effort.
+
+### EN
+
+**Added:**
+
+- **`.dcr/` directory** — shared machine-readable build facts for IDE integrations:
+  - `.dcr/compile_commands.json`
+  - `.dcr/build-info.json` (`schemaVersion`, `artifact_path`, `profile`, …)
+  - `.dcr/toolchain.json` (compiler/debugger paths, moc/uic/rcc)
+  - `.dcr/ide/` (placeholder for IDE lock files)
+- **`dcr gen project-info`** — `target`, `target_dir`, `artifact_path`, `artifact_kind`, `source_roots`, `include_globs`, `exclude_globs`; absolute/canonical paths.
+- **`dcr build --print-artifact-path`** — one absolute artifact path line on stdout after a successful build.
+- **`dcr gen … --quiet` / `-q`** — suppress human success logs for gen subcommands.
+- **`.clangd`** — created on first gen with `CompilationDatabase: .dcr` (`# managed by dcr gen`); custom `.clangd` is not overwritten.
+- **Helpers** `canonicalize_path`, `atomic_write`, `ensure_dcr_dir`; pure `resolve_artifact_path` via `platform::*`.
+- **`dcr new` / `dcr init`** — add `.dcr/` to `.gitignore`.
+
+**Changed (breaking):**
+
+- **`compile_commands.json` moved** from project root to **`.dcr/compile_commands.json`**.  
+  clangd discovers it via `.clangd` / `--compile-commands-dir=.dcr`.  
+  CLion and VSCode generators updated accordingly.
+- **Atomic write** for compile_commands (tmp + rename).
+- **`gen vscode` / `gen clion` launch/run** — use the same artifact path resolver as `project-info` / `build-info.json`.
+
+**Fixed:**
+
+- Launch configs no longer hardcode `target/<profile>/<name>` without the Linux triple segment.
+- Symlink/mount roots: best-effort canonicalize for root and compile database paths.
+
 ## [0.8.3] - 2026-08-03 "Конфигурация host target, аргументы run и нативные пути артефактов / Host Target Config, Run Args & Native Artifact Paths"
 
 ### RU

@@ -26,6 +26,7 @@ pub mod bsd;
 pub mod linux;
 #[cfg(target_os = "macos")]
 pub mod macos;
+mod path_util;
 #[cfg(not(any(
     target_os = "linux",
     target_os = "macos",

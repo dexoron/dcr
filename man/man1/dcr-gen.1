@@ -1,23 +1,67 @@
-.TH DCR-GEN 1 "2026-06-02" "dcr 0.7.0" "DCR Manual"
+.TH DCR-GEN 1 "2026-08-04" "dcr 0.8.4" "DCR Manual"
 .SH NAME
 dcr-gen \- Generate IDE and tooling integration files
 .SH SYNOPSIS
 .B dcr gen \fI<subcommand>\fR
+[\fB\-\-debug\fR | \fB\-\-release\fR]
+[\fB\-\-quiet\fR | \fB\-q\fR]
 .SH DESCRIPTION
 Generates IDE and tooling integration files for DCR projects.
+Machine-readable build facts are written under
+.B .dcr/
+(compile database, build-info, toolchain).
 .SH SUBCOMMANDS
 .TP
 .B project-info
-Print project metadata as JSON to stdout.
+Print project metadata as JSON to stdout (absolute paths, artifact_path, target_dir).
+Also updates
+.B .dcr/build-info.json
+and
+.B .dcr/toolchain.json .
 .TP
 .B compile-commands
-Generate \fBcompile_commands.json\fR for IDE tooling.
+Generate
+.B .dcr/compile_commands.json
+(atomic write) and ensure
+.B .clangd
+points at
+.B .dcr
+as CompilationDatabase.
 .TP
 .B vscode
-Generate \fB.vscode/\fR integration files (tasks, launch configurations).
+Generate
+.B .vscode/
+integration files (tasks, launch configurations) and compile commands under
+.B .dcr/ .
 .TP
 .B clion
-Generate \fB.idea/\fR integration files for CLion.
+Generate
+.B .idea/
+integration files for CLion and compile commands under
+.B .dcr/ .
+.SH OPTIONS
+.TP
+.B \-\-debug
+Use debug profile (default).
+.TP
+.B \-\-release
+Use release profile.
+.TP
+.B \-\-quiet\fR, \fB\-q
+Suppress human-readable success messages on stdout.
+.SH FILES
+.TP
+.B .dcr/compile_commands.json
+JSON Compilation Database (moved from project root; breaking change in 0.8.4).
+.TP
+.B .dcr/build-info.json
+Last known artifact path, profile, compiler.
+.TP
+.B .dcr/toolchain.json
+Resolved compiler/debugger (and Qt tools if configured).
+.TP
+.B .clangd
+Created once with CompilationDatabase: .dcr; not overwritten if customized.
 .SH SEE ALSO
 .BR dcr (1),
 .BR dcr-build (1)

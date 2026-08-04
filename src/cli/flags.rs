@@ -25,6 +25,7 @@ pub struct BuildRunFlags {
     pub force: bool,
     pub clean: bool,
     pub verbose: bool,
+    pub print_artifact_path: bool,
     pub bin_args: Vec<String>,
 }
 
@@ -43,6 +44,7 @@ pub fn parse_build_run_flags(args: &[String]) -> Result<BuildRunFlags, i32> {
     let mut force = false;
     let mut clean = false;
     let mut verbose = false;
+    let mut print_artifact_path = false;
     let mut iter = dcr_args.iter();
 
     while let Some(arg) = iter.next() {
@@ -61,6 +63,10 @@ pub fn parse_build_run_flags(args: &[String]) -> Result<BuildRunFlags, i32> {
         }
         if candidate == "verbose" {
             verbose = true;
+            continue;
+        }
+        if candidate == "print-artifact-path" {
+            print_artifact_path = true;
             continue;
         }
         if candidate == "workspace" {
@@ -100,6 +106,7 @@ pub fn parse_build_run_flags(args: &[String]) -> Result<BuildRunFlags, i32> {
         force,
         clean,
         verbose,
+        print_artifact_path,
         bin_args: bin_args_slice.to_vec(),
     })
 }

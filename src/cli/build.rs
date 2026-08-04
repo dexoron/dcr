@@ -17,13 +17,20 @@
 
 use crate::cli::clean::clean;
 use crate::cli::flags::parse_build_run_flags;
+use crate::cli::r#gen::{ProjectInfo, write_dcr_metadata};
+use crate::core::build::builder::artifact::{absolute_artifact_path, resolve_artifact_path};
 use crate::core::build::common;
 use crate::core::build::{BuildEvent, BuildReporter, BuildRequest, run_build};
 use crate::core::build_config::Config;
-use crate::utils::fs::find_project_root;
+use crate::utils::build::{
+    get_config_opt, get_config_str, get_language_with_profile_or_default, get_string_with_profile,
+    normalize_kind, resolve_artifact_target_dir, resolve_compiler,
+};
+use crate::utils::fs::{canonicalize_path, find_project_root};
 use crate::utils::log::error;
 use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, BOLD_YELLOW, colored, printc};
 use std::io::IsTerminal;
+use std::path::Path;
 use std::sync::{Arc, atomic::AtomicBool};
 
 pub use crate::core::build::get_build_string_with_profile;
@@ -109,7 +116,7 @@ pub fn build(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
         printc("USAGE:", BOLD_GREEN);
         printc(
-            "    dcr build [--debug | --release] [--target <triple>] [--force] [--clean] [--verbose]",
+            "    dcr build [--debug | --release] [--target <triple>] [--force] [--clean] [--verbose] [--print-artifact-path]",
             BOLD_CYAN,
         );
         println!();
@@ -124,6 +131,9 @@ pub fn build(args: &[String]) -> i32 {
         println!("    --clean              Clean before building");
         println!("    --verbose            Print detailed build output");
         println!("    --workspace <name>   Build a specific workspace member");
+        println!(
+            "    --print-artifact-path  Print absolute main artifact path on stdout after success"
+        );
         return 0;
     }
 
@@ -141,7 +151,7 @@ pub fn build(args: &[String]) -> i32 {
         }
     };
     let root = match find_project_root(&start_dir) {
-        Ok(Some(dir)) => dir,
+        Ok(Some(dir)) => canonicalize_path(&dir),
         Ok(None) => {
             error("dcr.toml file not found");
             return 1;
@@ -174,20 +184,156 @@ pub fn build(args: &[String]) -> i32 {
     }
 
     let req = BuildRequest {
-        profile: flags.profile,
-        target: flags.target,
+        profile: flags.profile.clone(),
+        target: flags.target.clone(),
         force: flags.force,
         verbose: flags.verbose,
-        workspace: flags.workspace,
+        workspace: flags.workspace.clone(),
         cancel,
     };
     let mut reporter = CliReporter;
     match run_build(&root, &req, &mut reporter) {
-        Ok(_) => 0,
+        Ok(_) => {
+            if let Some(info) =
+                resolve_post_build_info(&root, &flags.profile, flags.target.as_deref())
+            {
+                let _ = write_dcr_metadata(&root, &info);
+                if flags.print_artifact_path
+                    && let Some(ref path) = info.artifact_path
+                {
+                    println!("{path}");
+                }
+            } else if flags.print_artifact_path
+                && let Some(path) =
+                    fallback_artifact_path(&root, &flags.profile, flags.target.as_deref())
+            {
+                println!("{path}");
+            }
+            0
+        }
         Err(err) => {
             common::finish_progress_line();
             error(&err.message);
             1
         }
     }
+}
+
+fn resolve_post_build_info(
+    root: &Path,
+    profile: &str,
+    cli_target: Option<&str>,
+) -> Option<ProjectInfo> {
+    let config = Config::open(root.join("dcr.toml").to_str()?).ok()?;
+    if config.is_workspace_only() {
+        return None;
+    }
+    let name = get_config_str(&config, "package.name");
+    let version = get_config_str(&config, "package.version");
+    let language = get_language_with_profile_or_default(&config, profile);
+    let standard = get_string_with_profile(&config, "standard", profile);
+    let cxx_standard = get_string_with_profile(&config, "cxx_standard", profile);
+    let compiler_s = get_string_with_profile(&config, "compiler", profile);
+    let kind = normalize_kind(&get_string_with_profile(&config, "kind", profile)).to_string();
+    let build_target = cli_target
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| get_string_with_profile(&config, "target", profile));
+    let output_filename_s = get_string_with_profile(&config, "filename", profile);
+    let output_extension_s = get_string_with_profile(&config, "extension", profile);
+    let output_filename = if output_filename_s.is_empty() {
+        None
+    } else {
+        Some(output_filename_s)
+    };
+    let output_extension = if output_extension_s.is_empty() {
+        None
+    } else {
+        Some(output_extension_s)
+    };
+    let tc_cc = get_config_opt(&config, "toolchain.cc");
+    let tc_cxx = get_config_opt(&config, "toolchain.cxx");
+    let tc_as = get_config_opt(&config, "toolchain.as");
+    let resolved_compiler = resolve_compiler(
+        &language,
+        &compiler_s,
+        tc_cc.as_deref(),
+        tc_cxx.as_deref(),
+        tc_as.as_deref(),
+    );
+    let out_dir = get_string_with_profile(&config, "out_dir", profile);
+    let has_explicit = cli_target.is_some_and(|t| !t.is_empty()) || !build_target.trim().is_empty();
+    let target_dir =
+        resolve_artifact_target_dir(root, None, profile, &build_target, &out_dir, has_explicit);
+    let rel = resolve_artifact_path(
+        &kind,
+        profile,
+        &name,
+        Some(&target_dir),
+        output_filename.as_deref(),
+        output_extension.as_deref(),
+    )?;
+    let artifact_path = absolute_artifact_path(root, &rel)
+        .to_string_lossy()
+        .to_string();
+    let abs_target_dir = {
+        let p = Path::new(&target_dir);
+        let path = if p.is_absolute() {
+            canonicalize_path(p)
+        } else {
+            canonicalize_path(&root.join(p))
+        };
+        path.to_string_lossy().into_owned()
+    };
+    Some(ProjectInfo {
+        name,
+        version,
+        root: root.to_path_buf(),
+        profile: profile.to_string(),
+        language,
+        standard,
+        cxx_standard,
+        compiler: resolved_compiler,
+        kind: kind.clone(),
+        target: build_target,
+        target_dir: Some(abs_target_dir),
+        artifact_path: Some(artifact_path),
+        artifact_kind: kind,
+        sources: vec![],
+        include_dirs: vec![],
+        lib_dirs: vec![],
+        libs: vec![],
+        cflags: vec![],
+        ldflags: vec![],
+        source_roots: vec![],
+        include_globs: vec![],
+        exclude_globs: vec![],
+        output_filename,
+        output_extension,
+        out_dir,
+        debugger: "lldb".to_string(),
+        moc: None,
+        uic: None,
+        rcc: None,
+        workspace_root: None,
+    })
+}
+
+fn fallback_artifact_path(root: &Path, profile: &str, target: Option<&str>) -> Option<String> {
+    let config = Config::open(root.join("dcr.toml").to_str()?).ok()?;
+    let name = get_config_str(&config, "package.name");
+    if name.is_empty() {
+        return None;
+    }
+    let build_target = target.unwrap_or("").to_string();
+    let out_dir = get_string_with_profile(&config, "out_dir", profile);
+    let has_explicit = !build_target.trim().is_empty();
+    let target_dir =
+        resolve_artifact_target_dir(root, None, profile, &build_target, &out_dir, has_explicit);
+    let rel = resolve_artifact_path("bin", profile, &name, Some(&target_dir), None, None)?;
+    Some(
+        absolute_artifact_path(root, &rel)
+            .to_string_lossy()
+            .to_string(),
+    )
 }

@@ -24,8 +24,11 @@ pub fn init(path: &Path) -> Result<(), String> {
 
     let gitignore_path = path.join(".gitignore");
     if !gitignore_path.exists() {
-        fs::write(&gitignore_path, "/target\n")
+        fs::write(&gitignore_path, "/target\n.dcr/\n")
             .map_err(|e| format!("failed to create .gitignore: {}", e))?;
+    } else {
+        crate::utils::fs::ensure_gitignore_has_dcr(path)
+            .map_err(|e| format!("failed to update .gitignore: {}", e))?;
     }
 
     Ok(())

@@ -38,8 +38,9 @@ use crate::core::workspace::parse_workspace;
 use crate::utils::build::{
     default_target_triple, get_bool_with_profile, get_config_opt, get_config_str,
     get_language_with_profile, is_bare_metal_target, normalize_kind, normalize_platform,
-    normalize_target, normalize_target_os, parse_version_info, prepend_clang_target_flag,
-    primary_language, resolve_compiler, resolve_pkg_config_flags, resolve_tool, substitute_vars,
+    normalize_target_os, parse_version_info, prepend_clang_target_flag, primary_language,
+    resolve_artifact_target_dir, resolve_compiler, resolve_pkg_config_flags, resolve_tool,
+    substitute_vars,
 };
 use crate::utils::fs::check_dir;
 use std::fs;
@@ -544,70 +545,14 @@ fn build_project_at(
     let resolved_archiver = resolve_tool("DCR_AR", tc_ar.as_deref());
 
     let out_dir_config = get_build_string_with_profile(&config, "out_dir", profile);
-    let target_dir_binding = if !out_dir_config.is_empty() {
-        let p = Path::new(&out_dir_config);
-        if p.is_absolute() {
-            out_dir_config
-        } else {
-            project_root.join(p).to_string_lossy().to_string()
-        }
-    } else {
-        match workspace_root {
-            Some(root) => {
-                let target_str = build_target
-                    .map(normalize_target_os)
-                    .filter(|t| !t.is_empty());
-                let rel: PathBuf = match target_str {
-                    Some(ref t) => Path::new("target").join(t).join(profile),
-                    None => {
-                        let default_dir = if cfg!(target_os = "linux") {
-                            let arch = std::env::consts::ARCH;
-                            format!("{arch}-unknown-linux-gnu/{profile}")
-                        } else if cfg!(any(
-                            target_os = "freebsd",
-                            target_os = "openbsd",
-                            target_os = "netbsd",
-                            target_os = "dragonfly"
-                        )) {
-                            let arch = std::env::consts::ARCH;
-                            let os = std::env::consts::OS;
-                            format!("{arch}-unknown-{os}/{profile}")
-                        } else {
-                            profile.to_string()
-                        };
-                        Path::new("target").join(&default_dir)
-                    }
-                };
-                root.join(&rel).to_string_lossy().to_string()
-            }
-            None => {
-                let base_dir = if has_explicit_target {
-                    PathBuf::from(
-                        normalize_target(&build_target_owned, profile)
-                            .expect("explicit build target must be non-empty"),
-                    )
-                } else {
-                    let default_dir = if cfg!(target_os = "linux") {
-                        let arch = std::env::consts::ARCH;
-                        format!("{arch}-unknown-linux-gnu/{profile}")
-                    } else if cfg!(any(
-                        target_os = "freebsd",
-                        target_os = "openbsd",
-                        target_os = "netbsd",
-                        target_os = "dragonfly"
-                    )) {
-                        let arch = std::env::consts::ARCH;
-                        let os = std::env::consts::OS;
-                        format!("{arch}-unknown-{os}/{profile}")
-                    } else {
-                        profile.to_string()
-                    };
-                    Path::new("target").join(&default_dir)
-                };
-                project_root.join(base_dir).to_string_lossy().to_string()
-            }
-        }
-    };
+    let target_dir_binding = resolve_artifact_target_dir(
+        project_root,
+        workspace_root,
+        profile,
+        &build_target_owned,
+        &out_dir_config,
+        has_explicit_target,
+    );
     let target_dir = if target_dir_binding.is_empty() {
         None
     } else {

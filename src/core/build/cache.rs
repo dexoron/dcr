@@ -106,33 +106,22 @@ fn build_cache_path(profile: &str, target_dir: Option<&str>) -> PathBuf {
     }
 }
 
-fn build_output_path(ctx: &BuildContext) -> String {
-    if crate::utils::build::is_flat_bin(ctx.kind) {
-        return crate::core::build::builder::artifact::flat_output_path(ctx);
-    }
-
-    let name = ctx.output_filename.unwrap_or(ctx.project_name);
-    let ext = ctx.output_extension.unwrap_or("");
-
-    let final_name = if ext.is_empty() {
-        name.to_string()
-    } else {
-        format!("{}.{}", name, ext)
-    };
-
-    if ctx.kind == "staticlib" {
-        return crate::platform::lib_path(ctx.profile, &final_name, ctx.target_dir);
-    }
-    if ctx.kind == "sharedlib" {
-        return crate::platform::shared_lib_path(ctx.profile, &final_name, ctx.target_dir);
-    }
-    if ctx.kind == "efi" {
-        return crate::platform::efi_path(ctx.profile, &final_name, ctx.target_dir);
-    }
-    if ctx.kind == "elf" {
-        return crate::platform::elf_path(ctx.profile, &final_name, ctx.target_dir);
-    }
-    crate::platform::bin_path(ctx.profile, &final_name, ctx.target_dir)
+pub fn build_output_path(ctx: &BuildContext) -> String {
+    crate::core::build::builder::artifact::resolve_artifact_path(
+        ctx.kind,
+        ctx.profile,
+        ctx.project_name,
+        ctx.target_dir,
+        ctx.output_filename,
+        ctx.output_extension,
+    )
+    .unwrap_or_else(|| {
+        crate::platform::bin_path(
+            ctx.profile,
+            ctx.output_filename.unwrap_or(ctx.project_name),
+            ctx.target_dir,
+        )
+    })
 }
 
 pub(crate) fn collect_header_files(

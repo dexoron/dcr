@@ -180,6 +180,11 @@ pub fn new(args: &[String]) -> i32 {
         }
     }
 
+    let project_path = std::path::Path::new(project_name);
+    if let Err(e) = crate::utils::fs::ensure_gitignore_has_dcr(project_path) {
+        warn(&format!("Failed to update .gitignore: {e}"));
+    }
+
     println!(
         "Project `{}` successfully created\n",
         colored(project_name, BOLD_GREEN)

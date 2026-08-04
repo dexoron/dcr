@@ -17,6 +17,7 @@
 
 use crate::core::build_config::Config;
 use crate::utils::log::warn;
+use std::path::{Path, PathBuf};
 
 pub struct VersionInfo {
     pub full: String,
@@ -79,6 +80,74 @@ pub fn normalize_target(target: &str, profile: &str) -> Option<String> {
     } else {
         Some(format!("target/{trimmed}/{profile}"))
     }
+}
+
+pub fn native_host_target_rel(profile: &str) -> PathBuf {
+    if cfg!(any(
+        target_os = "linux",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    )) {
+        Path::new("target")
+            .join(default_target_triple())
+            .join(profile)
+    } else {
+        Path::new("target").join(profile)
+    }
+}
+
+pub fn resolve_artifact_target_dir(
+    project_root: &Path,
+    workspace_root: Option<&Path>,
+    profile: &str,
+    build_target: &str,
+    out_dir: &str,
+    has_explicit_target: bool,
+) -> String {
+    if !out_dir.trim().is_empty() {
+        let p = Path::new(out_dir.trim());
+        return if p.is_absolute() {
+            out_dir.trim().to_string()
+        } else {
+            project_root.join(p).to_string_lossy().into_owned()
+        };
+    }
+
+    if let Some(ws) = workspace_root {
+        let triple = if build_target.trim().is_empty() {
+            default_target_triple()
+        } else {
+            let n = normalize_target_os(build_target.trim());
+            if n.is_empty() {
+                default_target_triple()
+            } else {
+                n.to_string()
+            }
+        };
+        return ws
+            .join("target")
+            .join(triple)
+            .join(profile)
+            .to_string_lossy()
+            .into_owned();
+    }
+
+    let base = if has_explicit_target || !build_target.trim().is_empty() {
+        let triple = {
+            let n = normalize_target_os(build_target.trim());
+            if n.is_empty() {
+                default_target_triple()
+            } else {
+                n.to_string()
+            }
+        };
+        PathBuf::from(format!("target/{triple}/{profile}"))
+    } else {
+        native_host_target_rel(profile)
+    };
+    project_root.join(base).to_string_lossy().into_owned()
 }
 
 pub fn normalize_kind(kind: &str) -> &str {
@@ -531,16 +600,26 @@ mod tests {
     fn default_target_triple_uses_host_arch() {
         let target = default_target_triple();
         if cfg!(target_os = "linux") {
+            let env = if cfg!(target_env = "musl") {
+                "musl"
+            } else {
+                "gnu"
+            };
             assert_eq!(
                 target,
-                format!("{}-unknown-linux-gnu", std::env::consts::ARCH)
+                format!("{}-unknown-linux-{env}", std::env::consts::ARCH)
             );
         } else if cfg!(target_os = "macos") {
             assert_eq!(target, format!("{}-apple-darwin", std::env::consts::ARCH));
         } else if cfg!(target_os = "windows") {
+            let env = if cfg!(target_env = "gnu") {
+                "gnu"
+            } else {
+                "msvc"
+            };
             assert_eq!(
                 target,
-                format!("{}-pc-windows-msvc", std::env::consts::ARCH)
+                format!("{}-pc-windows-{env}", std::env::consts::ARCH)
             );
         } else if cfg!(any(
             target_os = "freebsd",
@@ -559,6 +638,35 @@ mod tests {
         } else {
             assert_eq!(target, "unknown");
         }
+    }
+
+    #[test]
+    fn resolve_artifact_target_dir_native_and_workspace() {
+        let root = Path::new("/proj");
+        let ws = Path::new("/ws");
+        let native = resolve_artifact_target_dir(root, None, "debug", "", "", false);
+        if cfg!(target_os = "linux")
+            || cfg!(any(
+                target_os = "freebsd",
+                target_os = "openbsd",
+                target_os = "netbsd",
+                target_os = "dragonfly"
+            ))
+        {
+            assert!(native.contains(&default_target_triple()));
+            assert!(native.ends_with("debug") || native.contains("/debug"));
+        } else {
+            assert!(
+                native.ends_with("debug")
+                    || native.ends_with("debug\\")
+                    || native.contains("target")
+            );
+        }
+        let ws_dir = resolve_artifact_target_dir(root, Some(ws), "debug", "", "", false);
+        assert!(ws_dir.starts_with("/ws") || ws_dir.contains("ws"));
+        assert!(ws_dir.contains(&default_target_triple()) || cfg!(windows));
+        let out = resolve_artifact_target_dir(root, None, "debug", "", "dist", false);
+        assert!(out.contains("dist"));
     }
 
     #[test]
