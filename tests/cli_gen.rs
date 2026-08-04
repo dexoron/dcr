@@ -100,10 +100,28 @@ fn gen_vscode_launch_uses_resolver() {
     );
     let launch = fs::read_to_string(project.join(".vscode").join("launch.json")).unwrap();
     assert!(launch.contains("\"program\""), "launch missing program");
-    assert!(
-        !launch.contains("target/debug/app\"") || launch.contains("linux"),
-        "program should use platform path layout when applicable: {launch}"
-    );
+    if cfg!(target_os = "linux")
+        || cfg!(any(
+            target_os = "freebsd",
+            target_os = "openbsd",
+            target_os = "netbsd",
+            target_os = "dragonfly"
+        ))
+    {
+        assert!(
+            !launch.contains("/target/debug/app\""),
+            "unix host layout should include triple under target/: {launch}"
+        );
+        assert!(
+            launch.contains(&format!("{}-unknown-", std::env::consts::ARCH)),
+            "program should include host triple: {launch}"
+        );
+    } else {
+        assert!(
+            launch.contains("target/debug/app") || launch.contains(r"target\debug\app"),
+            "native host layout expected under target/debug: {launch}"
+        );
+    }
     let settings = fs::read_to_string(project.join(".vscode").join("settings.json")).unwrap();
     assert!(
         settings.contains(".dcr") || settings.contains("compile-commands-dir"),
