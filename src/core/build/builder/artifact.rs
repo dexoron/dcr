@@ -348,20 +348,7 @@ mod tests {
     #[test]
     fn resolve_bin_default() {
         let p = resolve_artifact_path("bin", "debug", "hello", None, None, None).unwrap();
-        if cfg!(target_os = "linux") {
-            let arch = std::env::consts::ARCH;
-            let expected = Path::new("./target")
-                .join(format!("{arch}-unknown-linux-gnu"))
-                .join("debug")
-                .join("hello");
-            assert_eq!(p, expected.to_string_lossy());
-        } else if cfg!(windows) {
-            let expected = Path::new("./target").join("debug").join("hello.exe");
-            assert_eq!(p, expected.to_string_lossy());
-        } else {
-            let expected = Path::new("./target").join("debug").join("hello");
-            assert_eq!(p, expected.to_string_lossy());
-        }
+        assert_eq!(p, platform::bin_path("debug", "hello", None));
     }
 
     #[test]

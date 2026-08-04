@@ -62,26 +62,9 @@ fn ensure_target_dirs(
     if let Some(dir) = &target_dir {
         let _ = fs::create_dir_all(dir);
     } else {
-        let default_dir = if cfg!(target_os = "linux") {
-            let arch = std::env::consts::ARCH;
-            format!("{arch}-unknown-linux-gnu/{profile}")
-        } else if cfg!(any(
-            target_os = "freebsd",
-            target_os = "openbsd",
-            target_os = "netbsd",
-            target_os = "dragonfly"
-        )) {
-            let arch = std::env::consts::ARCH;
-            let os = std::env::consts::OS;
-            format!("{arch}-unknown-{os}/{profile}")
-        } else {
-            profile.to_string()
-        };
-        let target_path = project_root.join("target");
-        let target_items = check_dir(target_path.to_str()).unwrap_or_default();
-        if !target_items.contains(&default_dir) {
-            let _ = fs::create_dir_all(target_path.join(&default_dir));
-        }
+        let _ = fs::create_dir_all(
+            project_root.join(crate::utils::build::native_host_target_rel(profile)),
+        );
     }
 }
 
@@ -610,24 +593,9 @@ fn build_project_at(
                         let target_str = build_target
                             .map(normalize_target_os)
                             .filter(|t| !t.is_empty());
-                        let default_dir = if cfg!(target_os = "linux") {
-                            let arch = std::env::consts::ARCH;
-                            format!("{arch}-unknown-linux-gnu/{profile}")
-                        } else if cfg!(any(
-                            target_os = "freebsd",
-                            target_os = "openbsd",
-                            target_os = "netbsd",
-                            target_os = "dragonfly"
-                        )) {
-                            let arch = std::env::consts::ARCH;
-                            let os = std::env::consts::OS;
-                            format!("{arch}-unknown-{os}/{profile}")
-                        } else {
-                            profile.to_string()
-                        };
                         let rel = match target_str {
                             Some(ref t) => Path::new("target").join(t).join(profile),
-                            None => Path::new("target").join(&default_dir),
+                            None => crate::utils::build::native_host_target_rel(profile),
                         };
                         let dep_build_lib1 = dep_member.path.join(&rel);
                         let dep_build_lib2 = wroot.join(&rel);

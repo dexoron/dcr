@@ -207,19 +207,17 @@ fn run_project(
 
     let out_dir =
         crate::cli::build::get_build_string_with_profile(&config, "out_dir", &flags.profile);
-    let normalized_target_dir = if !out_dir.is_empty() {
-        Some(out_dir)
-    } else {
-        match workspace_root {
-            Some(wr) => target
-                .as_ref()
-                .and_then(|t| crate::utils::build::normalize_target(t, &flags.profile))
-                .map(|rel| wr.join(&rel).to_string_lossy().to_string()),
-            None => target
-                .as_ref()
-                .and_then(|t| crate::utils::build::normalize_target(t, &flags.profile)),
-        }
-    };
+    let build_target_str = target.clone().unwrap_or_default();
+    let has_explicit = target.as_ref().is_some_and(|t| !t.trim().is_empty());
+
+    let normalized_target_dir = Some(crate::utils::build::resolve_artifact_target_dir(
+        root,
+        workspace_root,
+        &flags.profile,
+        &build_target_str,
+        &out_dir,
+        has_explicit,
+    ));
 
     let version = config
         .get("package.version")

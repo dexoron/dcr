@@ -100,28 +100,17 @@ fn gen_vscode_launch_uses_resolver() {
     );
     let launch = fs::read_to_string(project.join(".vscode").join("launch.json")).unwrap();
     assert!(launch.contains("\"program\""), "launch missing program");
-    if cfg!(target_os = "linux")
-        || cfg!(any(
-            target_os = "freebsd",
-            target_os = "openbsd",
-            target_os = "netbsd",
-            target_os = "dragonfly"
-        ))
-    {
-        assert!(
-            !launch.contains("/target/debug/app\""),
-            "unix host layout should include triple under target/: {launch}"
-        );
-        assert!(
-            launch.contains(&format!("{}-unknown-", std::env::consts::ARCH)),
-            "program should include host triple: {launch}"
-        );
-    } else {
-        assert!(
-            launch.contains("target/debug/app") || launch.contains(r"target\debug\app"),
-            "native host layout expected under target/debug: {launch}"
-        );
-    }
+    let normalized = launch.replace("\\\\", "/").replace('\\', "/");
+    let expected_rel = host_profile_dir(&project, "debug")
+        .join(bin_name("app"))
+        .strip_prefix(&project)
+        .unwrap_or_else(|_| Path::new("target"))
+        .to_string_lossy()
+        .replace('\\', "/");
+    assert!(
+        normalized.contains(&expected_rel),
+        "program should use host profile layout ({expected_rel}): {launch}"
+    );
     let settings = fs::read_to_string(project.join(".vscode").join("settings.json")).unwrap();
     assert!(
         settings.contains(".dcr") || settings.contains("compile-commands-dir"),

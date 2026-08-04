@@ -135,15 +135,10 @@ pub fn resolve_artifact_target_dir(
     }
 
     let base = if has_explicit_target {
-        let triple = {
-            let n = normalize_target_os(build_target.trim());
-            if n.is_empty() {
-                default_target_triple()
-            } else {
-                n.to_string()
-            }
-        };
-        PathBuf::from(format!("target/{triple}/{profile}"))
+        match normalize_target(build_target, profile) {
+            Some(rel) => PathBuf::from(rel),
+            None => native_host_target_rel(profile),
+        }
     } else {
         native_host_target_rel(profile)
     };
@@ -694,13 +689,14 @@ mod tests {
 
     #[test]
     fn normalize_target_with_profile() {
+        let linux = normalize_target_os("linux");
         assert_eq!(
             normalize_target("linux", "debug"),
-            Some("target/x86_64-unknown-linux-gnu/debug".into())
+            Some(format!("target/{linux}/debug"))
         );
         assert_eq!(
-            normalize_target("x86_64-unknown-linux-gnu", "release"),
-            Some("target/x86_64-unknown-linux-gnu/release".into())
+            normalize_target(linux, "release"),
+            Some(format!("target/{linux}/release"))
         );
         assert_eq!(normalize_target("", "debug"), None);
     }

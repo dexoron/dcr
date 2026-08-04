@@ -76,25 +76,25 @@ fn available_compiler() -> Option<&'static str> {
 
 fn host_profile_dir(project_root: &Path, profile: &str) -> PathBuf {
     let target = project_root.join("target");
-    if cfg!(target_os = "linux") {
-        let arch = std::env::consts::ARCH;
-        let env = if cfg!(target_env = "musl") {
-            "musl"
-        } else {
-            "gnu"
-        };
-        target
-            .join(format!("{arch}-unknown-linux-{env}"))
-            .join(profile)
-    } else if cfg!(any(
+    if cfg!(any(
+        target_os = "linux",
         target_os = "freebsd",
         target_os = "openbsd",
         target_os = "netbsd",
         target_os = "dragonfly"
     )) {
         let arch = std::env::consts::ARCH;
-        let os = std::env::consts::OS;
-        target.join(format!("{arch}-unknown-{os}")).join(profile)
+        let triple = if cfg!(target_os = "linux") {
+            let env = if cfg!(target_env = "musl") {
+                "musl"
+            } else {
+                "gnu"
+            };
+            format!("{arch}-unknown-linux-{env}")
+        } else {
+            format!("{arch}-unknown-{}", std::env::consts::OS)
+        };
+        target.join(triple).join(profile)
     } else {
         target.join(profile)
     }
