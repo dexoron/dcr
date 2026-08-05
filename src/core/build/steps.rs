@@ -30,6 +30,7 @@ pub(crate) struct BuildStep {
     cmd: String,
 }
 
+/// Holds interpolated version and profile strings for build step substitution.
 pub(crate) struct StepVars<'a> {
     pub(crate) profile: &'a str,
     pub(crate) version: &'a str,
@@ -40,6 +41,7 @@ pub(crate) struct StepVars<'a> {
     pub(crate) version_suffix_dash: &'a str,
 }
 
+/// Parses TOML array of build step tables into Vec<BuildStep>.
 fn get_build_steps_from_value(value: &toml::Value, key: &str) -> Result<Vec<BuildStep>, String> {
     let arr = value
         .as_array()
@@ -86,6 +88,7 @@ fn get_build_steps_from_value(value: &toml::Value, key: &str) -> Result<Vec<Buil
     Ok(out)
 }
 
+/// Retrieves build steps for a specific profile from config, falling back to default if not present.
 pub(crate) fn get_build_steps_with_profile(
     config: &Config,
     field: &str,
@@ -99,6 +102,7 @@ pub(crate) fn get_build_steps_with_profile(
     get_build_steps(config, &format!("build.{field}"))
 }
 
+/// Gets build steps from config for the given key.
 fn get_build_steps(config: &Config, key: &str) -> Result<Vec<BuildStep>, String> {
     let value = match config.get(key) {
         Some(v) => v,
@@ -110,6 +114,7 @@ fn get_build_steps(config: &Config, key: &str) -> Result<Vec<BuildStep>, String>
 use crate::core::build::report::{BuildEvent, BuildReporter};
 use std::sync::{Arc, atomic::AtomicBool};
 
+/// Runs all build steps in sequence, checking for cancellation and reporting progress.
 pub(crate) fn run_build_steps(
     steps: &[BuildStep],
     tools: &ToolchainExecs,
@@ -127,6 +132,7 @@ pub(crate) fn run_build_steps(
     Ok(())
 }
 
+/// Executes a single build step, handling glob expansion, output paths, and command substitution.
 fn run_build_step(
     step: &BuildStep,
     tools: &ToolchainExecs,
@@ -137,6 +143,7 @@ fn run_build_step(
 ) -> Result<(), String> {
     let input_pattern = expand_step_value(&step.input, "", vars);
     let inputs = expand_glob(&input_pattern)?;
+    // Skip step if no matching input files found
     if inputs.is_empty() {
         return Ok(());
     }
@@ -170,6 +177,7 @@ fn run_build_step(
     Ok(())
 }
 
+/// Deletes files (not directories) matching the given glob patterns.
 pub(crate) fn clean_generated_files(patterns: &[String]) -> Result<(), String> {
     for pattern in patterns {
         for path in expand_glob(pattern)? {
@@ -181,6 +189,7 @@ pub(crate) fn clean_generated_files(patterns: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+/// Expands glob patterns to find matching files.
 pub(crate) fn expand_glob(pattern: &str) -> Result<Vec<PathBuf>, String> {
     let mut out = Vec::new();
     let entries = glob(pattern).map_err(|err| format!("glob error: {err}"))?;
@@ -191,6 +200,7 @@ pub(crate) fn expand_glob(pattern: &str) -> Result<Vec<PathBuf>, String> {
     Ok(out)
 }
 
+/// Verifies that expected artifacts are present by expanding patterns.
 pub(crate) fn verify_expectations(patterns: &[String], vars: &StepVars) -> Result<(), String> {
     for pattern in patterns {
         let expanded = expand_step_value(pattern, "", vars);
@@ -202,6 +212,7 @@ pub(crate) fn verify_expectations(patterns: &[String], vars: &StepVars) -> Resul
     Ok(())
 }
 
+/// True if the step should run: missing/unreadable output, unreadable input, or input newer than output.
 fn should_run_step(input: &Path, output: &Path) -> bool {
     let in_time = fs::metadata(input).and_then(|m| m.modified());
     let out_time = fs::metadata(output).and_then(|m| m.modified());
@@ -212,6 +223,7 @@ fn should_run_step(input: &Path, output: &Path) -> bool {
     }
 }
 
+/// Substitutes variables into step command template and replaces placeholders.
 fn substitute_step_cmd(
     template: &str,
     input: &Path,
@@ -232,6 +244,7 @@ fn substitute_step_cmd(
         .replace("{stem}", stem)
 }
 
+/// Builds a list of compiler flags from cflags, include dirs, and compiler type.
 pub(crate) fn build_step_flags(
     cflags: &[String],
     include_dirs: &[String],
@@ -264,6 +277,7 @@ pub(crate) fn build_step_flags(
         .join(" ")
 }
 
+/// Quotes argument if it contains whitespace or double quotes.
 fn quote_step_arg(arg: String) -> String {
     if !arg.chars().any(|c| c.is_whitespace() || c == '"') {
         return arg;
@@ -272,6 +286,7 @@ fn quote_step_arg(arg: String) -> String {
     format!("\"{escaped}\"")
 }
 
+/// Checks if compiler is MSVC based on name.
 fn is_msvc_compiler(compiler: &str) -> bool {
     let lower = compiler.to_lowercase();
     lower.contains("cl.exe")
@@ -280,6 +295,7 @@ fn is_msvc_compiler(compiler: &str) -> bool {
         || lower.contains("msvc")
 }
 
+/// Runs shell command with output capture and cancellation support.
 fn run_shell_command(
     cmd: &str,
     cancel: &Arc<AtomicBool>,
@@ -352,6 +368,7 @@ fn run_shell_command(
     Ok(status)
 }
 
+/// Checks if any build step needs to be run by comparing timestamps.
 pub(crate) fn build_steps_need_run(steps: &[BuildStep], vars: &StepVars) -> Result<bool, String> {
     for step in steps {
         let input_pattern = expand_step_value(&step.input, "", vars);
@@ -380,6 +397,7 @@ pub(crate) fn build_steps_need_run(steps: &[BuildStep], vars: &StepVars) -> Resu
     Ok(false)
 }
 
+/// Creates VersionInfo from StepVars.
 fn make_version_info(vars: &StepVars) -> VersionInfo {
     VersionInfo {
         full: vars.version.to_string(),
@@ -391,6 +409,7 @@ fn make_version_info(vars: &StepVars) -> VersionInfo {
     }
 }
 
+/// Expands step value by substituting vars and stem.
 fn expand_step_value(template: &str, stem: &str, vars: &StepVars) -> String {
     let info = make_version_info(vars);
     let s = substitute_vars(template, &info, vars.profile, "");

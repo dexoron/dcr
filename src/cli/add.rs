@@ -23,16 +23,38 @@ use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
 use toml::Value;
 use toml::map::Map;
 
+/// Parsed arguments for the `dcr add` command.
+///
+/// Exactly one of `path`, `git`, or `version_from_registry` is expected to be set,
+/// depending on how the dependency source was specified.
 pub struct AddArgs {
+    /// Dependency name as it will appear under `[dependencies]` in `dcr.toml`.
     pub name: String,
+    /// Local filesystem path when the source uses the `path:` prefix.
     pub path: Option<String>,
+    /// Git repository URL when the source is a git/GitHub/GitLab URL or prefix.
     pub git: Option<String>,
+    /// Optional git branch to pin the dependency to.
     pub branch: Option<String>,
+    /// Optional git tag to pin the dependency to.
     pub tag: Option<String>,
+    /// Optional git commit hash (revision) to pin the dependency to.
     pub rev: Option<String>,
+    /// Version string resolved from the package registry when no explicit source is given.
     pub version_from_registry: Option<String>,
 }
 
+/// Adds a dependency to the current project's `dcr.toml`.
+///
+/// Parses CLI arguments, locates the project root, builds a TOML dependency value
+/// (path, git with optional ref, or registry version), and writes it under
+/// `dependencies.<name>`.
+///
+/// # Parameters
+/// - `args`: Tokens after `dcr add` (name, source, optional `--branch`/`--tag`/`--rev`).
+///
+/// # Returns
+/// Process exit code: `0` on success, non-zero on usage or I/O errors.
 pub fn add(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
         printc("USAGE:", BOLD_GREEN);
@@ -91,6 +113,7 @@ pub fn add(args: &[String]) -> i32 {
         }
     };
 
+    // Build the TOML value written under dependencies.<name>
     let dep_value = if let Some(git_url) = add_args.git {
         if add_args.branch.is_none() && add_args.tag.is_none() && add_args.rev.is_none() {
             let mut table = Map::new();
@@ -135,6 +158,11 @@ pub fn add(args: &[String]) -> i32 {
     0
 }
 
+/// Parses CLI arguments into an [`AddArgs`] value.
+///
+/// Expects `<name> [source] [--branch|--tag|--rev ...]`. If `source` is omitted,
+/// the package registry is queried for a default version. Source strings may use
+/// `path:`, `github:`, `gitlab:`, or `git:` prefixes, or a full git URL.
 fn parse_add_args(args: &[String]) -> Result<AddArgs, i32> {
     if args.is_empty() {
         error("Usage: dcr add <name> <source> [--branch <branch> | --tag <tag> | --rev <rev>]");
@@ -168,7 +196,7 @@ fn parse_add_args(args: &[String]) -> Result<AddArgs, i32> {
         }
         source_spec = s.clone();
     } else {
-        // No source provided — try registry auto-lookup
+        // No source provided — resolve version from the package registry
         match register::resolve_package_from_registry(&name) {
             Ok(info) => {
                 let version = info
@@ -235,6 +263,7 @@ fn parse_add_args(args: &[String]) -> Result<AddArgs, i32> {
     let mut path = None;
     let mut git = None;
 
+    // Map source prefixes / bare URLs to path or git fields
     if let Some(p) = source_spec.strip_prefix("path:") {
         path = Some(p.to_string());
     } else if let Some(g) = source_spec.strip_prefix("github:") {
@@ -243,10 +272,10 @@ fn parse_add_args(args: &[String]) -> Result<AddArgs, i32> {
         git = Some(format!("https://gitlab.com/{}", g));
     } else if let Some(g) = source_spec.strip_prefix("git:") {
         if g.contains('/') && !g.contains('.') {
-            // git:user/repo -> default to github
+            // git:user/repo with no host — default to GitHub
             git = Some(format!("https://github.com/{}", g));
         } else {
-            // git:host.com/user/repo
+            // git:host.com/user/repo or an already-qualified URL
             let url = if g.starts_with("http") || g.starts_with("git@") {
                 g.to_string()
             } else {

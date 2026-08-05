@@ -22,6 +22,10 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+/// Builds GAS (`.s`) sources via the GNU Assembler.
+///
+/// Resolves `as` on PATH and delegates to the shared assembly builder. For
+/// `flat-bin`, intermediates are converted with objcopy after assembly.
 pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     // Use full path to as
     let as_path = std::process::Command::new("which")
@@ -35,6 +39,9 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     asm::build_assembly_via_objcopy(ctx, "GAS", &as_path, &["s"], build_object)
 }
 
+/// Collects assembly source files with .s extension from the build context's source roots.
+///
+/// Excludes specified directories and respects include paths for filtering.
 pub(crate) fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String> {
     common::collect_sources(
         ctx.source_roots,
@@ -44,6 +51,10 @@ pub(crate) fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String>
     )
 }
 
+/// Assembles a single .s source file into an object file using the provided assembler.
+///
+/// Creates parent directories for the output object, skips if up-to-date,
+/// runs the assembler with flags from the build context, and handles verbose output.
 fn build_object(
     assembler: &str,
     source: &str,
@@ -54,10 +65,12 @@ fn build_object(
         fs::create_dir_all(parent).map_err(|err| format!("obj dir error: {err}"))?;
     }
 
+    // Check if the object file is already up to date to avoid unnecessary rebuilds.
     if !common::needs_rebuild(source, obj_path) {
         return Ok(());
     }
 
+    // Prepare the assembler command with source file and output path.
     let mut cmd = Command::new(assembler);
     cmd.arg(source).arg("-o").arg(obj_path);
 

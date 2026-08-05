@@ -15,6 +15,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+/// Core build module for DCR — a Cargo-like C/C++ project manager.
+/// This module defines the build engine and re-exports key components for
+/// building C/C++ projects.
 #[cfg(feature = "archive")]
 pub mod archive;
 pub mod builder;

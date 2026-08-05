@@ -21,6 +21,11 @@ mod core;
 mod platform;
 mod utils;
 
+/// Main entry point for DCR, a Cargo-like C/C++ project manager.
+///
+/// Collects command-line arguments via `std::env::args()` and dispatches to the
+/// appropriate subcommand handler. With fewer than two arguments, shows help and
+/// exits with code 0; otherwise exits with the handler's exit code.
 fn main() {
     let args: Vec<String> = std::env::args().collect();
 

@@ -21,25 +21,30 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use toml::Value as TomlValue;
 
+/// Represents a registry configuration entry with its URL and priority.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Registry {
     pub url: String,
     pub priority: i32,
 }
 
+/// Configuration struct for DCR registries, mapping registry names to Registry details.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DcrConfig {
     pub registry: std::collections::HashMap<String, Registry>,
 }
 
+/// Helper function to get the user's home directory path.
 fn home_dir() -> Option<PathBuf> {
     crate::utils::fs::home_dir()
 }
 
+/// Helper to get the DCR config directory path.
 fn dcr_config_dir() -> Option<PathBuf> {
     home_dir().map(|h| h.join(".dcr"))
 }
 
+/// Loads DCR registry configuration from the TOML file in the user's home directory.
 pub fn get_registry_config() -> Option<DcrConfig> {
     let home = home_dir()?;
     let config_path = home.join(".dcr/config.toml");
@@ -51,6 +56,7 @@ pub fn get_registry_config() -> Option<DcrConfig> {
     toml::from_str(&content).ok()
 }
 
+/// Returns the path to the registry index file, preferring the DCR_INDEX_PATH env var or falling back to ~/.dcr/index.json.
 pub fn get_index_path() -> PathBuf {
     std::env::var("DCR_INDEX_PATH")
         .map(PathBuf::from)
@@ -61,6 +67,7 @@ pub fn get_index_path() -> PathBuf {
         })
 }
 
+/// Returns the root directory for registry cache, based on the index path's parent, creating it if necessary.
 pub fn get_registry_cache_root() -> PathBuf {
     let index_path = get_index_path();
     if let Some(parent) = index_path.parent() {
@@ -76,6 +83,7 @@ pub fn get_registry_cache_root() -> PathBuf {
     }
 }
 
+/// Extracts the package root path from registry info. If the path points to a dcr.toml manifest, returns its parent directory.
 pub fn package_root_from_registry_info(pkg_info: &JsonValue) -> Result<PathBuf, String> {
     let raw_path = pkg_info
         .get("path")
@@ -97,6 +105,7 @@ pub fn package_root_from_registry_info(pkg_info: &JsonValue) -> Result<PathBuf, 
     Ok(full_path)
 }
 
+/// Converts a raw registry path string to a PathBuf, handling file:// prefixes, Windows extended paths, and relative paths by joining to cache root.
 pub fn registry_path_to_pathbuf(raw: &str) -> PathBuf {
     let s = raw.trim();
     if let Some(rest) = s.strip_prefix("file://") {
@@ -130,14 +139,26 @@ pub fn registry_path_to_pathbuf(raw: &str) -> PathBuf {
     }
 }
 
+/// Returns the include directory path for a dependency root, typically under target/include.
 pub fn registry_include_dir(dep_root: &Path) -> PathBuf {
     dep_root.join("target").join("include")
 }
 
+/// Returns the library directory path for a dependency root, typically under target/lib.
 pub fn registry_lib_dir(dep_root: &Path) -> PathBuf {
     dep_root.join("target").join("lib")
 }
 
+/// Looks up `name` in the local package index (`DCR_INDEX_PATH` / `~/.dcr/index.json`).
+///
+/// Configured registries are sorted by priority, but the lookup currently always reads the
+/// same local index path (per-registry URLs are unused).
+///
+/// # Parameters
+/// - `name`: Package name as in the index.
+///
+/// # Returns
+/// Package JSON object, or an error if config/index is missing or the name is absent.
 pub fn resolve_package_from_registry(name: &str) -> Result<JsonValue, String> {
     let config = get_registry_config().ok_or("No registry config found")?;
     let mut registries: Vec<(&String, &Registry)> = config.registry.iter().collect();
@@ -165,6 +186,10 @@ pub fn resolve_package_from_registry(name: &str) -> Result<JsonValue, String> {
     ))
 }
 
+/// True if the TOML value is a registry-style dependency.
+///
+/// Strings: not path-like and not git-like. Tables: have version/features/optional/registry
+/// and no `git`/`path`/`url` keys.
 pub fn is_registry_dep(value: &TomlValue) -> bool {
     if let Some(raw) = value.as_str() {
         let raw = raw.trim();
@@ -183,6 +208,7 @@ pub fn is_registry_dep(value: &TomlValue) -> bool {
     }
 }
 
+/// Extracts the path string from a dependency value if it's a path-like dependency.
 pub fn path_from_string_dep(value: &TomlValue) -> Option<&str> {
     let raw = value.as_str()?.trim();
     if let Some(path) = raw.strip_prefix("path:") {
@@ -194,6 +220,7 @@ pub fn path_from_string_dep(value: &TomlValue) -> Option<&str> {
     None
 }
 
+/// Helper to check if a string represents a local file path.
 fn is_path_like_string(raw: &str) -> bool {
     raw.starts_with("path:")
         || raw.starts_with("./")
@@ -203,6 +230,7 @@ fn is_path_like_string(raw: &str) -> bool {
         || raw.contains('\\')
 }
 
+/// Helper to check if a string represents a git or remote dependency.
 fn is_git_like_string(raw: &str) -> bool {
     raw.starts_with("git:")
         || raw.starts_with("github:")

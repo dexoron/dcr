@@ -21,6 +21,7 @@
 
 use std::sync::{Arc, atomic::AtomicBool};
 
+/// Represents a build request with options for the build process, including profile selection, target specification, force flag, verbosity, workspace, and a cancellation signal.
 pub struct BuildRequest {
     pub profile: String,
     pub target: Option<String>,
@@ -30,21 +31,25 @@ pub struct BuildRequest {
     pub cancel: Arc<AtomicBool>,
 }
 
+/// Contains the result of a build operation, specifically the duration in seconds.
 #[allow(dead_code)]
 pub struct BuildOutcome {
     pub secs: f64,
 }
 
+/// Wraps a string message as a build error.
 pub struct BuildError {
     pub message: String,
 }
 
+/// Creates a BuildError from a String message.
 impl From<String> for BuildError {
     fn from(message: String) -> Self {
         BuildError { message }
     }
 }
 
+/// Represents events that the build engine can emit during compilation and packaging.
 pub enum BuildEvent<'a> {
     TargetStart {
         index: usize,
@@ -81,6 +86,8 @@ pub enum BuildEvent<'a> {
     },
 }
 
+/// Trait for handling build events in different reporting backends.
 pub trait BuildReporter {
+    /// Callback invoked when a build event is generated.
     fn on_event(&mut self, event: BuildEvent<'_>);
 }

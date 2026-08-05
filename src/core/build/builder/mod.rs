@@ -22,6 +22,7 @@ pub mod msvc;
 use crate::core::build::language::asm::{fasm, gas, masm, nasm};
 use crate::core::build::language::llvm_ir;
 
+/// Configuration context for the build process, including compiler, target, and output settings.
 pub struct BuildContext<'a> {
     pub profile: &'a str,
     pub project_name: &'a str,
@@ -56,6 +57,7 @@ pub struct BuildContext<'a> {
     pub qt: bool,
 }
 
+/// Trait defining the build interface for different compilers and languages.
 pub trait Builder {
     #[allow(dead_code)]
     fn id(&self) -> &'static str;
@@ -63,12 +65,19 @@ pub trait Builder {
     fn collect_sources(&self, ctx: &BuildContext) -> Result<Vec<String>, String>;
 }
 
+/// Concrete builder for C/C++ languages using gcc/clang.
 struct Cc;
+/// Concrete builder for MSVC and clang-cl.
 struct Msvc;
+/// Concrete builder for NASM assembly.
 struct Nasm;
+/// Concrete builder for GNU Assembler (gas).
 struct Gas;
+/// Concrete builder for MASM assembler.
 struct Masm;
+/// Concrete builder for FASM assembler.
 struct Fasm;
+/// Concrete builder for LLVM IR.
 struct Llc;
 
 impl Builder for Cc {
@@ -156,6 +165,7 @@ impl Builder for Llc {
 }
 
 pub fn builder_for(compiler: &str) -> &'static dyn Builder {
+    // Normalize compiler name to lowercase for matching.
     let c = compiler.to_lowercase();
     if c.contains("clang-cl") {
         return &Msvc;
@@ -181,6 +191,7 @@ pub fn builder_for(compiler: &str) -> &'static dyn Builder {
     &Cc
 }
 
+/// Main build entrypoint that validates the compiler and delegates to the selected builder.
 pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     if !check_compiler_exists(ctx.compiler) {
         return Err(format!(
@@ -188,9 +199,11 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
             ctx.compiler
         ));
     }
+    // Delegate to the concrete builder's build method.
     builder_for(ctx.compiler).build(ctx)
 }
 
+/// True if `compiler --version` can be spawned (exit status is ignored).
 fn check_compiler_exists(compiler: &str) -> bool {
     let name = if compiler.is_empty() {
         "cc"
@@ -209,10 +222,12 @@ fn check_compiler_exists(compiler: &str) -> bool {
         .is_ok()
 }
 
+/// Collects source code files by delegating to the builder selected for the compiler.
 pub fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String> {
     builder_for(ctx.compiler).collect_sources(ctx)
 }
 
+/// Unit test verifying that builder_for correctly identifies the builder for various compiler names.
 #[cfg(test)]
 mod tests {
     use super::*;

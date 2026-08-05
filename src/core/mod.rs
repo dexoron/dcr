@@ -15,6 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+/// Core module for DCR, a Cargo-like C/C++ project manager.
 pub mod build;
 pub mod build_config;
 pub mod deps;

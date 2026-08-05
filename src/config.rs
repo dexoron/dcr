@@ -96,6 +96,7 @@ int main(int argc, char **argv) {
 }
 "#;
 
+/// Returns build flags for the given profile as a static slice, or None if empty.
 pub fn flags(profile: &str) -> Option<&'static [&'static str]> {
     let f = crate::utils::build::default_profile_flags(profile);
     if f.is_empty() { None } else { Some(f) }

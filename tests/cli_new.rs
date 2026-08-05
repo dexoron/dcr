@@ -37,7 +37,9 @@ fn new_vcs_options_work() {
     let project_dir = dir.join("hello_none");
     assert!(project_dir.is_dir());
     assert!(!project_dir.join(".git").exists());
-    assert!(!project_dir.join(".gitignore").exists());
+    assert!(project_dir.join(".gitignore").is_file());
+    let gi = std::fs::read_to_string(project_dir.join(".gitignore")).unwrap();
+    assert!(gi.contains(".dcr/"));
 
     // 2. Test --vcs git
     if is_git_in_path() {
@@ -50,6 +52,7 @@ fn new_vcs_options_work() {
         assert!(project_dir.join(".gitignore").is_file());
         let gitignore = std::fs::read_to_string(project_dir.join(".gitignore")).unwrap();
         assert!(gitignore.contains("/target"));
+        assert!(gitignore.contains(".dcr/"));
     }
 }
 
@@ -60,7 +63,9 @@ fn init_vcs_options_work() {
     let out = run_dcr(&["init", "--vcs", "none"], &dir);
     assert!(out.status.success(), "dcr init --vcs none should succeed");
     assert!(!dir.join(".git").exists());
-    assert!(!dir.join(".gitignore").exists());
+    assert!(dir.join(".gitignore").is_file());
+    let gi = std::fs::read_to_string(dir.join(".gitignore")).unwrap();
+    assert!(gi.contains(".dcr/"));
 
     // 2. Test --vcs git
     if is_git_in_path() {
@@ -71,5 +76,6 @@ fn init_vcs_options_work() {
         assert!(dir.join(".gitignore").is_file());
         let gitignore = std::fs::read_to_string(dir.join(".gitignore")).unwrap();
         assert!(gitignore.contains("/target"));
+        assert!(gitignore.contains(".dcr/"));
     }
 }

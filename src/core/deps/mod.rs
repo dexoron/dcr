@@ -15,6 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+/// Core dependency resolver for DCR projects.
 pub mod common;
 pub mod lock;
 pub mod register;
@@ -24,6 +25,7 @@ use crate::core::deps::common::ResolvedDeps;
 use crate::core::deps::lock::{DepLock, write_lock};
 use std::path::Path;
 
+/// Returns the version string from a dependency's dcr.toml file, or an empty string if missing.
 fn dep_version(path: &Path) -> String {
     Config::open(&path.join("dcr.toml").to_string_lossy())
         .ok()
@@ -35,6 +37,18 @@ fn dep_version(path: &Path) -> String {
         .unwrap_or_default()
 }
 
+/// Resolves dependencies from config into include/lib dirs and lib names, and writes the lock file.
+///
+/// Registry and path deps contribute to `ResolvedDeps`. Git deps are recorded in the lock only
+/// (no fetch or include/lib resolution).
+///
+/// # Parameters
+/// - `config`: Loaded `dcr.toml`.
+/// - `_profile` / `_target`: Reserved for future profile/target-specific deps.
+/// - `project_root`: Root used to resolve path deps and write `dcr.lock`.
+///
+/// # Returns
+/// Aggregated include/lib/libs, or an error string on resolve/lock failure.
 pub fn resolve_deps(
     config: &Config,
     _profile: &str,
@@ -57,6 +71,7 @@ pub fn resolve_deps(
     let mut lock_packages: Vec<DepLock> = Vec::new();
 
     if let Some(deps) = deps_table {
+        // Process each dependency declaration in the TOML table
         for (name, value) in deps {
             if register::is_registry_dep(value) {
                 let pkg_info = register::resolve_package_from_registry(name)?;
@@ -157,6 +172,7 @@ pub fn resolve_deps(
         }
     }
 
+    // Write the lock file with all resolved dependencies
     write_lock(
         project_root,
         &project_name,
@@ -167,11 +183,13 @@ pub fn resolve_deps(
     Ok(resolved)
 }
 
+/// Git dependency specification (url + optional version/ref for the lockfile).
 struct GitDep<'a> {
     url: &'a str,
     version: Option<String>,
 }
 
+/// Parses a git dependency from a TOML value table.
 fn git_dep(value: &toml::Value) -> Option<GitDep<'_>> {
     if let Some(table) = value.as_table()
         && let Some(url) = table.get("git").and_then(|v| v.as_str())
@@ -185,6 +203,7 @@ fn git_dep(value: &toml::Value) -> Option<GitDep<'_>> {
     None
 }
 
+/// Extracts the path for a path-based dependency, supporting both table format and legacy string format.
 fn path_dep_path(value: &toml::Value) -> Option<&str> {
     if let Some(table) = value.as_table() {
         return table.get("path").and_then(|v| v.as_str());
@@ -192,12 +211,14 @@ fn path_dep_path(value: &toml::Value) -> Option<&str> {
     register::path_from_string_dep(value)
 }
 
+/// Adds a directory path to the list if it exists on the filesystem.
 fn push_if_exists(paths: &mut Vec<String>, path: &Path) {
     if path.exists() {
         paths.push(path.to_string_lossy().to_string());
     }
 }
 
+/// Adds common library directory candidates to the list if they exist.
 fn push_default_lib_dirs(paths: &mut Vec<String>, dep_root: &Path) {
     for dir in ["lib", "lib64"] {
         push_if_exists(paths, &dep_root.join(dir));
@@ -210,6 +231,7 @@ mod tests {
     use super::*;
     use toml::Value;
 
+    /// Tests that path_dep_path correctly handles both TOML table and legacy string inputs for path dependencies.
     #[test]
     fn path_dep_path_supports_table_and_legacy_strings() {
         let table = Value::Table(
@@ -232,6 +254,7 @@ mod tests {
         assert_eq!(path_dep_path(&Value::String("1.2.3".to_string())), None);
     }
 
+    /// Verifies that push_default_lib_dirs includes the target/lib directory when it exists.
     #[test]
     fn default_lib_dirs_include_packaged_library_output() {
         let root = std::env::temp_dir().join(format!(

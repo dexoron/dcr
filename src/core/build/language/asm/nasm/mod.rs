@@ -15,6 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+/// Support for NASM assembly language in the DCR build system.
 use crate::core::build::builder::BuildContext;
 use crate::core::build::common;
 use crate::core::build::language::asm::common as asm;
@@ -22,10 +23,16 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+/// Builds assembly sources using the NASM assembler.
+///
+/// Delegates to the shared assembly builder with NASM-specific configuration.
 pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     asm::build_assembly(ctx, "NASM", "nasm", &["asm"], build_object)
 }
 
+/// Collects source files for NASM assembly.
+///
+/// Filters for .asm files only, as NASM uses that extension (distinct from GAS .s).
 pub(crate) fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String> {
     // NASM handles .asm only (not .s which is GAS syntax, not .S which is GCC preprocessed)
     common::collect_sources(
@@ -36,6 +43,9 @@ pub(crate) fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String>
     )
 }
 
+/// Builds a single object file from an assembly source using NASM.
+///
+/// Handles directory creation, rebuild checks, format selection, and command execution.
 fn build_object(
     assembler: &str,
     source: &str,
@@ -43,13 +53,16 @@ fn build_object(
     ctx: &BuildContext,
 ) -> Result<(), String> {
     if let Some(parent) = Path::new(obj_path).parent() {
+        // Ensure output directory exists before building.
         fs::create_dir_all(parent).map_err(|err| format!("obj dir error: {err}"))?;
     }
 
+    // Skip building if the object is already up to date.
     if !common::needs_rebuild(source, obj_path) {
         return Ok(());
     }
 
+    // Select appropriate object format for the target platform and binary type.
     let format = if crate::utils::build::is_flat_bin(ctx.kind) {
         "bin"
     } else {
@@ -63,6 +76,7 @@ fn build_object(
         .arg("-o")
         .arg(obj_path);
 
+    // Append any additional assembly flags from build context.
     for flag in crate::core::build::language::asm::common::filter_asm_flags(ctx.cflags) {
         cmd.arg(flag);
     }
@@ -74,6 +88,9 @@ fn build_object(
     common::run_command_sync_output(&mut cmd)
 }
 
+/// Selects the NASM object file format string based on the target platform.
+///
+/// Supports different formats for x86 on various OSes and architectures.
 fn nasm_format(platform: Option<&str>) -> &'static str {
     if let Some(p) = platform {
         let p = p.to_lowercase().replace('-', "_");

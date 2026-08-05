@@ -15,6 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+/// Core build engine module for DCR.
+/// This module provides the main build logic for projects and workspaces.
 use crate::core::build::builder::{BuildContext, build as build_project, collect_sources};
 use crate::core::build::cache::{
     collect_header_files, collect_lib_files, compute_build_fingerprint, should_skip_build,
@@ -38,8 +40,9 @@ use crate::core::workspace::parse_workspace;
 use crate::utils::build::{
     default_target_triple, get_bool_with_profile, get_config_opt, get_config_str,
     get_language_with_profile, is_bare_metal_target, normalize_kind, normalize_platform,
-    normalize_target, normalize_target_os, parse_version_info, prepend_clang_target_flag,
-    primary_language, resolve_compiler, resolve_pkg_config_flags, resolve_tool, substitute_vars,
+    normalize_target_os, parse_version_info, prepend_clang_target_flag, primary_language,
+    resolve_artifact_target_dir, resolve_compiler, resolve_pkg_config_flags, resolve_tool,
+    substitute_vars,
 };
 use crate::utils::fs::check_dir;
 use std::fs;
@@ -48,6 +51,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
+/// Ensures that target directories exist for the build output.
 fn ensure_target_dirs(
     project_root: &Path,
     items: &[String],
@@ -61,29 +65,13 @@ fn ensure_target_dirs(
     if let Some(dir) = &target_dir {
         let _ = fs::create_dir_all(dir);
     } else {
-        let default_dir = if cfg!(target_os = "linux") {
-            let arch = std::env::consts::ARCH;
-            format!("{arch}-unknown-linux-gnu/{profile}")
-        } else if cfg!(any(
-            target_os = "freebsd",
-            target_os = "openbsd",
-            target_os = "netbsd",
-            target_os = "dragonfly"
-        )) {
-            let arch = std::env::consts::ARCH;
-            let os = std::env::consts::OS;
-            format!("{arch}-unknown-{os}/{profile}")
-        } else {
-            profile.to_string()
-        };
-        let target_path = project_root.join("target");
-        let target_items = check_dir(target_path.to_str()).unwrap_or_default();
-        if !target_items.contains(&default_dir) {
-            let _ = fs::create_dir_all(target_path.join(&default_dir));
-        }
+        let _ = fs::create_dir_all(
+            project_root.join(crate::utils::build::native_host_target_rel(profile)),
+        );
     }
 }
 
+/// Runs the project build and returns the elapsed time in seconds or an error.
 fn run_compile(
     ctx: &BuildContext,
     _cancel: &Arc<AtomicBool>,
@@ -105,8 +93,16 @@ fn run_compile(
     }
 }
 
-// Library entry point: run a build described by `req`, streaming progress to
-// `rep`. The CLI wraps this with a CliReporter; TUI/GUI/MCP plug in their own.
+/// Library entry point: run a build described by `req`, streaming progress to
+/// `rep`. The CLI wraps this with a CliReporter; TUI/GUI/MCP plug in their own.
+///
+/// # Parameters
+/// - `root`: Project or workspace root containing `dcr.toml`.
+/// - `req`: Profile, target, force/verbose, optional member, cancel flag.
+/// - `rep`: Progress sink for build events.
+///
+/// # Returns
+/// `BuildOutcome` with elapsed seconds, or `BuildError` on failure/cancel.
 pub fn run_build(
     root: &Path,
     req: &BuildRequest,
@@ -126,6 +122,7 @@ pub fn run_build(
     Ok(BuildOutcome { secs })
 }
 
+/// Orchestrates the build for the specified profile and target, handling workspaces and projects.
 #[allow(unused_variables, clippy::too_many_arguments)]
 fn build_all(
     root: &Path,
@@ -295,6 +292,7 @@ fn build_all(
     Ok(elapsed)
 }
 
+/// Builds each workspace member in order (flat loop, not recursive into nested workspaces).
 #[allow(clippy::too_many_arguments)]
 fn build_workspace(
     workspace: &crate::core::workspace::Workspace,
@@ -324,6 +322,7 @@ fn build_workspace(
     Ok(())
 }
 
+/// Builds a single project at the given root, handling configuration and steps.
 #[allow(clippy::too_many_arguments)]
 fn build_project_at(
     project_root: &Path,
@@ -544,70 +543,14 @@ fn build_project_at(
     let resolved_archiver = resolve_tool("DCR_AR", tc_ar.as_deref());
 
     let out_dir_config = get_build_string_with_profile(&config, "out_dir", profile);
-    let target_dir_binding = if !out_dir_config.is_empty() {
-        let p = Path::new(&out_dir_config);
-        if p.is_absolute() {
-            out_dir_config
-        } else {
-            project_root.join(p).to_string_lossy().to_string()
-        }
-    } else {
-        match workspace_root {
-            Some(root) => {
-                let target_str = build_target
-                    .map(normalize_target_os)
-                    .filter(|t| !t.is_empty());
-                let rel: PathBuf = match target_str {
-                    Some(ref t) => Path::new("target").join(t).join(profile),
-                    None => {
-                        let default_dir = if cfg!(target_os = "linux") {
-                            let arch = std::env::consts::ARCH;
-                            format!("{arch}-unknown-linux-gnu/{profile}")
-                        } else if cfg!(any(
-                            target_os = "freebsd",
-                            target_os = "openbsd",
-                            target_os = "netbsd",
-                            target_os = "dragonfly"
-                        )) {
-                            let arch = std::env::consts::ARCH;
-                            let os = std::env::consts::OS;
-                            format!("{arch}-unknown-{os}/{profile}")
-                        } else {
-                            profile.to_string()
-                        };
-                        Path::new("target").join(&default_dir)
-                    }
-                };
-                root.join(&rel).to_string_lossy().to_string()
-            }
-            None => {
-                let base_dir = if has_explicit_target {
-                    PathBuf::from(
-                        normalize_target(&build_target_owned, profile)
-                            .expect("explicit build target must be non-empty"),
-                    )
-                } else {
-                    let default_dir = if cfg!(target_os = "linux") {
-                        let arch = std::env::consts::ARCH;
-                        format!("{arch}-unknown-linux-gnu/{profile}")
-                    } else if cfg!(any(
-                        target_os = "freebsd",
-                        target_os = "openbsd",
-                        target_os = "netbsd",
-                        target_os = "dragonfly"
-                    )) {
-                        let arch = std::env::consts::ARCH;
-                        let os = std::env::consts::OS;
-                        format!("{arch}-unknown-{os}/{profile}")
-                    } else {
-                        profile.to_string()
-                    };
-                    Path::new("target").join(&default_dir)
-                };
-                project_root.join(base_dir).to_string_lossy().to_string()
-            }
-        }
-    };
+    let target_dir_binding = resolve_artifact_target_dir(
+        project_root,
+        workspace_root,
+        profile,
+        &build_target_owned,
+        &out_dir_config,
+        has_explicit_target,
+    );
     let target_dir = if target_dir_binding.is_empty() {
         None
     } else {
@@ -665,24 +608,9 @@ fn build_project_at(
                         let target_str = build_target
                             .map(normalize_target_os)
                             .filter(|t| !t.is_empty());
-                        let default_dir = if cfg!(target_os = "linux") {
-                            let arch = std::env::consts::ARCH;
-                            format!("{arch}-unknown-linux-gnu/{profile}")
-                        } else if cfg!(any(
-                            target_os = "freebsd",
-                            target_os = "openbsd",
-                            target_os = "netbsd",
-                            target_os = "dragonfly"
-                        )) {
-                            let arch = std::env::consts::ARCH;
-                            let os = std::env::consts::OS;
-                            format!("{arch}-unknown-{os}/{profile}")
-                        } else {
-                            profile.to_string()
-                        };
                         let rel = match target_str {
                             Some(ref t) => Path::new("target").join(t).join(profile),
-                            None => Path::new("target").join(&default_dir),
+                            None => crate::utils::build::native_host_target_rel(profile),
                         };
                         let dep_build_lib1 = dep_member.path.join(&rel);
                         let dep_build_lib2 = wroot.join(&rel);
@@ -991,6 +919,7 @@ fn build_project_at(
     Ok(())
 }
 
+/// Converts relative paths in flags to absolute paths based on project root for include and link flags.
 fn absolutize_flag_path(flag: &str, project_root: &Path, prefixes: &[&str]) -> String {
     for prefix in prefixes {
         if let Some(rest) = flag.strip_prefix(prefix) {
@@ -1011,6 +940,7 @@ fn absolutize_flag_path(flag: &str, project_root: &Path, prefixes: &[&str]) -> S
     flag.to_string()
 }
 
+/// Finds the nearest ancestor directory named "target" starting from the given dir.
 fn find_target_root(dir: &str, fallback: &Path) -> PathBuf {
     let p = Path::new(dir);
     for ancestor in p.ancestors() {
@@ -1021,6 +951,7 @@ fn find_target_root(dir: &str, fallback: &Path) -> PathBuf {
     fallback.to_path_buf()
 }
 
+/// Packages the built library by copying headers and libs to the target include and lib directories.
 fn package_library(
     ctx: &BuildContext,
     headers: &[PathBuf],
@@ -1075,12 +1006,14 @@ fn package_library(
     Ok(())
 }
 
+/// Holds the resolved executable paths for Qt tools.
 pub(crate) struct ToolchainExecs {
     pub(crate) uic: String,
     pub(crate) moc: String,
     pub(crate) rcc: String,
 }
 
+/// Resolves the paths for uic, moc, and rcc tools, preferring configured values or pkg-config/Qt6 variants.
 fn resolve_toolchain_execs(
     uic: &Option<String>,
     moc: &Option<String>,
@@ -1095,6 +1028,7 @@ fn resolve_toolchain_execs(
     }
 }
 
+/// Resolves a Qt tool path, falling back to Qt6 variants if not found in standard locations.
 fn resolve_qt_tool(configured: &Option<String>, qt_bins: Option<&Path>, tool: &str) -> String {
     if let Some(value) = configured {
         return value.clone();
@@ -1117,6 +1051,7 @@ fn resolve_qt_tool(configured: &Option<String>, qt_bins: Option<&Path>, tool: &s
     tool.to_string()
 }
 
+/// Queries pkg-config for Qt6 host bin directories for the given packages.
 fn resolve_qt_host_bins(pkgs: &[String]) -> Option<PathBuf> {
     let qt_pkgs: Vec<&String> = pkgs.iter().filter(|p| p.starts_with("Qt6")).collect();
     if qt_pkgs.is_empty() {
@@ -1152,6 +1087,7 @@ fn resolve_qt_host_bins(pkgs: &[String]) -> Option<PathBuf> {
     None
 }
 
+/// Executes pkg-config to get a variable value for a package and returns the path if valid.
 fn query_pkg_config_var(pkg: &str, var: &str) -> Option<PathBuf> {
     let output = std::process::Command::new("pkg-config")
         .arg(format!("--variable={var}"))
@@ -1169,6 +1105,7 @@ fn query_pkg_config_var(pkg: &str, var: &str) -> Option<PathBuf> {
     if path.is_dir() { Some(path) } else { None }
 }
 
+/// Extracts tool binaries from a libexec directory or its bin subdirectory.
 fn qt_bins_from_libexec(libexec: &Path) -> Option<PathBuf> {
     for tool in ["moc", "uic", "rcc"] {
         if libexec.join(tool).is_file() {
@@ -1182,12 +1119,14 @@ fn qt_bins_from_libexec(libexec: &Path) -> Option<PathBuf> {
     if bin.is_dir() { Some(bin) } else { None }
 }
 
+/// Detects if a Qt6 tool variant (like uic6 or uic-qt6) is available on the PATH.
 fn detect_qt6_tool_variant(tool: &str) -> Option<String> {
     [format!("{tool}6"), format!("{tool}-qt6")]
         .into_iter()
         .find(|candidate| is_on_path(candidate))
 }
 
+/// Checks if a command is available either as a file or in the PATH environment variable.
 fn is_on_path(cmd: &str) -> bool {
     if Path::new(cmd).is_file() {
         return true;

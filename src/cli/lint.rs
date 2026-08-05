@@ -24,6 +24,9 @@ use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, BOLD_YELLOW, colored, printc};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+/// Runs clang-tidy on all C/C++ source files.
+///
+/// Scans source roots (configurable via build.roots) and tests/ directory.
 pub fn lint(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
         printc("USAGE:", BOLD_GREEN);
@@ -72,6 +75,7 @@ pub fn lint(args: &[String]) -> i32 {
     let build_roots = get_list_with_profile(&config, "roots", profile);
     let src_disable = get_bool_with_profile(&config, "src_disable", profile, false);
 
+    // Construct source roots from config
     let mut source_roots: Vec<String> = Vec::new();
     for raw in &build_roots {
         let p = Path::new(raw);
@@ -126,6 +130,7 @@ pub fn lint(args: &[String]) -> i32 {
     let mut total_issues = 0u32;
     let mut failed = 0u32;
 
+    // Execute clang-tidy for each file and count issues
     for file in &files {
         let mut cmd = Command::new("clang-tidy");
         if do_fix {

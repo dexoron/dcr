@@ -21,6 +21,17 @@ use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// Computes a build fingerprint by hashing context fields and file metadata (SHA-256).
+///
+/// Includes `dcr.toml` (required) and `dcr.lock` when present, plus path/size/mtime
+/// for each source, header, and library file.
+///
+/// # Parameters
+/// - `ctx`: Build context (profile, tools, flags, dirs, …).
+/// - `sources` / `headers` / `lib_files`: Inputs whose metadata enters the hash.
+///
+/// # Returns
+/// Hex-encoded fingerprint, or an error if `dcr.toml` or a listed file cannot be read.
 pub(crate) fn compute_build_fingerprint(
     ctx: &BuildContext,
     sources: &[String],
@@ -61,12 +72,14 @@ pub(crate) fn compute_build_fingerprint(
     for value in ctx.ldflags {
         hasher.update(value.as_bytes());
     }
+    // Include project metadata from dcr.toml in the fingerprint
     let toml =
         fs::read_to_string("dcr.toml").map_err(|err| format!("Failed to read dcr.toml: {err}"))?;
     hasher.update(toml.as_bytes());
     if let Ok(lock) = fs::read_to_string("dcr.lock") {
         hasher.update(lock.as_bytes());
     }
+    // Include source, header, and library files in the fingerprint
     for source in sources {
         let path = Path::new(source);
         update_hasher_with_file(&mut hasher, path)?;
@@ -80,6 +93,14 @@ pub(crate) fn compute_build_fingerprint(
     Ok(to_hex(&hasher.finalize()))
 }
 
+/// Whether the build can be skipped: main artifact exists and cache hash matches.
+///
+/// # Parameters
+/// - `ctx`: Used to locate the output artifact and `.dcr-build.hash`.
+/// - `fingerprint`: Fresh hash from [`compute_build_fingerprint`].
+///
+/// # Returns
+/// `true` only when both the artifact and matching cache file are present.
 pub(crate) fn should_skip_build(ctx: &BuildContext, fingerprint: &str) -> bool {
     let output = build_output_path(ctx);
     if !Path::new(&output).is_file() {
@@ -90,6 +111,7 @@ pub(crate) fn should_skip_build(ctx: &BuildContext, fingerprint: &str) -> bool {
     cached.trim() == fingerprint
 }
 
+/// Persists the build fingerprint to the cache file on disk.
 pub(crate) fn write_build_fingerprint(ctx: &BuildContext, fingerprint: &str) -> Result<(), String> {
     let cache_path = build_cache_path(ctx.profile, ctx.target_dir);
     if let Some(parent) = cache_path.parent() {
@@ -99,6 +121,7 @@ pub(crate) fn write_build_fingerprint(ctx: &BuildContext, fingerprint: &str) -> 
         .map_err(|err| format!("Failed to write cache: {err}"))
 }
 
+/// Returns the path to the build cache hash file based on profile and target directory.
 fn build_cache_path(profile: &str, target_dir: Option<&str>) -> PathBuf {
     match target_dir {
         Some(dir) => Path::new(dir).join(".dcr-build.hash"),
@@ -106,35 +129,26 @@ fn build_cache_path(profile: &str, target_dir: Option<&str>) -> PathBuf {
     }
 }
 
-fn build_output_path(ctx: &BuildContext) -> String {
-    if crate::utils::build::is_flat_bin(ctx.kind) {
-        return crate::core::build::builder::artifact::flat_output_path(ctx);
-    }
-
-    let name = ctx.output_filename.unwrap_or(ctx.project_name);
-    let ext = ctx.output_extension.unwrap_or("");
-
-    let final_name = if ext.is_empty() {
-        name.to_string()
-    } else {
-        format!("{}.{}", name, ext)
-    };
-
-    if ctx.kind == "staticlib" {
-        return crate::platform::lib_path(ctx.profile, &final_name, ctx.target_dir);
-    }
-    if ctx.kind == "sharedlib" {
-        return crate::platform::shared_lib_path(ctx.profile, &final_name, ctx.target_dir);
-    }
-    if ctx.kind == "efi" {
-        return crate::platform::efi_path(ctx.profile, &final_name, ctx.target_dir);
-    }
-    if ctx.kind == "elf" {
-        return crate::platform::elf_path(ctx.profile, &final_name, ctx.target_dir);
-    }
-    crate::platform::bin_path(ctx.profile, &final_name, ctx.target_dir)
+/// Resolves the output path for the build artifact using the provided context.
+pub fn build_output_path(ctx: &BuildContext) -> String {
+    crate::core::build::builder::artifact::resolve_artifact_path(
+        ctx.kind,
+        ctx.profile,
+        ctx.project_name,
+        ctx.target_dir,
+        ctx.output_filename,
+        ctx.output_extension,
+    )
+    .unwrap_or_else(|| {
+        crate::platform::bin_path(
+            ctx.profile,
+            ctx.output_filename.unwrap_or(ctx.project_name),
+            ctx.target_dir,
+        )
+    })
 }
 
+/// Collects header files from source roots and include directories, filtering out excluded paths.
 pub(crate) fn collect_header_files(
     ctx: &BuildContext,
     project_root: &Path,
@@ -176,6 +190,7 @@ pub(crate) fn collect_header_files(
     Ok(out)
 }
 
+/// Recursively scans a directory to collect header files, respecting exclusion rules.
 fn collect_header_files_rec(
     dir: &Path,
     out: &mut Vec<PathBuf>,
@@ -208,11 +223,13 @@ fn collect_header_files_rec(
     Ok(())
 }
 
+/// Checks if the given path has a header file extension.
 fn is_header_file(path: &Path) -> bool {
     let ext = path.extension().and_then(|v| v.to_str()).unwrap_or("");
     matches!(ext, "h" | "hpp" | "hh" | "hxx" | "inc")
 }
 
+/// Collects library files from lib directories using platform-specific candidates.
 pub(crate) fn collect_lib_files(ctx: &BuildContext) -> Vec<PathBuf> {
     let mut out = Vec::new();
     for dir in ctx.lib_dirs {
@@ -229,6 +246,7 @@ pub(crate) fn collect_lib_files(ctx: &BuildContext) -> Vec<PathBuf> {
     out
 }
 
+/// Candidate library filenames for the **host** OS (`cfg!(target_os = …)`).
 fn lib_candidates(name: &str) -> Vec<String> {
     if cfg!(target_os = "windows") {
         return vec![format!("{name}.lib")];
@@ -247,6 +265,7 @@ fn lib_candidates(name: &str) -> Vec<String> {
     ]
 }
 
+/// Updates the hasher with the file's path, size, and last modification time.
 fn update_hasher_with_file(hasher: &mut Sha256, path: &Path) -> Result<(), String> {
     hasher.update(path.to_string_lossy().as_bytes());
     let meta = fs::metadata(path).map_err(|err| format!("source read error: {err}"))?;
@@ -259,6 +278,7 @@ fn update_hasher_with_file(hasher: &mut Sha256, path: &Path) -> Result<(), Strin
     Ok(())
 }
 
+/// Converts a byte slice containing the SHA256 hash to a hexadecimal string.
 fn to_hex(bytes: &[u8]) -> String {
     crate::utils::fs::to_hex(bytes)
 }

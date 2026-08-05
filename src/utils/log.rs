@@ -17,6 +17,9 @@
 
 use crate::utils::text::{BOLD_RED, BOLD_YELLOW, colored};
 
+/// Logs an error message to the standard error stream.
+///
+/// The message is prefixed with a red "error" label for visibility.
 #[allow(dead_code)]
 pub fn error(msg: &str) {
     eprintln!("{}: {msg}", colored("error", BOLD_RED));

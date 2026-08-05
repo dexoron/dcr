@@ -31,6 +31,7 @@ use std::process::Command;
 
 const BOLD_BLUE: &str = "\x1b[1m\x1b[94m";
 
+/// Runs project tests and prints a unified testsuite report.
 pub fn test(args: &[String]) -> i32 {
     let mut init_header = false;
     let mut profile = "debug";
@@ -101,6 +102,7 @@ pub fn test(args: &[String]) -> i32 {
     }
 }
 
+/// Executes the testsuite for the given build profile.
 fn run_testsuite(profile: &str) -> Result<i32, String> {
     if build::build(&[format!("--{profile}")]) != 0 {
         return Ok(1);
@@ -260,6 +262,7 @@ fn run_testsuite(profile: &str) -> Result<i32, String> {
     Ok(0)
 }
 
+/// Collects all .c source files from the tests/ directory.
 fn collect_test_sources() -> Result<Vec<PathBuf>, String> {
     let tests_dir = Path::new("./tests");
     if !tests_dir.is_dir() {
@@ -278,6 +281,7 @@ fn collect_test_sources() -> Result<Vec<PathBuf>, String> {
     Ok(sources)
 }
 
+/// Returns a list of include directories for test compilation.
 fn test_include_dirs(config: &Config, profile: &str) -> Vec<String> {
     let mut dirs = vec![
         "./tests".to_string(),
@@ -288,6 +292,7 @@ fn test_include_dirs(config: &Config, profile: &str) -> Vec<String> {
     dirs
 }
 
+/// Compiles a single test source file to an object file.
 fn compile_test_source(
     compiler: &str,
     standard: &str,
@@ -317,6 +322,7 @@ fn compile_test_source(
     Ok(())
 }
 
+/// Links the test object file into an executable binary.
 fn link_test_binary(
     compiler: &str,
     ldflags: &[String],
@@ -343,6 +349,7 @@ fn link_test_binary(
     Ok(())
 }
 
+/// Prints the stdout and stderr from a command execution.
 fn print_command_output(output: &std::process::Output) {
     if !output.stdout.is_empty() {
         print!("{}", String::from_utf8_lossy(&output.stdout));
@@ -352,6 +359,7 @@ fn print_command_output(output: &std::process::Output) {
     }
 }
 
+/// Creates the default test files (dcr_test.h and test.c) in the tests/ directory.
 fn ensure_test_header() -> Result<(), String> {
     fs::create_dir_all("./tests").map_err(|_| "Failed to create tests/".to_string())?;
     fs::write("./tests/dcr_test.h", FILE_DCR_TEST_H)
@@ -363,6 +371,7 @@ fn ensure_test_header() -> Result<(), String> {
     Ok(())
 }
 
+/// Extracts test case names from a C source file by parsing TEST_CASE macros.
 fn extract_test_names_path(path: &Path) -> Vec<String> {
     let Ok(content) = fs::read_to_string(path) else {
         return Vec::new();
@@ -379,6 +388,7 @@ fn extract_test_names_path(path: &Path) -> Vec<String> {
     names
 }
 
+/// Prints a test result field with color coding.
 fn print_field(label: &str, value: i32, color: &str) {
     if value == 0 {
         println!("{}:  {}", label, value);

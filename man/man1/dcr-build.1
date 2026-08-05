@@ -1,4 +1,4 @@
-.TH DCR-BUILD 1 "2026-06-02" "dcr 0.7.0" "DCR Manual"
+.TH DCR-BUILD 1 "2026-08-04" "dcr 0.8.4" "DCR Manual"
 .SH NAME
 dcr-build \- Compile a DCR project
 .SH SYNOPSIS
@@ -9,8 +9,15 @@ dcr-build \- Compile a DCR project
 [\fB\-\-clean\fR]
 [\fB\-\-verbose\fR]
 [\fB\-\-workspace\fR \fI<name>\fR]
+[\fB\-\-print\-artifact\-path\fR]
 .SH DESCRIPTION
-Compiles the project. Default profile is \fB\-\-debug\fR.
+Compiles the project. Default profile is
+.B \-\-debug .
+On success, updates
+.B .dcr/build-info.json
+and
+.B .dcr/toolchain.json
+when applicable.
 .SH OPTIONS
 .TP
 .B \-\-debug
@@ -33,5 +40,9 @@ Print detailed build output including compiler commands.
 .TP
 .B \-\-workspace \fI<name>\fR
 Build a specific workspace member.
+.TP
+.B \-\-print\-artifact\-path
+After a successful build, print the absolute path of the main artifact as a single line on stdout.
 .SH SEE ALSO
-.BR dcr (1)
+.BR dcr (1),
+.BR dcr-gen (1)

@@ -20,6 +20,12 @@ use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
 use glob::glob;
 use std::process::Command;
 
+/// Formats all C/C++ source files using clang-format.
+///
+/// Scans the `src/` and `tests/` directories recursively for files with common
+/// C/C++ extensions and formats them in place with clang-format.
+///
+/// If the first argument is `--help`, prints usage information and returns 0.
 pub fn fmt(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
         printc("USAGE:", BOLD_GREEN);
@@ -31,6 +37,7 @@ pub fn fmt(args: &[String]) -> i32 {
         return 0;
     }
 
+    // Collect all matching files from src/ and tests/ using glob patterns
     let patterns = [
         "src/**/*.c",
         "src/**/*.cpp",
@@ -66,6 +73,7 @@ pub fn fmt(args: &[String]) -> i32 {
         return 0;
     }
 
+    // Format the collected files
     println!(
         "    {} {} files",
         colored("Formatting", BOLD_GREEN),

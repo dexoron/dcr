@@ -17,15 +17,21 @@
 
 use crate::core::build::language::Language;
 
+/// Represents the C programming language support within the DCR build system.
 pub struct C;
 
 impl Language for C {
+    /// Returns the unique identifier for the C language.
     fn id(&self) -> &'static str {
         "c"
     }
+
+    /// Returns an array containing the file extension associated with C source code.
     fn extensions(&self) -> &'static [&'static str] {
         &["c"]
     }
+
+    /// Checks whether the given token matches the C language identifier in a case-insensitive manner.
     fn matches_token(&self, token: &str) -> bool {
         token.eq_ignore_ascii_case("c")
     }

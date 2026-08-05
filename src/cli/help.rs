@@ -17,6 +17,12 @@
 
 use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, printc};
 
+/// Displays the help information for the DCR CLI tool.
+///
+/// Prints usage, commands, flags, options, examples, and a tip.
+///
+/// # Returns
+/// Always `0`.
 pub fn help() -> i32 {
     println!("DCR (Dexoron Cargo Realization)");
     println!("C project manager inspired by Cargo.");

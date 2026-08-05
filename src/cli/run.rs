@@ -27,6 +27,8 @@ use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
 use std::path::Path;
 use std::process::Command;
 
+/// Retrieves the run command from the config, preferring target-specific,
+/// then profile-specific, then the base `run.cmd`.
 fn get_run_cmd(
     config: &Config,
     profile: &str,
@@ -55,6 +57,14 @@ fn get_run_cmd(
     }
 }
 
+/// Handles the `dcr run` subcommand: parses flags, finds the project root,
+/// builds if needed, and runs the resulting binary or configured command.
+///
+/// # Parameters
+/// - `args`: Tokens after `dcr run` (build flags; after `--` → binary args).
+///
+/// # Returns
+/// Process exit code from the built binary / `run.cmd`, or non-zero on build/setup failure.
 pub fn run(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
         printc("USAGE:", BOLD_GREEN);
@@ -177,6 +187,7 @@ pub fn run(args: &[String]) -> i32 {
     }
 }
 
+/// Builds and runs a single project at `root` (optionally as a workspace member).
 fn run_project(
     root: &Path,
     flags: &crate::cli::flags::BuildRunFlags,
@@ -207,19 +218,17 @@ fn run_project(
 
     let out_dir =
         crate::cli::build::get_build_string_with_profile(&config, "out_dir", &flags.profile);
-    let normalized_target_dir = if !out_dir.is_empty() {
-        Some(out_dir)
-    } else {
-        match workspace_root {
-            Some(wr) => target
-                .as_ref()
-                .and_then(|t| crate::utils::build::normalize_target(t, &flags.profile))
-                .map(|rel| wr.join(&rel).to_string_lossy().to_string()),
-            None => target
-                .as_ref()
-                .and_then(|t| crate::utils::build::normalize_target(t, &flags.profile)),
-        }
-    };
+    let build_target_str = target.clone().unwrap_or_default();
+    let has_explicit = target.as_ref().is_some_and(|t| !t.trim().is_empty());
+
+    let normalized_target_dir = Some(crate::utils::build::resolve_artifact_target_dir(
+        root,
+        workspace_root,
+        &flags.profile,
+        &build_target_str,
+        &out_dir,
+        has_explicit,
+    ));
 
     let version = config
         .get("package.version")
@@ -292,6 +301,7 @@ fn run_project(
     Err("Fix errors in the code to run the project".to_string())
 }
 
+/// Builds the list of arguments for the build command based on the provided flags.
 fn args_for_build(flags: &crate::cli::flags::BuildRunFlags) -> Vec<String> {
     let mut args = Vec::new();
     args.push(format!("--{}", flags.profile));
@@ -315,6 +325,7 @@ fn args_for_build(flags: &crate::cli::flags::BuildRunFlags) -> Vec<String> {
     args
 }
 
+/// Constructs build arguments specifically for a workspace member.
 fn args_for_workspace_build(
     flags: &crate::cli::flags::BuildRunFlags,
     member_name: &str,
@@ -339,6 +350,7 @@ fn args_for_workspace_build(
     args
 }
 
+/// Executes the given shell command and returns its exit code.
 fn run_shell(cmd: &str) -> i32 {
     let status = if cfg!(target_os = "windows") {
         Command::new("cmd").arg("/C").arg(cmd).status()
@@ -352,6 +364,7 @@ fn run_shell(cmd: &str) -> i32 {
     }
 }
 
+/// Runs the command, appending escaped binary arguments if provided.
 fn run_shell_with_args(cmd: &str, bin_args: &[String]) -> i32 {
     if bin_args.is_empty() {
         return run_shell(cmd);
@@ -364,6 +377,7 @@ fn run_shell_with_args(cmd: &str, bin_args: &[String]) -> i32 {
     run_shell(&full)
 }
 
+/// Formats the run command string for console output, appending arguments if any.
 fn display_run_cmd(cmd: &str, bin_args: &[String]) -> String {
     if bin_args.is_empty() {
         return cmd.to_string();
@@ -376,6 +390,7 @@ fn display_run_cmd(cmd: &str, bin_args: &[String]) -> String {
     display
 }
 
+/// Formats the binary path for console display, appending arguments if any.
 fn display_bin_run(bin_path: &str, bin_args: &[String]) -> String {
     if bin_args.is_empty() {
         return bin_path.to_string();
@@ -388,6 +403,7 @@ fn display_bin_run(bin_path: &str, bin_args: &[String]) -> String {
     display
 }
 
+/// Escapes the argument for safe shell execution, using double quotes on Windows and single quotes on Unix.
 fn shell_escape(arg: &str) -> String {
     if cfg!(target_os = "windows") {
         // cmd.exe: wrap in double quotes and escape embedded quotes.
@@ -408,6 +424,7 @@ fn shell_escape(arg: &str) -> String {
     }
 }
 
+/// Replaces version info and profile in the command template.
 fn substitute_run_vars(cmd: &str, profile: &str, version: &str) -> String {
     let info = parse_version_info(version);
     substitute_vars(cmd, &info, profile, "")

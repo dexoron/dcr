@@ -61,6 +61,20 @@ fn lint_command_runs() {
     assert!(out.status.success(), "dcr init should succeed");
 
     // Linting a clean project should succeed or at least run without crashing
+    let tidy_ok = Command::new("clang-tidy")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    if !tidy_ok {
+        eprintln!("clang-tidy not found; skipping lint test");
+        return;
+    }
     let out = run_dcr_env(&["lint"], &dir, &[]);
-    assert!(out.status.success(), "dcr lint should run on clean project");
+    assert!(
+        out.status.success(),
+        "dcr lint should run on clean project:\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
 }

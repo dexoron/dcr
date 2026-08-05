@@ -19,6 +19,16 @@ use crate::platform;
 use std::path::Path;
 use std::process::Command;
 
+/// Runs the built binary for a project, forwarding `bin_args`.
+///
+/// # Parameters
+/// - `project_name`: Package/binary name used to resolve the artifact path.
+/// - `profile`: Build profile segment under `target/`.
+/// - `target_dir`: Optional artifact directory override.
+/// - `bin_args`: Arguments passed to the process.
+///
+/// # Returns
+/// Child exit code, or `1` if the binary is missing or cannot be spawned.
 pub fn run_binary(
     project_name: &str,
     profile: &str,
@@ -26,6 +36,7 @@ pub fn run_binary(
     bin_args: &[String],
 ) -> i32 {
     let bin_path = platform::bin_path(profile, project_name, target_dir);
+    // Check if the binary exists before attempting to run it
     if Path::new(&bin_path).exists() {
         let status = Command::new(&bin_path).args(bin_args).status();
         match status {
@@ -37,5 +48,6 @@ pub fn run_binary(
             }
         }
     }
+    // Return 1 if binary not found or execution failed
     1
 }

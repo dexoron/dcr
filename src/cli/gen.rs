@@ -16,6 +16,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::core::build::builder::BuildContext;
+use crate::core::build::builder::artifact::{absolute_artifact_path, resolve_artifact_path};
 use crate::core::build::builder::collect_sources;
 use crate::core::build::common;
 use crate::core::build_config::Config;
@@ -23,21 +24,30 @@ use crate::core::workspace::parse_workspace;
 use crate::utils::build::{
     get_bool_with_profile, get_config_opt, get_config_str, get_language_with_profile_or_default,
     get_list_with_profile, get_string_with_profile, normalize_kind, normalize_platform,
-    normalize_target, resolve_compiler, resolve_pkg_config_flags_lossy,
+    resolve_artifact_target_dir, resolve_compiler, resolve_pkg_config_flags_lossy,
 };
-use crate::utils::fs::find_project_root;
+use crate::utils::fs::{
+    absolute_join, atomic_write, canonicalize_path, ensure_dcr_dir, find_project_root,
+};
 use crate::utils::log::error;
 use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, printc};
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
-/// Like `deps::resolve_deps` but does NOT require lib directories to exist.
-/// Used by `gen` commands where the project may not have been built yet.
+/// Path-dep include/lib/libs metadata for `dcr gen` (project may not be built yet).
+///
+/// Explicit include/lib lists may point at missing paths; default `include`/`lib`
+/// candidates are added only when those directories exist.
 struct GenDeps {
     include_dirs: Vec<String>,
     lib_dirs: Vec<String>,
     libs: Vec<String>,
 }
 
+/// Collects path-dependency include/lib/libs from `dcr.toml` for code generation.
+///
+/// Skips `system` deps and non-path entries. Falls back to common include/lib
+/// directory names only when those directories exist.
 fn resolve_deps_for_gen(config: &Config, profile: &str, project_root: &Path) -> GenDeps {
     let deps_val = match config.get("dependencies") {
         Some(v) => v,
@@ -164,7 +174,7 @@ fn resolve_deps_for_gen(config: &Config, profile: &str, project_root: &Path) -> 
 
 // ── public API ───────────────────────────────────────────────────────────────
 
-/// Everything needed to generate output for one project member.
+/// Per-project (or workspace member) metadata collected for `dcr gen`.
 pub struct ProjectInfo {
     pub name: String,
     pub version: String,
@@ -175,16 +185,36 @@ pub struct ProjectInfo {
     pub cxx_standard: String,
     pub compiler: String,
     pub kind: String,
+    pub target: String,
+    pub target_dir: Option<String>,
+    pub artifact_path: Option<String>,
+    pub artifact_kind: String,
     pub sources: Vec<String>,
     pub include_dirs: Vec<String>,
     pub lib_dirs: Vec<String>,
     pub libs: Vec<String>,
     pub cflags: Vec<String>,
     pub ldflags: Vec<String>,
+    pub source_roots: Vec<String>,
+    pub include_globs: Vec<String>,
+    pub exclude_globs: Vec<String>,
+    pub output_filename: Option<String>,
+    pub output_extension: Option<String>,
+    pub out_dir: String,
+    pub debugger: String,
+    pub moc: Option<String>,
+    pub uic: Option<String>,
+    pub rcc: Option<String>,
+    pub workspace_root: Option<PathBuf>,
 }
 
-// ── entry-point for `dcr gen` ────────────────────────────────────────────────
-
+/// Entry point for `dcr gen`: dispatches to project-info / compile-commands / vscode / clion.
+///
+/// # Parameters
+/// - `args`: First token is the subcommand; the rest are subcommand flags.
+///
+/// # Returns
+/// Process exit code from the chosen subcommand (`0` for help).
 pub fn r#gen(args: &[String]) -> i32 {
     let subcommand = match args.first() {
         Some(s) if s == "--help" => {
@@ -196,9 +226,13 @@ pub fn r#gen(args: &[String]) -> i32 {
             println!();
             printc("SUBCOMMANDS:", BOLD_GREEN);
             println!("    project-info      Print project metadata as JSON");
-            println!("    compile-commands  Generate compile_commands.json");
+            println!("    compile-commands  Generate .dcr/compile_commands.json");
             println!("    vscode            Generate .vscode/ integration files");
             println!("    clion             Generate .idea/ integration files");
+            println!();
+            printc("OPTIONS:", BOLD_GREEN);
+            println!("    --debug | --release   Profile (default: debug)");
+            println!("    --quiet | -q          Suppress success messages on stdout");
             return 0;
         }
         Some(s) => s.as_str(),
@@ -208,7 +242,7 @@ pub fn r#gen(args: &[String]) -> i32 {
             println!();
             printc("SUBCOMMANDS:", BOLD_GREEN);
             println!("    project-info      Print project metadata as JSON");
-            println!("    compile-commands  Generate compile_commands.json");
+            println!("    compile-commands  Generate .dcr/compile_commands.json");
             println!("    vscode            Generate .vscode/ integration files");
             println!("    clion             Generate .idea/ integration files");
             return 1;
@@ -231,16 +265,28 @@ pub fn r#gen(args: &[String]) -> i32 {
 
 // ── shared: collect per-project data ─────────────────────────────────────────
 
-fn collect_project_info(root: &Path, profile: &str) -> Result<ProjectInfo, String> {
-    // Run from the project root so relative paths in dcr.toml resolve correctly.
+/// Collects [`ProjectInfo`] with cwd set to the project root so relative paths resolve.
+fn collect_project_info(
+    root: &Path,
+    profile: &str,
+    workspace_root: Option<&Path>,
+) -> Result<ProjectInfo, String> {
     let prev = std::env::current_dir().map_err(|e| e.to_string())?;
     std::env::set_current_dir(root).map_err(|e| e.to_string())?;
-    let result = collect_project_info_inner(root, profile);
+    let result = collect_project_info_inner(root, profile, workspace_root);
     let _ = std::env::set_current_dir(prev);
     result
 }
 
-fn collect_project_info_inner(root: &Path, profile: &str) -> Result<ProjectInfo, String> {
+/// Reads `dcr.toml` and resolves compiler, deps, sources, and artifact paths for one project.
+///
+/// Called once per project/member from [`collect_all`] (not recursive).
+fn collect_project_info_inner(
+    root: &Path,
+    profile: &str,
+    workspace_root: Option<&Path>,
+) -> Result<ProjectInfo, String> {
+    let root = canonicalize_path(root);
     let config = Config::open("./dcr.toml").map_err(|e| e.to_string())?;
 
     let name = get_config_str(&config, "package.name");
@@ -249,15 +295,32 @@ fn collect_project_info_inner(root: &Path, profile: &str) -> Result<ProjectInfo,
     let standard = get_string_with_profile(&config, "standard", profile);
     let cxx_standard = get_string_with_profile(&config, "cxx_standard", profile);
     let compiler_s = get_string_with_profile(&config, "compiler", profile);
-    let kind = get_string_with_profile(&config, "kind", profile);
+    let kind_raw = get_string_with_profile(&config, "kind", profile);
+    let kind = normalize_kind(&kind_raw).to_string();
     let build_target = get_string_with_profile(&config, "target", profile);
     let platform = get_string_with_profile(&config, "platform", profile);
+    let output_filename_s = get_string_with_profile(&config, "filename", profile);
+    let output_extension_s = get_string_with_profile(&config, "extension", profile);
+    let output_filename = if output_filename_s.is_empty() {
+        None
+    } else {
+        Some(output_filename_s)
+    };
+    let output_extension = if output_extension_s.is_empty() {
+        None
+    } else {
+        Some(output_extension_s)
+    };
 
     let tc_cc = get_config_opt(&config, "toolchain.cc");
     let tc_cxx = get_config_opt(&config, "toolchain.cxx");
     let tc_as = get_config_opt(&config, "toolchain.as");
     let tc_ar = get_config_opt(&config, "toolchain.ar");
     let tc_ld = get_config_opt(&config, "toolchain.ld");
+    let tc_moc = get_config_opt(&config, "toolchain.moc");
+    let tc_uic = get_config_opt(&config, "toolchain.uic");
+    let tc_rcc = get_config_opt(&config, "toolchain.rcc");
+    let tc_debugger = get_config_opt(&config, "toolchain.debugger");
 
     let base_cflags = get_list_with_profile(&config, "cflags", profile);
     let base_ldflags = get_list_with_profile(&config, "ldflags", profile);
@@ -286,7 +349,7 @@ fn collect_project_info_inner(root: &Path, profile: &str) -> Result<ProjectInfo,
             .filter(|v| !v.trim().is_empty())
     });
 
-    let resolved = resolve_deps_for_gen(&config, profile, root);
+    let resolved = resolve_deps_for_gen(&config, profile, &root);
     let (resolved_cflags, resolved_ldflags) =
         resolve_pkg_config_flags_lossy(&pkg_configs, &base_cflags, &base_ldflags);
 
@@ -352,7 +415,22 @@ fn collect_project_info_inner(root: &Path, profile: &str) -> Result<ProjectInfo,
         }
     }
 
-    let target_dir_binding = normalize_target(&build_target, profile);
+    let out_dir_config = get_string_with_profile(&config, "out_dir", profile);
+    let has_explicit = !build_target.trim().is_empty();
+    let target_dir_binding = resolve_artifact_target_dir(
+        &root,
+        workspace_root,
+        profile,
+        &build_target,
+        &out_dir_config,
+        has_explicit,
+    );
+    let target_dir_opt = if target_dir_binding.is_empty() {
+        None
+    } else {
+        Some(target_dir_binding.as_str())
+    };
+
     let ctx = BuildContext {
         profile,
         project_name: &name,
@@ -360,15 +438,19 @@ fn collect_project_info_inner(root: &Path, profile: &str) -> Result<ProjectInfo,
         language: &language,
         standard: &standard,
         cxx_standard: &cxx_standard,
-        target: Some(build_target.as_str()),
-        target_dir: target_dir_binding.as_deref(),
-        kind: normalize_kind(&kind),
+        target: if build_target.is_empty() {
+            None
+        } else {
+            Some(build_target.as_str())
+        },
+        target_dir: target_dir_opt,
+        kind: kind.as_str(),
         platform: normalize_platform(&platform),
         linker: resolved_linker.as_deref(),
         archiver: resolved_archiver.as_deref(),
-        moc: None,
-        uic: None,
-        rcc: None,
+        moc: tc_moc.as_deref(),
+        uic: tc_uic.as_deref(),
+        rcc: tc_rcc.as_deref(),
         package_type: None,
         freestanding: false,
         panic_abort: false,
@@ -381,8 +463,8 @@ fn collect_project_info_inner(root: &Path, profile: &str) -> Result<ProjectInfo,
         libs: &resolved.libs,
         cflags: &resolved_cflags,
         ldflags: &resolved_ldflags,
-        output_filename: None,
-        output_extension: None,
+        output_filename: output_filename.as_deref(),
+        output_extension: output_extension.as_deref(),
         verbose: false,
         qt: false,
     };
@@ -393,70 +475,342 @@ fn collect_project_info_inner(root: &Path, profile: &str) -> Result<ProjectInfo,
     let abs_sources: Vec<String> = sources
         .iter()
         .map(|s| {
-            let p = Path::new(s);
-            if p.is_absolute() {
-                s.clone()
-            } else {
-                root.join(s).to_string_lossy().to_string()
-            }
+            absolute_join(&root, Path::new(s))
+                .to_string_lossy()
+                .to_string()
         })
         .collect();
+
+    let abs_include_dirs: Vec<String> = merged_include_dirs
+        .iter()
+        .map(|d| {
+            absolute_join(&root, Path::new(d))
+                .to_string_lossy()
+                .to_string()
+        })
+        .collect();
+
+    let abs_lib_dirs: Vec<String> = resolved
+        .lib_dirs
+        .iter()
+        .map(|d| {
+            absolute_join(&root, Path::new(d))
+                .to_string_lossy()
+                .to_string()
+        })
+        .collect();
+
+    let abs_source_roots: Vec<String> = source_roots
+        .iter()
+        .map(|p| canonicalize_path(p).to_string_lossy().to_string())
+        .collect();
+
+    let abs_target_dir = {
+        let p = Path::new(&target_dir_binding);
+        let path = if p.is_absolute() {
+            canonicalize_path(p)
+        } else {
+            absolute_join(&root, p)
+        };
+        path.to_string_lossy().into_owned()
+    };
+
+    let relative_artifact = resolve_artifact_path(
+        &kind,
+        profile,
+        &name,
+        Some(&abs_target_dir),
+        output_filename.as_deref(),
+        output_extension.as_deref(),
+    );
+
+    let artifact_path = relative_artifact.map(|rel| {
+        absolute_artifact_path(&root, &rel)
+            .to_string_lossy()
+            .to_string()
+    });
+
+    let debugger = resolve_debugger(tc_debugger.as_deref());
+    let ws_root = workspace_root.map(canonicalize_path);
 
     Ok(ProjectInfo {
         name,
         version,
-        root: root.to_path_buf(),
+        root,
         profile: profile.to_string(),
         language,
         standard,
         cxx_standard,
         compiler: resolved_compiler,
-        kind: normalize_kind(&kind).to_string(),
+        kind: kind.clone(),
+        target: build_target,
+        target_dir: Some(abs_target_dir),
+        artifact_path,
+        artifact_kind: kind,
         sources: abs_sources,
-        include_dirs: merged_include_dirs,
-        lib_dirs: resolved.lib_dirs,
+        include_dirs: abs_include_dirs,
+        lib_dirs: abs_lib_dirs,
         libs: resolved.libs,
         cflags: resolved_cflags,
         ldflags: resolved_ldflags,
+        source_roots: abs_source_roots,
+        include_globs: build_includes,
+        exclude_globs: build_excludes,
+        output_filename,
+        output_extension,
+        out_dir: out_dir_config,
+        debugger,
+        moc: tc_moc.and_then(|v| resolve_tool_path(&v)),
+        uic: tc_uic.and_then(|v| resolve_tool_path(&v)),
+        rcc: tc_rcc.and_then(|v| resolve_tool_path(&v)),
+        workspace_root: ws_root,
     })
 }
 
-/// Collect info for root project + all workspace members.
+fn find_in_path(name: &str) -> Option<String> {
+    if name.contains('/') || name.contains('\\') {
+        let p = Path::new(name);
+        if p.exists() {
+            return Some(canonicalize_path(p).to_string_lossy().to_string());
+        }
+        return Some(name.to_string());
+    }
+    let path_var = std::env::var_os("PATH")?;
+    for dir in std::env::split_paths(&path_var) {
+        let candidate = dir.join(name);
+        if candidate.is_file() {
+            return Some(canonicalize_path(&candidate).to_string_lossy().to_string());
+        }
+        #[cfg(windows)]
+        {
+            let with_exe = dir.join(format!("{name}.exe"));
+            if with_exe.is_file() {
+                return Some(canonicalize_path(&with_exe).to_string_lossy().to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Resolves a tool name (e.g. moc, uic, rcc) for generated metadata.
+///
+/// Prefers a PATH hit via [`find_in_path`]; otherwise returns the trimmed name
+/// as given (absolute or relative). Empty input yields `None`.
+fn resolve_tool_path(name: &str) -> Option<String> {
+    let t = name.trim();
+    if t.is_empty() {
+        return None;
+    }
+    find_in_path(t).or_else(|| Some(t.to_string()))
+}
+
+/// Picks a debugger name: configured value if set, else first of lldb/gdb on PATH,
+/// else `cppvsdbg` on Windows or `lldb` elsewhere (even if not on PATH).
+fn resolve_debugger(configured: Option<&str>) -> String {
+    if let Some(d) = configured {
+        let t = d.trim();
+        if !t.is_empty() {
+            return t.to_string();
+        }
+    }
+    for candidate in ["lldb", "gdb"] {
+        if find_in_path(candidate).is_some() {
+            return candidate.to_string();
+        }
+    }
+    if cfg!(windows) {
+        "cppvsdbg".to_string()
+    } else {
+        "lldb".to_string()
+    }
+}
+
+fn utc_now_iso() -> String {
+    let secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let days = secs / 86400;
+    let tod = secs % 86400;
+    let hour = tod / 3600;
+    let min = (tod % 3600) / 60;
+    let sec = tod % 60;
+    let (year, month, day) = civil_from_days(days as i64);
+    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{min:02}:{sec:02}Z")
+}
+
+/// Converts days since the Unix epoch to `(year, month, day)` (proleptic Gregorian).
+fn civil_from_days(days: i64) -> (i32, u32, u32) {
+    let z = days + 719468;
+    let era = if z >= 0 { z } else { z - 146096 } / 146097;
+    let doe = (z - era * 146097) as u32;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = (yoe as i64) + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+    (y as i32, m, d)
+}
+
+/// Writes `.dcr/build-info.json` and `.dcr/toolchain.json` from project metadata.
+///
+/// # Parameters
+/// - `root`: Project root (creates `.dcr/` if needed).
+/// - `info`: Collected project metadata (compiler, artifact, toolchain tools).
+///
+/// # Returns
+/// `Ok(())` on success, or an error string if directory/file writes fail.
+pub fn write_dcr_metadata(root: &Path, info: &ProjectInfo) -> Result<(), String> {
+    let dcr = ensure_dcr_dir(root).map_err(|e| format!("Failed to create .dcr/: {e}"))?;
+
+    let artifact_json = match &info.artifact_path {
+        Some(p) => json_str(p),
+        None => "null".to_string(),
+    };
+    let target_dir_json = match &info.target_dir {
+        Some(p) => json_str(p),
+        None => "null".to_string(),
+    };
+
+    let build_info = format!(
+        r#"{{
+  "schemaVersion": 1,
+  "generatedAt": {generated},
+  "profile": {profile},
+  "compiler": {compiler},
+  "target": {target},
+  "target_dir": {target_dir},
+  "artifact_path": {artifact},
+  "artifact_kind": {kind}
+}}
+"#,
+        generated = json_str(&utc_now_iso()),
+        profile = json_str(&info.profile),
+        compiler = json_str(&info.compiler),
+        target = json_str(&info.target),
+        target_dir = target_dir_json,
+        artifact = artifact_json,
+        kind = json_str(&info.artifact_kind),
+    );
+    atomic_write(&dcr.join("build-info.json"), build_info.as_bytes())
+        .map_err(|e| format!("Failed to write build-info.json: {e}"))?;
+
+    let compiler_path = find_in_path(&info.compiler).unwrap_or_else(|| info.compiler.clone());
+    let debugger_path = find_in_path(&info.debugger).unwrap_or_else(|| info.debugger.clone());
+
+    let mut toolchain = String::from("{\n");
+    toolchain.push_str("  \"schemaVersion\": 1,\n");
+    toolchain.push_str(&format!("  \"compiler\": {},\n", json_str(&info.compiler)));
+    toolchain.push_str(&format!(
+        "  \"compilerPath\": {},\n",
+        json_str(&compiler_path)
+    ));
+    toolchain.push_str(&format!("  \"debugger\": {},\n", json_str(&info.debugger)));
+    toolchain.push_str(&format!("  \"debuggerPath\": {}", json_str(&debugger_path)));
+    if let Some(ref m) = info.moc {
+        toolchain.push_str(",\n");
+        toolchain.push_str(&format!("  \"moc\": {}", json_str(m)));
+    }
+    if let Some(ref u) = info.uic {
+        toolchain.push_str(",\n");
+        toolchain.push_str(&format!("  \"uic\": {}", json_str(u)));
+    }
+    if let Some(ref r) = info.rcc {
+        toolchain.push_str(",\n");
+        toolchain.push_str(&format!("  \"rcc\": {}", json_str(r)));
+    }
+    toolchain.push_str("\n}\n");
+    atomic_write(&dcr.join("toolchain.json"), toolchain.as_bytes())
+        .map_err(|e| format!("Failed to write toolchain.json: {e}"))?;
+
+    Ok(())
+}
+
+fn ensure_clangd(root: &Path, quiet: bool) {
+    let path = root.join(".clangd");
+    let marker = "# managed by dcr gen";
+    let desired = format!("{marker}\nCompileFlags:\n  CompilationDatabase: .dcr\n");
+    if path.exists() {
+        match std::fs::read_to_string(&path) {
+            Ok(content)
+                if content.contains(marker) || content.contains("CompilationDatabase: .dcr") =>
+            {
+                return;
+            }
+            Ok(_) => {
+                if !quiet {
+                    eprintln!(
+                        "Warning: .clangd already exists and is not managed by dcr; \
+                         set CompilationDatabase to .dcr manually if needed"
+                    );
+                }
+                return;
+            }
+            Err(_) => return,
+        }
+    }
+    let _ = std::fs::write(&path, desired);
+}
+
+/// Collects [`ProjectInfo`] for the root package and workspace members (skips failed members).
 fn collect_all(root: &Path, profile: &str) -> Result<Vec<ProjectInfo>, String> {
-    // Check for workspace
+    let root = canonicalize_path(root);
     let config = {
         let prev = std::env::current_dir().map_err(|e| e.to_string())?;
-        std::env::set_current_dir(root).map_err(|e| e.to_string())?;
+        std::env::set_current_dir(&root).map_err(|e| e.to_string())?;
         let cfg = Config::open("./dcr.toml").map_err(|e| e.to_string());
         let _ = std::env::set_current_dir(prev);
         cfg?
     };
 
     let mut all = Vec::new();
+    let is_workspace = parse_workspace(&config, profile, None, &root)
+        .ok()
+        .flatten()
+        .is_some();
+    let ws_root = if is_workspace {
+        Some(root.as_path())
+    } else {
+        None
+    };
 
-    if let Ok(Some(ws)) = parse_workspace(&config, profile, None, root) {
+    if let Ok(Some(ws)) = parse_workspace(&config, profile, None, &root) {
         for member in &ws.members {
-            match collect_project_info(&member.path, profile) {
+            let member_path = canonicalize_path(&member.path);
+            match collect_project_info(&member_path, profile, ws_root) {
                 Ok(info) => all.push(info),
                 Err(e) => eprintln!(
                     "Warning: skipping workspace member {}: {e}",
-                    member.path.display()
+                    member_path.display()
                 ),
             }
         }
     }
 
-    // Root project itself
-    let root_info = collect_project_info(root, profile)?;
-    all.push(root_info);
+    if !is_workspace || !config.is_workspace_only() {
+        match collect_project_info(&root, profile, ws_root) {
+            Ok(info) => all.push(info),
+            Err(e) if is_workspace => {
+                eprintln!("Warning: skipping workspace root package: {e}");
+            }
+            Err(e) => return Err(e),
+        }
+    }
+
+    if all.is_empty() {
+        return Err("No project members found".to_string());
+    }
 
     Ok(all)
 }
 
 // ── dcr gen project-info ─────────────────────────────────────────────────────
 
+/// `dcr gen project-info`: print project metadata JSON; writes `.dcr` meta from the last entry.
 fn gen_project_info(args: &[String]) -> i32 {
-    let (root, profile) = match parse_gen_args(args) {
+    let (root, profile, quiet) = match parse_gen_args(args) {
         Ok(v) => v,
         Err(code) => return code,
     };
@@ -468,6 +822,14 @@ fn gen_project_info(args: &[String]) -> i32 {
             return 1;
         }
     };
+
+    if let Some(info) = all.last()
+        && let Err(e) = write_dcr_metadata(&root, info)
+        && !quiet
+    {
+        eprintln!("Warning: {e}");
+    }
+    ensure_clangd(&root, quiet);
 
     print!("[");
     for (i, info) in all.iter().enumerate() {
@@ -482,6 +844,7 @@ fn gen_project_info(args: &[String]) -> i32 {
     0
 }
 
+/// Pretty multi-line JSON object for one [`ProjectInfo`] (used inside a JSON array).
 fn project_info_to_json(info: &ProjectInfo) -> String {
     let mut out = String::new();
     out.push_str("  {\n");
@@ -509,6 +872,25 @@ fn project_info_to_json(info: &ProjectInfo) -> String {
         json_str(&info.compiler)
     ));
     out.push_str(&format!("    \"kind\": {},\n", json_str(&info.kind)));
+    out.push_str(&format!("    \"target\": {},\n", json_str(&info.target)));
+    out.push_str(&format!(
+        "    \"target_dir\": {},\n",
+        match &info.target_dir {
+            Some(p) => json_str(p),
+            None => "null".to_string(),
+        }
+    ));
+    out.push_str(&format!(
+        "    \"artifact_path\": {},\n",
+        match &info.artifact_path {
+            Some(p) => json_str(p),
+            None => "null".to_string(),
+        }
+    ));
+    out.push_str(&format!(
+        "    \"artifact_kind\": {},\n",
+        json_str(&info.artifact_kind)
+    ));
     out.push_str(&format!(
         "    \"sources\": {},\n",
         json_str_array(&info.sources)
@@ -527,8 +909,20 @@ fn project_info_to_json(info: &ProjectInfo) -> String {
         json_str_array(&info.cflags)
     ));
     out.push_str(&format!(
-        "    \"ldflags\": {}\n",
+        "    \"ldflags\": {},\n",
         json_str_array(&info.ldflags)
+    ));
+    out.push_str(&format!(
+        "    \"source_roots\": {},\n",
+        json_str_array(&info.source_roots)
+    ));
+    out.push_str(&format!(
+        "    \"include_globs\": {},\n",
+        json_str_array(&info.include_globs)
+    ));
+    out.push_str(&format!(
+        "    \"exclude_globs\": {}\n",
+        json_str_array(&info.exclude_globs)
     ));
     out.push_str("  }");
     out
@@ -536,8 +930,9 @@ fn project_info_to_json(info: &ProjectInfo) -> String {
 
 // ── dcr gen compile-commands ─────────────────────────────────────────────────
 
+/// `dcr gen compile-commands`: write `.dcr/compile_commands.json`.
 fn gen_compile_commands(args: &[String]) -> i32 {
-    let (root, profile) = match parse_gen_args(args) {
+    let (root, profile, quiet) = match parse_gen_args(args) {
         Ok(v) => v,
         Err(code) => return code,
     };
@@ -550,16 +945,32 @@ fn gen_compile_commands(args: &[String]) -> i32 {
         }
     };
 
-    gen_compile_commands_inner(&root, &profile, &all)
+    gen_compile_commands_inner(&root, &profile, &all, quiet)
 }
 
-fn gen_compile_commands_inner(root: &Path, profile: &str, all: &[ProjectInfo]) -> i32 {
-    let entries = build_compile_commands(all, profile);
+/// Writes compile_commands.json, build metadata, and ensures `.clangd`.
+///
+/// Used by `compile-commands`, `vscode`, and `clion`.
+fn gen_compile_commands_inner(root: &Path, profile: &str, all: &[ProjectInfo], quiet: bool) -> i32 {
+    if let Err(e) = ensure_dcr_dir(root) {
+        error(&format!("Failed to create .dcr/: {e}"));
+        return 1;
+    }
 
-    let out_path = root.join("compile_commands.json");
-    match std::fs::write(&out_path, &entries) {
+    let entries = build_compile_commands(all, profile);
+    let out_path = root.join(".dcr").join("compile_commands.json");
+    match atomic_write(&out_path, entries.as_bytes()) {
         Ok(_) => {
-            println!("Generated {}", out_path.display());
+            if let Some(info) = all.last()
+                && let Err(e) = write_dcr_metadata(root, info)
+                && !quiet
+            {
+                eprintln!("Warning: {e}");
+            }
+            ensure_clangd(root, quiet);
+            if !quiet {
+                println!("Generated {}", out_path.display());
+            }
             0
         }
         Err(e) => {
@@ -569,6 +980,7 @@ fn gen_compile_commands_inner(root: &Path, profile: &str, all: &[ProjectInfo]) -
     }
 }
 
+/// Builds a clangd/cpptools `compile_commands.json` array (one entry per source file).
 fn build_compile_commands(projects: &[ProjectInfo], profile: &str) -> String {
     let mut out = String::from("[\n");
     let mut first = true;
@@ -599,6 +1011,8 @@ fn build_compile_commands(projects: &[ProjectInfo], profile: &str) -> String {
     out
 }
 
+/// Assembles one compiler argv: compiler, `-c`, optional `-x` asm, source/obj paths,
+/// `-fPIC`, `-std=`, profile defaults, cflags, and include paths.
 fn build_compile_command(info: &ProjectInfo, source: &str, profile: &str) -> Vec<String> {
     let mut cmd: Vec<String> = Vec::new();
     let compiler = if info.compiler.is_empty() {
@@ -615,16 +1029,21 @@ fn build_compile_command(info: &ProjectInfo, source: &str, profile: &str) -> Vec
         cmd.push(flag.to_string());
     }
 
-    cmd.push(source.to_string());
+    let abs_source = absolute_join(&info.root, Path::new(source));
+    cmd.push(abs_source.to_string_lossy().to_string());
 
     // Object path (for -o, approximate — not critical for IntelliSense)
-    let obj_dir = info.root.join("target").join(profile).join("obj");
+
+    let obj_base = info
+        .target_dir
+        .as_ref()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| info.root.join("target").join(profile));
+    let obj_dir = obj_base.join("obj");
     let obj_path = {
         let p = Path::new(source);
         let rel = strip_src_prefix(p);
-        obj_dir
-            .join(rel)
-            .with_extension("o")
+        absolute_join(&info.root, &obj_dir.join(rel).with_extension("o"))
             .to_string_lossy()
             .to_string()
     };
@@ -649,7 +1068,7 @@ fn build_compile_command(info: &ProjectInfo, source: &str, profile: &str) -> Vec
         }
     }
 
-    // Default profile flags (mirrors unix_cc.rs defaults)
+    // Default profile flags (same idea as default_profile_flags)
     match profile {
         "release" => {
             cmd.push("-O3".to_string());
@@ -670,19 +1089,15 @@ fn build_compile_command(info: &ProjectInfo, source: &str, profile: &str) -> Vec
         // Expand relative -I paths to absolute so clangd/cpptools work
         // regardless of their working directory.
         if let Some(rel) = flag.strip_prefix("-I") {
-            let p = Path::new(rel);
-            let abs = if p.is_absolute() {
-                p.to_path_buf()
-            } else {
-                info.root.join(p)
-            };
+            let abs = absolute_join(&info.root, Path::new(rel));
             cmd.push(format!("-I{}", abs.to_string_lossy()));
         } else {
             cmd.push(flag.clone());
         }
     }
     for dir in &info.include_dirs {
-        cmd.push(format!("-I{dir}"));
+        let abs = absolute_join(&info.root, Path::new(dir));
+        cmd.push(format!("-I{}", abs.to_string_lossy()));
     }
 
     cmd
@@ -702,8 +1117,9 @@ fn strip_src_prefix(p: &Path) -> PathBuf {
 
 // ── dcr gen vscode ───────────────────────────────────────────────────────────
 
+/// `dcr gen vscode`: compile_commands plus `.vscode/` tasks, launch, settings, extensions.
 fn gen_vscode(args: &[String]) -> i32 {
-    let (root, profile) = match parse_gen_args(args) {
+    let (root, profile, quiet) = match parse_gen_args(args) {
         Ok(v) => v,
         Err(code) => return code,
     };
@@ -718,7 +1134,7 @@ fn gen_vscode(args: &[String]) -> i32 {
     };
 
     // 1. Generate compile_commands.json
-    let cc_code = gen_compile_commands_inner(&root, &profile, &all);
+    let cc_code = gen_compile_commands_inner(&root, &profile, &all, quiet);
     if cc_code != 0 {
         return cc_code;
     }
@@ -842,6 +1258,62 @@ fn gen_tasks_json() -> String {
     .to_string()
 }
 
+/// Absolute program path for a launch config; reuses `artifact_path` when profiles match,
+/// otherwise recomputes from kind/target/out_dir/filename.
+fn resolve_launch_program(info: &ProjectInfo, profile: &str) -> String {
+    if info.profile == profile
+        && let Some(ref p) = info.artifact_path
+    {
+        return p.clone();
+    }
+    let has_explicit = !info.target.trim().is_empty();
+    let target_dir = resolve_artifact_target_dir(
+        &info.root,
+        info.workspace_root.as_deref(),
+        profile,
+        &info.target,
+        &info.out_dir,
+        has_explicit,
+    );
+    let rel = resolve_artifact_path(
+        &info.kind,
+        profile,
+        &info.name,
+        Some(&target_dir),
+        info.output_filename.as_deref(),
+        info.output_extension.as_deref(),
+    );
+    match rel {
+        Some(r) => absolute_artifact_path(&info.root, &r)
+            .to_string_lossy()
+            .to_string(),
+        None => {
+            let name = if cfg!(windows) && !info.name.to_ascii_lowercase().ends_with(".exe") {
+                format!("{}.exe", info.name)
+            } else {
+                info.name.clone()
+            };
+            Path::new(&target_dir)
+                .join(name)
+                .to_string_lossy()
+                .into_owned()
+        }
+    }
+}
+
+/// VS Code debug type from debugger name: `cppdbg`, `cppvsdbg`, or `lldb`.
+fn debug_type_for(info: &ProjectInfo) -> &'static str {
+    let d = info.debugger.to_lowercase();
+    if d.contains("gdb") || d == "cppdbg" {
+        "cppdbg"
+    } else if cfg!(windows) && (d.contains("vs") || d == "cppvsdbg") {
+        "cppvsdbg"
+    } else {
+        "lldb"
+    }
+}
+
+/// `launch.json` content: one debug config per `bin` target for debug and release.
 fn gen_launch_json(projects: &[ProjectInfo], _root: &Path) -> String {
     let mut configs = Vec::new();
 
@@ -851,25 +1323,14 @@ fn gen_launch_json(projects: &[ProjectInfo], _root: &Path) -> String {
         }
 
         // binary expected at info.root/target/<profile>/<name> (account for member projects)
-        let debug_bin = info
-            .root
-            .join("target")
-            .join("debug")
-            .join(&info.name)
-            .to_string_lossy()
-            .to_string();
-        let release_bin = info
-            .root
-            .join("target")
-            .join("release")
-            .join(&info.name)
-            .to_string_lossy()
-            .to_string();
+        let debug_bin = resolve_launch_program(info, "debug");
+        let release_bin = resolve_launch_program(info, "release");
+        let dtype = debug_type_for(info);
 
         let debug_entry = format!(
             r#"    {{
       "name": {name},
-      "type": "lldb",
+      "type": {dtype},
       "request": "launch",
       "program": {prog},
       "args": [],
@@ -879,6 +1340,7 @@ fn gen_launch_json(projects: &[ProjectInfo], _root: &Path) -> String {
       "preLaunchTask": "dcr: build (debug)"
     }}"#,
             name = json_str(&format!("{} (debug)", info.name)),
+            dtype = json_str(dtype),
             prog = json_str(&debug_bin),
             cwd = json_str(&info.root.to_string_lossy()),
         );
@@ -886,7 +1348,7 @@ fn gen_launch_json(projects: &[ProjectInfo], _root: &Path) -> String {
         let release_entry = format!(
             r#"    {{
       "name": {name},
-      "type": "lldb",
+      "type": {dtype},
       "request": "launch",
       "program": {prog},
       "args": [],
@@ -896,6 +1358,7 @@ fn gen_launch_json(projects: &[ProjectInfo], _root: &Path) -> String {
       "preLaunchTask": "dcr: build (release)"
     }}"#,
             name = json_str(&format!("{} (release)", info.name)),
+            dtype = json_str(dtype),
             prog = json_str(&release_bin),
             cwd = json_str(&info.root.to_string_lossy()),
         );
@@ -925,7 +1388,7 @@ fn gen_launch_json(projects: &[ProjectInfo], _root: &Path) -> String {
 }
 
 fn gen_settings_json(root: &Path) -> String {
-    let cc_dir = root.to_string_lossy();
+    let cc_dir = root.join(".dcr").to_string_lossy().to_string();
     format!(
         r#"{{
   "clangd.arguments": [
@@ -944,8 +1407,9 @@ fn gen_settings_json(root: &Path) -> String {
 
 // ── dcr gen clion ─────────────────────────────────────────────────────────────
 
+/// `dcr gen clion`: compile_commands plus `.idea/` tools, targets, misc, run configs.
 fn gen_clion(args: &[String]) -> i32 {
-    let (root, profile) = match parse_gen_args(args) {
+    let (root, profile, quiet) = match parse_gen_args(args) {
         Ok(v) => v,
         Err(code) => return code,
     };
@@ -960,7 +1424,7 @@ fn gen_clion(args: &[String]) -> i32 {
     };
 
     // 1. compile_commands.json
-    let cc_code = gen_compile_commands_inner(&root, &profile, &all);
+    let cc_code = gen_compile_commands_inner(&root, &profile, &all, quiet);
     if cc_code != 0 {
         return cc_code;
     }
@@ -1140,7 +1604,7 @@ fn gen_clion_custom_targets() -> String {
 }
 
 fn gen_clion_misc_xml(root: &Path) -> String {
-    let cc_path = root.join("compile_commands.json");
+    let cc_path = root.join(".dcr").join("compile_commands.json");
     let cc = xml_escape(&cc_path.to_string_lossy());
     format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -1154,9 +1618,10 @@ fn gen_clion_misc_xml(root: &Path) -> String {
     )
 }
 
-fn gen_clion_run_config(info: &ProjectInfo, root: &Path, profile: &str) -> String {
-    let bin_path = root.join("target").join(profile).join(&info.name);
-    let bin = xml_escape(&bin_path.to_string_lossy());
+/// XML for one CLion run configuration under `.idea/runConfigurations/`.
+fn gen_clion_run_config(info: &ProjectInfo, _root: &Path, profile: &str) -> String {
+    let bin_path = resolve_launch_program(info, profile);
+    let bin = xml_escape(&bin_path);
     let target = if profile == "release" {
         "dcr: build (release)"
     } else {
@@ -1206,12 +1671,15 @@ fn xml_escape(s: &str) -> String {
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-fn parse_gen_args(args: &[String]) -> Result<(PathBuf, String), i32> {
+/// Parses `--debug` / `--release` / `--quiet` and resolves the project root.
+fn parse_gen_args(args: &[String]) -> Result<(PathBuf, String, bool), i32> {
     let mut profile = "debug".to_string();
+    let mut quiet = false;
     for arg in args {
         match arg.as_str() {
             "--debug" => profile = "debug".to_string(),
             "--release" => profile = "release".to_string(),
+            "--quiet" | "-q" => quiet = true,
             _ => {}
         }
     }
@@ -1222,7 +1690,7 @@ fn parse_gen_args(args: &[String]) -> Result<(PathBuf, String), i32> {
     })?;
 
     let root = match find_project_root(&start) {
-        Ok(Some(r)) => r,
+        Ok(Some(r)) => canonicalize_path(&r),
         Ok(None) => {
             error("dcr.toml not found");
             return Err(1);
@@ -1233,7 +1701,7 @@ fn parse_gen_args(args: &[String]) -> Result<(PathBuf, String), i32> {
         }
     };
 
-    Ok((root, profile))
+    Ok((root, profile, quiet))
 }
 
 fn json_str(s: &str) -> String {

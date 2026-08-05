@@ -15,6 +15,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+/// DCR CLI module.
+///
+/// This module declares submodules for all DCR commands.
 pub mod add;
 pub mod build;
 pub mod clean;

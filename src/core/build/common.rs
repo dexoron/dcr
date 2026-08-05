@@ -27,18 +27,25 @@ static OUTPUT_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
 static PROGRESS_LABEL: OnceLock<Mutex<Option<String>>> = OnceLock::new();
 static PROGRESS_DIRTY: AtomicBool = AtomicBool::new(false);
 
+/// Returns a static mutex used to synchronize access to stderr during progress reporting.
+/// This ensures thread-safe output when multiple build threads write to the terminal.
 pub fn get_output_lock() -> &'static Mutex<()> {
     OUTPUT_MUTEX.get_or_init(|| Mutex::new(()))
 }
 
+/// Initializes the shared progress label storage.
 fn progress_label_lock() -> &'static Mutex<Option<String>> {
     PROGRESS_LABEL.get_or_init(|| Mutex::new(None))
 }
 
+/// Sets the label text that will be shown next to the compile progress counter.
+/// The label is cleared after the progress line is finished.
 pub fn set_progress_label(label: Option<String>) {
     *progress_label_lock().lock().unwrap() = label;
 }
 
+/// Finishes the current progress line by clearing the label and flushing the line if it was dirty.
+/// This is called when a build step completes normally.
 pub fn finish_progress_line() {
     let was_dirty = PROGRESS_DIRTY.swap(false, Ordering::SeqCst);
     *progress_label_lock().lock().unwrap() = None;
@@ -52,6 +59,8 @@ pub fn finish_progress_line() {
     }
 }
 
+/// Interrupts the current progress line (if any) and flushes it to stderr.
+/// Used when a build step produces output that should interrupt the progress display.
 pub fn interrupt_progress_for_output() {
     if !PROGRESS_DIRTY.swap(false, Ordering::SeqCst) {
         return;
@@ -63,6 +72,9 @@ pub fn interrupt_progress_for_output() {
     }
 }
 
+/// Reports the current compile progress to stderr in the format "label [done/total]".
+/// Only prints if the terminal is attached and the label is set.
+/// Updates the dirty flag so the line can be overwritten on the next call.
 fn report_compile_progress(done: usize, total: usize) {
     let label = progress_label_lock().lock().unwrap().clone();
     let Some(label) = label else {
@@ -82,6 +94,9 @@ fn report_compile_progress(done: usize, total: usize) {
     PROGRESS_DIRTY.store(true, Ordering::SeqCst);
 }
 
+/// Recursively collects all source files under the given roots that match the provided extensions.
+/// Directories listed in exclude_dirs are skipped unless overridden by include_paths.
+/// Returns a sorted list of normalized source paths or an error string.
 pub fn collect_sources(
     roots: &[PathBuf],
     extensions: &[&str],
@@ -104,6 +119,8 @@ pub fn collect_sources(
     Ok(sources)
 }
 
+/// Recursively walks a directory tree to collect source files.
+/// Skips excluded directories unless they are explicitly allowed by include_paths.
 fn collect_sources_rec(
     dir: &Path,
     extensions: &[&str],
@@ -151,6 +168,8 @@ fn collect_sources_rec(
     Ok(())
 }
 
+/// Determines whether a path should be excluded from source collection.
+/// Returns false if the path is explicitly allowed by include_paths (even if it matches an exclude).
 pub fn is_excluded(path: &Path, exclude_dirs: &[PathBuf], include_paths: &[String]) -> bool {
     if matches_patterns(path, include_paths, true) {
         return false;
@@ -161,6 +180,8 @@ pub fn is_excluded(path: &Path, exclude_dirs: &[PathBuf], include_paths: &[Strin
     exclude_dirs.iter().any(|dir| path_is_under(path, dir))
 }
 
+/// Checks if a path is under a given prefix, handling both absolute and relative paths
+/// and normalizing Windows-style separators for cross-platform comparison.
 fn path_is_under(path: &Path, prefix: &Path) -> bool {
     if path.starts_with(prefix) {
         return true;
@@ -180,6 +201,9 @@ fn path_is_under(path: &Path, prefix: &Path) -> bool {
     }
 }
 
+/// Matches a path against include/exclude glob and path patterns.
+/// Positive patterns allow files; negative patterns (starting with !) exclude them.
+/// Returns true if the path matches any rule.
 fn matches_patterns(path: &Path, patterns: &[String], positive: bool) -> bool {
     if patterns.is_empty() {
         return false;
@@ -244,10 +268,20 @@ fn matches_patterns(path: &Path, patterns: &[String], positive: bool) -> bool {
     false
 }
 
+/// Returns true if the string contains any glob magic characters (*, ?, or [).
 pub fn has_glob_magic(value: &str) -> bool {
     value.chars().any(|c| matches!(c, '*' | '?' | '['))
 }
 
+/// Returns a GCC/Clang `-x` language for assembly sources.
+///
+/// # Parameters
+/// - `source`: Source file path (extension decides the dialect).
+///
+/// # Returns
+/// - `Some("assembler-with-cpp")` for `.S`
+/// - `Some("assembler")` for `.s` / `.asm`
+/// - `None` for other extensions
 pub fn asm_lang_flag(source: &str) -> Option<&'static str> {
     let ext = Path::new(source).extension().and_then(|v| v.to_str())?;
     match ext {
@@ -257,6 +291,8 @@ pub fn asm_lang_flag(source: &str) -> Option<&'static str> {
     }
 }
 
+/// Returns the list of file extensions associated with the given language token(s).
+/// Splits comma-separated tokens and falls back to .c if no language is recognized.
 pub fn source_extensions(language: &str) -> Vec<&'static str> {
     let mut out = Vec::new();
     for part in language.split(',').map(|s| s.trim()) {
@@ -270,10 +306,13 @@ pub fn source_extensions(language: &str) -> Vec<&'static str> {
     out
 }
 
+/// Returns elapsed time in seconds with two decimal places for display purposes.
 pub fn elapsed_secs(start: Instant) -> f64 {
     ((start.elapsed().as_secs_f64() * 100.0).trunc()) / 100.0
 }
 
+/// Spawns a fixed number of worker threads to parallelize a build task.
+/// Reports progress after each task completes.
 pub fn parallel_build<F>(total_tasks: usize, task_fn: F, max_jobs: usize) -> Result<(), String>
 where
     F: Fn(usize) -> Result<(), String> + Sync + Send,
@@ -330,6 +369,8 @@ where
     Ok(())
 }
 
+/// Runs a command, prints stdout/stderr to the terminal (interrupting progress),
+/// and returns `Ok(())` or `Err` based on exit status.
 pub fn run_command_sync_output(cmd: &mut Command) -> Result<(), String> {
     let program = cmd.get_program().to_string_lossy().into_owned();
     let output = cmd.output().map_err(|err| {
@@ -357,6 +398,8 @@ pub fn run_command_sync_output(cmd: &mut Command) -> Result<(), String> {
     }
 }
 
+/// Normalizes a source path to be relative to the current working directory when possible.
+/// Returns the original path unchanged if it cannot be made relative.
 pub fn normalize_source_path(path: &Path) -> String {
     if !path.is_absolute() {
         return path.to_string_lossy().to_string();
@@ -369,6 +412,8 @@ pub fn normalize_source_path(path: &Path) -> String {
     path.to_string_lossy().to_string()
 }
 
+/// Computes the output object file path by stripping the leading ./ and adjusting the extension.
+/// Places the object in the specified obj_dir while preserving directory structure.
 pub fn object_path(obj_dir: &Path, source: &str, obj_ext: &str) -> String {
     let src_path = Path::new(source);
     let stripped = src_path.strip_prefix("./").unwrap_or(src_path);
@@ -401,6 +446,16 @@ pub fn object_path(obj_dir: &Path, source: &str, obj_ext: &str) -> String {
     out.to_string_lossy().replace('\\', "/")
 }
 
+/// Checks whether a source file needs to be rebuilt.
+///
+/// Compares mtimes of the source, object, and deps listed in the sibling `.d` file.
+///
+/// # Parameters
+/// - `source`: Source path.
+/// - `object`: Object path (`.d` is derived by changing the extension).
+///
+/// # Returns
+/// `true` if the object is missing, older than source/deps, or a dep is missing.
 pub fn needs_rebuild(source: &str, object: &str) -> bool {
     let src_time = fs::metadata(source).and_then(|m| m.modified());
     let obj_time = fs::metadata(object).and_then(|m| m.modified());
@@ -436,6 +491,14 @@ pub fn needs_rebuild(source: &str, object: &str) -> bool {
     false
 }
 
+/// Checks whether the output executable needs to be relinked.
+///
+/// # Parameters
+/// - `objects`: Object file paths that feed the link step.
+/// - `output_path`: Linked artifact path.
+///
+/// # Returns
+/// `true` if the output is missing or any object is newer than it.
 pub fn needs_link(objects: &[String], output_path: &str) -> bool {
     let out_meta = match fs::metadata(output_path) {
         Ok(m) => m,
@@ -461,6 +524,8 @@ pub fn needs_link(objects: &[String], output_path: &str) -> bool {
     false
 }
 
+/// Parses a dependency file (.d) produced by GCC or MSVC compilers.
+/// Extracts all dependency paths, handling escaped newlines and Windows-style paths.
 fn parse_d_file(content: &str) -> Vec<String> {
     let mut deps = Vec::new();
     let mut target_end = 0;

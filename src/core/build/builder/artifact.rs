@@ -23,6 +23,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Instant;
 
+/// Returns the artifact directory path based on the build context.
 pub(crate) fn artifact_dir(ctx: &BuildContext) -> PathBuf {
     match ctx.target_dir {
         Some(dir) => Path::new(dir).to_path_buf(),
@@ -30,6 +31,77 @@ pub(crate) fn artifact_dir(ctx: &BuildContext) -> PathBuf {
     }
 }
 
+/// Resolves the artifact path for a given kind/profile/name.
+///
+/// # Parameters
+/// - `kind`: Artifact kind (`bin`, `staticlib`, `sharedlib`, `flat-bin`, `efi`, `elf`, …).
+/// - `profile`: Build profile (`debug` / `release` / custom).
+/// - `project_name`: Default basename when `output_filename` is unset.
+/// - `target_dir`: Optional artifact directory override.
+/// - `output_filename` / `output_extension`: Optional name/ext overrides.
+///
+/// # Returns
+/// Relative/absolute path string, or `None` for `none` / `custom` kinds.
+pub fn resolve_artifact_path(
+    kind: &str,
+    profile: &str,
+    project_name: &str,
+    target_dir: Option<&str>,
+    output_filename: Option<&str>,
+    output_extension: Option<&str>,
+) -> Option<String> {
+    if crate::utils::build::is_flat_bin(kind) {
+        let name = output_filename.unwrap_or(project_name);
+        let ext = output_extension.unwrap_or("bin");
+        let file = if ext.is_empty() {
+            name.to_string()
+        } else {
+            format!("{name}.{ext}")
+        };
+        let dir = match target_dir {
+            Some(dir) => Path::new(dir).to_path_buf(),
+            None => Path::new("./target").join(profile),
+        };
+        return Some(dir.join(file).to_string_lossy().to_string());
+    }
+
+    if matches!(kind, "none" | "custom") {
+        return None;
+    }
+
+    let name = output_filename.unwrap_or(project_name);
+    let ext = output_extension.unwrap_or("");
+    let final_name = if ext.is_empty() {
+        name.to_string()
+    } else {
+        format!("{}.{}", name, ext)
+    };
+
+    let path = match kind {
+        "staticlib" => platform::lib_path(profile, &final_name, target_dir),
+        "sharedlib" => platform::shared_lib_path(profile, &final_name, target_dir),
+        "efi" => platform::efi_path(profile, &final_name, target_dir),
+        "elf" => platform::elf_path(profile, &final_name, target_dir),
+        _ => platform::bin_path(profile, &final_name, target_dir),
+    };
+    Some(path)
+}
+
+/// Converts a relative or absolute path to an absolute path by joining with project root if needed.
+pub fn absolute_artifact_path(project_root: &Path, relative_or_abs: &str) -> PathBuf {
+    let p = Path::new(relative_or_abs);
+    let joined = if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        let stripped = relative_or_abs
+            .strip_prefix("./")
+            .unwrap_or(relative_or_abs);
+        project_root.join(stripped)
+    };
+    crate::utils::fs::canonicalize_path(&joined)
+}
+
+/// Returns the output path for a flat binary artifact.
 pub(crate) fn flat_output_path(ctx: &BuildContext) -> String {
     let name = ctx.output_filename.unwrap_or(ctx.project_name);
     let ext = ctx.output_extension.unwrap_or("bin");
@@ -41,6 +113,7 @@ pub(crate) fn flat_output_path(ctx: &BuildContext) -> String {
     artifact_dir(ctx).join(file).to_string_lossy().to_string()
 }
 
+/// Returns the output path for a flat binary artifact from a source file.
 pub(crate) fn flat_source_output_path(ctx: &BuildContext, source: &str) -> String {
     let stem = Path::new(source)
         .file_stem()
@@ -55,6 +128,7 @@ pub(crate) fn flat_source_output_path(ctx: &BuildContext, source: &str) -> Strin
     artifact_dir(ctx).join(file).to_string_lossy().to_string()
 }
 
+// Helper to find a suitable objcopy tool in PATH
 fn resolve_objcopy() -> Result<String, String> {
     for candidate in ["llvm-objcopy", "objcopy", "gobjcopy"] {
         if Command::new(candidate)
@@ -73,6 +147,7 @@ fn resolve_objcopy() -> Result<String, String> {
     )
 }
 
+/// Converts an object/ELF to a raw binary via `objcopy -O binary` (skips if up to date).
 pub(crate) fn objcopy_binary(ctx: &BuildContext, input: &str, output: &str) -> Result<(), String> {
     if let Some(parent) = Path::new(output).parent() {
         std::fs::create_dir_all(parent).map_err(|e| format!("output dir error: {e}"))?;
@@ -89,6 +164,7 @@ pub(crate) fn objcopy_binary(ctx: &BuildContext, input: &str, output: &str) -> R
     common::run_command_sync_output(&mut cmd)
 }
 
+/// Links objects into an intermediate ELF, then converts it to a flat binary via objcopy.
 pub(crate) fn link_flat_binary(
     ctx: &BuildContext,
     objects: &[String],
@@ -150,6 +226,7 @@ pub(crate) fn link_flat_binary(
     Ok(common::elapsed_secs(start_time))
 }
 
+/// Archives objects into a static library.
 pub(crate) fn archive_static(
     ctx: &BuildContext,
     objects: &[String],
@@ -176,6 +253,7 @@ pub(crate) fn archive_static(
     run(ctx, cmd, start_time)
 }
 
+/// Links objects into a binary or library based on artifact kind.
 pub(crate) fn link_binary(
     ctx: &BuildContext,
     objects: &[String],
@@ -241,6 +319,7 @@ pub(crate) fn link_binary(
     run(ctx, cmd, start_time)
 }
 
+/// Returns the default archiver name based on compiler and platform.
 fn default_archiver(compiler: &str) -> &'static str {
     let c = compiler.to_lowercase();
     if cfg!(target_os = "windows") {
@@ -256,11 +335,13 @@ fn default_archiver(compiler: &str) -> &'static str {
     }
 }
 
+/// Checks if the archiver is an MSVC lib tool.
 fn is_msvc_lib(archiver: &str) -> bool {
     let a = archiver.to_lowercase();
     a == "lib" || a == "lib.exe" || a.ends_with("\\lib.exe") || a.ends_with("/lib.exe")
 }
 
+/// Runs a command and handles success/failure with timing.
 fn run(ctx: &BuildContext, mut cmd: Command, start_time: Instant) -> Result<f64, String> {
     if ctx.verbose || std::env::var("DCR_DEBUG").is_ok() {
         eprintln!("[dcr] {:?}", cmd);
@@ -280,5 +361,66 @@ fn run(ctx: &BuildContext, mut cmd: Command, start_time: Instant) -> Result<f64,
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
         Err(format!("Build failed:\nstdout: {stdout}\nstderr: {stderr}"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Default `bin` kind resolves via platform bin path.
+    #[test]
+    fn resolve_bin_default() {
+        let p = resolve_artifact_path("bin", "debug", "hello", None, None, None).unwrap();
+        assert_eq!(p, platform::bin_path("debug", "hello", None));
+    }
+
+    /// Custom `target_dir` places the binary under that directory.
+    #[test]
+    fn resolve_bin_custom_target_dir() {
+        let p = resolve_artifact_path("bin", "debug", "hello", Some("/out"), None, None).unwrap();
+        let name = if cfg!(windows) { "hello.exe" } else { "hello" };
+        let expected = Path::new("/out").join(name);
+        assert_eq!(p, expected.to_string_lossy());
+    }
+
+    /// `staticlib` kind resolves to a platform static library path.
+    #[test]
+    fn resolve_staticlib() {
+        let p = resolve_artifact_path("staticlib", "release", "mylib", Some("dist"), None, None)
+            .unwrap();
+        let name = if cfg!(windows) {
+            "mylib.lib"
+        } else {
+            "libmylib.a"
+        };
+        let expected = Path::new("dist").join(name);
+        assert_eq!(p, expected.to_string_lossy());
+    }
+
+    /// Custom output filename and extension override the default name.
+    #[test]
+    fn resolve_with_filename_ext() {
+        let p = resolve_artifact_path(
+            "bin",
+            "debug",
+            "pkg",
+            Some("/out"),
+            Some("KERNEL"),
+            Some("ELF"),
+        )
+        .unwrap();
+        assert_eq!(
+            p,
+            std::path::Path::new("/out")
+                .join("KERNEL.ELF")
+                .to_string_lossy()
+        );
+    }
+
+    /// `none` kind has no artifact path.
+    #[test]
+    fn resolve_none_kind() {
+        assert!(resolve_artifact_path("none", "debug", "x", None, None, None).is_none());
     }
 }

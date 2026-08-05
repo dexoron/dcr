@@ -21,6 +21,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use toml::Value;
 
+/// Represents a member of the workspace.
 #[derive(Debug, Clone)]
 pub struct WorkspaceMember {
     pub name: String,
@@ -29,12 +30,14 @@ pub struct WorkspaceMember {
     pub main: bool,
 }
 
+/// Represents the workspace as a collection of members.
 #[derive(Debug, Clone)]
 pub struct Workspace {
     pub members: Vec<WorkspaceMember>,
 }
 
 impl Workspace {
+    /// Returns the main workspace member, preferring the one with `main: true` or the first member.
     pub fn main_member(&self) -> Option<&WorkspaceMember> {
         self.members
             .iter()
@@ -43,6 +46,17 @@ impl Workspace {
     }
 }
 
+/// Parses the workspace configuration from the TOML config.
+///
+/// # Parameters
+/// - `config`: Root `dcr.toml` (may be workspace-only or mixed).
+/// - `profile` / `target`: Select profile- and target-specific `[workspace.*]` tables.
+/// - `root`: Workspace root used to resolve member paths.
+///
+/// # Returns
+/// - `Ok(None)` if no workspace table applies.
+/// - `Ok(Some(Workspace))` with members (and optional main).
+/// - `Err` on invalid member paths or config shape.
 pub fn parse_workspace(
     config: &Config,
     profile: &str,
@@ -50,6 +64,7 @@ pub fn parse_workspace(
     root: &Path,
 ) -> Result<Option<Workspace>, String> {
     let mut table = None;
+    // Create ordered list of possible config keys for lookup
     let combinations = if let Some(t) = target {
         let normalized_t = normalize_target_os(t);
         vec![
@@ -103,6 +118,7 @@ pub fn parse_workspace(
     Ok(Some(ws))
 }
 
+/// Resolves a path, making it absolute if relative to root.
 fn resolve_path(root: &Path, raw: &str) -> Result<PathBuf, String> {
     let p = Path::new(raw);
     let full = if p.is_absolute() {
@@ -113,6 +129,7 @@ fn resolve_path(root: &Path, raw: &str) -> Result<PathBuf, String> {
     Ok(full)
 }
 
+/// Parses dependencies list from TOML value into Vec<String>.
 fn parse_deps(value: Option<&Value>) -> Result<Vec<String>, String> {
     let Some(value) = value else {
         return Ok(Vec::new());
@@ -130,12 +147,14 @@ fn parse_deps(value: Option<&Value>) -> Result<Vec<String>, String> {
     Ok(out)
 }
 
+/// Performs a topological sort on members to handle dependencies and detect cycles.
 fn topo_sort(members: &[WorkspaceMember]) -> Result<Vec<WorkspaceMember>, String> {
     let mut map = HashMap::new();
     for m in members {
         map.insert(m.name.clone(), m.clone());
     }
     let mut state: HashMap<String, u8> = HashMap::new();
+    // Use 0=unvisited, 1=visiting, 2=visited for cycle detection
     let mut order: Vec<WorkspaceMember> = Vec::new();
 
     for name in map.keys() {
@@ -146,12 +165,14 @@ fn topo_sort(members: &[WorkspaceMember]) -> Result<Vec<WorkspaceMember>, String
     Ok(order)
 }
 
+/// Recursive function for DFS-based topological sort with cycle detection.
 fn visit(
     name: &str,
     map: &HashMap<String, WorkspaceMember>,
     state: &mut HashMap<String, u8>,
     order: &mut Vec<WorkspaceMember>,
 ) -> Result<(), String> {
+    // Check current visit state to detect cycles
     match state.get(name).copied().unwrap_or(0) {
         1 => return Err(format!("workspace dependency cycle at {name}")),
         2 => return Ok(()),

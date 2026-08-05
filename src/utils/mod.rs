@@ -14,9 +14,19 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
 
+/// Core utilities module providing access to build, filesystem, git, log, and text helpers.
 pub mod build;
+
+/// File system path utilities and operations.
 pub mod fs;
+
+/// Git version control system integration.
 pub mod git;
+
+/// Logging utilities for application events and debugging.
 pub mod log;
+
+/// Text processing and manipulation helpers.
 pub mod text;

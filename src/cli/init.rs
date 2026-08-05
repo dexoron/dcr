@@ -25,6 +25,10 @@ use std::fs;
 use std::io::Write;
 use toml::Value;
 
+/// Initializes the current working directory as a new DCR project.
+///
+/// Verifies that the current directory is empty, sets up the project structure by creating
+/// `dcr.toml` and `src/main.c`, and configures version control (Git) integration if applicable.
 pub fn init(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
         printc("USAGE:", BOLD_GREEN);
@@ -36,6 +40,7 @@ pub fn init(args: &[String]) -> i32 {
         return 0;
     }
 
+    // Parse options (--vcs) and collect positional arguments.
     let mut vcs_str = None;
     let mut clean_args = Vec::new();
     let mut iter = args.iter();
@@ -59,6 +64,7 @@ pub fn init(args: &[String]) -> i32 {
         return 1;
     }
 
+    // Resolve target project name from current directory name and enforce empty directory check.
     let items = check_dir(None).unwrap_or_default();
     let project_name = std::env::current_dir()
         .ok()
@@ -84,6 +90,7 @@ pub fn init(args: &[String]) -> i32 {
         .unwrap_or_else(|_| ".".to_string());
     println!("Initializing the project in {cwd}");
 
+    // Create and initialize default manifest (dcr.toml).
     let mut config = match Config::new("./dcr.toml") {
         Ok(cfg) => cfg,
         Err(_) => {
@@ -104,6 +111,7 @@ pub fn init(args: &[String]) -> i32 {
         colored("dcr.toml", BOLD_CYAN)
     );
 
+    // Create src directory and write template main.c file.
     if fs::create_dir("src").is_err() {
         error("Failed to create src/");
         return 1;
@@ -125,7 +133,7 @@ pub fn init(args: &[String]) -> i32 {
         colored("src/main.c", BOLD_CYAN)
     );
 
-    // settings VCS
+    // Resolve target VCS provider or detect existing repositories.
     let mut vcs_kind = VcsKind::Git;
     if let Some(ref vcs_val) = vcs_str {
         match VcsKind::parse(vcs_val) {
@@ -157,6 +165,10 @@ pub fn init(args: &[String]) -> i32 {
                 "Git is not installed or not found in PATH. Skipping Git repository initialization.",
             );
         }
+    }
+
+    if let Err(e) = crate::utils::fs::ensure_gitignore_has_dcr(std::path::Path::new(".")) {
+        warn(&format!("Failed to update .gitignore: {e}"));
     }
 
     println!(

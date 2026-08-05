@@ -15,10 +15,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+/// Module for version control system (VCS) integration.
 pub mod git;
 
 use std::path::Path;
 
+/// Represents the version control system kind to use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VcsKind {
     Git,
@@ -26,6 +28,7 @@ pub enum VcsKind {
 }
 
 impl VcsKind {
+    /// Parses the given string into a VcsKind.
     pub fn parse(s: &str) -> Result<Self, String> {
         match s.to_lowercase().as_str() {
             "git" => Ok(Self::Git),
@@ -35,6 +38,7 @@ impl VcsKind {
     }
 }
 
+/// Initializes the VCS for the provided path.
 pub fn init_vcs(kind: VcsKind, path: &Path) -> Result<(), String> {
     match kind {
         VcsKind::Git => git::init(path),
@@ -42,8 +46,9 @@ pub fn init_vcs(kind: VcsKind, path: &Path) -> Result<(), String> {
     }
 }
 
-// look for git repo in parents to avoid nested repos
+/// Finds an existing VCS in the parent directories of the given path.
 pub fn find_existing_vcs(path: &Path) -> Option<VcsKind> {
+    // look for git repo in parents to avoid nested repos
     let mut current = if path.is_file() {
         path.parent()
     } else {
