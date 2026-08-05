@@ -22,6 +22,16 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+/// Runs uic/rcc/moc on Qt UI, resource, and header sources under `build_dir/qt`.
+///
+/// # Parameters
+/// - `ctx`: Sources, excludes, and toolchain tool paths.
+/// - `build_dir`: Directory that will contain the generated `qt/` tree.
+///
+/// # Returns
+/// - `Ok(Some(qt_dir))` if any generated files were produced.
+/// - `Ok(None)` if there was nothing to process.
+/// - `Err` if a Qt tool fails.
 pub fn process_qt(ctx: &BuildContext, build_dir: &Path) -> Result<Option<PathBuf>, String> {
     let qt_dir = build_dir.join("qt");
     fs::create_dir_all(&qt_dir).map_err(|e| format!("Failed to create qt dir: {e}"))?;
@@ -37,6 +47,7 @@ pub fn process_qt(ctx: &BuildContext, build_dir: &Path) -> Result<Option<PathBuf
     let mut qt_moc_args = Vec::new();
     let qt_modules = vec!["Qt6Core", "Qt6Widgets", "Qt6Gui", "Qt6Svg"];
 
+    // Collect -I and -D flags from pkg-config for Qt modules to use in moc invocations
     for module in qt_modules {
         if let Ok(cflags) = run_pkg_config(module, "--cflags") {
             for flag in cflags.split_whitespace() {
@@ -123,6 +134,7 @@ pub fn process_qt(ctx: &BuildContext, build_dir: &Path) -> Result<Option<PathBuf
     }
 }
 
+/// Executes the specified command with the given arguments and returns success or an error message.
 fn run_command(cmd_path: &str, args: &[&str], verbose: bool) -> Result<(), String> {
     let mut cmd = Command::new(cmd_path);
     cmd.args(args);

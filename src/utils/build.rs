@@ -19,6 +19,9 @@ use crate::core::build_config::Config;
 use crate::utils::log::warn;
 use std::path::{Path, PathBuf};
 
+/// Version information parsed from a version string.
+///
+/// Contains the full version, major, minor, patch, suffix, and suffix_dash components.
 pub struct VersionInfo {
     pub full: String,
     pub major: String,
@@ -28,6 +31,7 @@ pub struct VersionInfo {
     pub suffix_dash: String,
 }
 
+/// Parses a version string into VersionInfo struct.
 pub fn parse_version_info(version: &str) -> VersionInfo {
     let mut full = version.trim().to_string();
     if full.is_empty() {
@@ -56,6 +60,7 @@ pub fn parse_version_info(version: &str) -> VersionInfo {
     }
 }
 
+/// Substitutes profile, name, and version variables into a template string.
 pub fn substitute_vars(template: &str, info: &VersionInfo, profile: &str, name: &str) -> String {
     let s = template
         .replace("{profile}", profile)
@@ -63,6 +68,7 @@ pub fn substitute_vars(template: &str, info: &VersionInfo, profile: &str, name: 
     substitute_version_vars(&s, info)
 }
 
+/// Substitutes version-specific variables into a template string.
 pub fn substitute_version_vars(template: &str, info: &VersionInfo) -> String {
     template
         .replace("{version}", &info.full)
@@ -73,6 +79,7 @@ pub fn substitute_version_vars(template: &str, info: &VersionInfo) -> String {
         .replace("{version_suffix_dash}", &info.suffix_dash)
 }
 
+/// Normalizes a target string to a relative path for artifact output directory.
 pub fn normalize_target(target: &str, profile: &str) -> Option<String> {
     let trimmed = normalize_target_os(target.trim());
     if trimmed.is_empty() {
@@ -82,6 +89,7 @@ pub fn normalize_target(target: &str, profile: &str) -> Option<String> {
     }
 }
 
+/// Returns the native host target directory relative to project root for given profile.
 pub fn native_host_target_rel(profile: &str) -> PathBuf {
     if cfg!(any(
         target_os = "linux",
@@ -98,6 +106,18 @@ pub fn native_host_target_rel(profile: &str) -> PathBuf {
     }
 }
 
+/// Resolves the artifact output directory for a project/workspace build.
+///
+/// # Parameters
+/// - `project_root`: Package root.
+/// - `workspace_root`: If set, artifacts go under the workspace `target/`.
+/// - `profile`: Build profile directory segment.
+/// - `build_target`: Target triple or short name (may be empty).
+/// - `out_dir`: Explicit `out_dir` from config (wins when non-empty).
+/// - `has_explicit_target`: Whether CLI/config set a target (changes layout).
+///
+/// # Returns
+/// Absolute directory path as a string.
 pub fn resolve_artifact_target_dir(
     project_root: &Path,
     workspace_root: Option<&Path>,
@@ -145,19 +165,35 @@ pub fn resolve_artifact_target_dir(
     project_root.join(base).to_string_lossy().into_owned()
 }
 
+/// Normalizes kind string to standard value, defaulting to "bin" if empty.
 pub fn normalize_kind(kind: &str) -> &str {
     let trimmed = kind.trim();
     if trimmed.is_empty() { "bin" } else { trimmed }
 }
 
+/// Checks if the kind is a flat binary artifact.
 pub fn is_flat_bin(kind: &str) -> bool {
     kind == "flat-bin"
 }
 
+/// Returns true for kinds that skip the normal link/archive step: `none`, `custom`, or `flat-bin`.
+///
+/// Callers that still need a flat-binary path use [`is_flat_bin`] separately
+/// (e.g. `is_compile_only(kind) && !is_flat_bin(kind)` before an early return).
+///
+/// # Parameters
+/// - `kind`: Normalized artifact kind string.
+///
+/// # Returns
+/// `true` for `none`, `custom`, or `flat-bin`.
+///
+/// Callers that still need a flat-binary link use [`is_flat_bin`] separately
+/// (e.g. `is_compile_only(kind) && !is_flat_bin(kind)` before early return).
 pub fn is_compile_only(kind: &str) -> bool {
     matches!(kind, "none" | "custom" | "flat-bin")
 }
 
+/// Normalizes platform string, returning None if empty.
 pub fn normalize_platform(platform: &str) -> Option<&str> {
     let trimmed = platform.trim();
     if trimmed.is_empty() {
@@ -167,6 +203,13 @@ pub fn normalize_platform(platform: &str) -> Option<&str> {
     }
 }
 
+/// Expands short OS names (`linux`/`macos`/`windows`) to default triples; leaves others as-is.
+///
+/// # Parameters
+/// - `target`: Short name, full triple, or empty.
+///
+/// # Returns
+/// Canonical triple string, empty input unchanged, unknown bare names returned with a warning.
 pub fn normalize_target_os(target: &str) -> &str {
     match target {
         "" => "",
@@ -184,6 +227,7 @@ pub fn normalize_target_os(target: &str) -> &str {
     }
 }
 
+/// Returns the default target triple for the current host platform.
 pub fn default_target_triple() -> String {
     let arch = std::env::consts::ARCH;
     if cfg!(target_os = "linux") {
@@ -214,6 +258,7 @@ pub fn default_target_triple() -> String {
     }
 }
 
+/// Prepends a --target flag to flags vector if using Clang and not already present.
 pub fn prepend_clang_target_flag(flags: &mut Vec<String>, target: Option<&str>, tool: &str) {
     let Some(target) = target.map(str::trim).filter(|t| !t.is_empty()) else {
         return;
@@ -231,6 +276,7 @@ pub fn prepend_clang_target_flag(flags: &mut Vec<String>, target: Option<&str>, 
     }
 }
 
+/// Retrieves a string value from config, falling back to empty string if missing.
 pub fn get_config_str(config: &Config, key: &str) -> String {
     config
         .get(key)
@@ -239,6 +285,7 @@ pub fn get_config_str(config: &Config, key: &str) -> String {
         .to_string()
 }
 
+/// Retrieves profile-specific table from config.
 pub fn profile_table<'a>(config: &'a Config, profile: &str) -> Option<&'a toml::value::Table> {
     config
         .get("build")
@@ -247,6 +294,7 @@ pub fn profile_table<'a>(config: &'a Config, profile: &str) -> Option<&'a toml::
         .and_then(|v| v.as_table())
 }
 
+/// Retrieves an optional string value from config.
 pub fn get_config_opt(config: &Config, key: &str) -> Option<String> {
     let value = config.get(key)?.as_str()?;
     let trimmed = value.trim();
@@ -257,6 +305,7 @@ pub fn get_config_opt(config: &Config, key: &str) -> Option<String> {
     }
 }
 
+/// Retrieves string value with profile override support.
 pub fn get_string_with_profile(config: &Config, field: &str, profile: &str) -> String {
     let base = get_config_str(config, &format!("build.{field}"));
     let Some(table) = profile_table(config, profile) else {
@@ -271,6 +320,7 @@ pub fn get_string_with_profile(config: &Config, field: &str, profile: &str) -> S
     }
 }
 
+/// Retrieves list value from config.
 pub fn get_config_list(config: &Config, key: &str) -> Vec<String> {
     config
         .get(key)
@@ -284,6 +334,7 @@ pub fn get_config_list(config: &Config, key: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// Retrieves list value with profile override support.
 pub fn get_list_with_profile(config: &Config, field: &str, profile: &str) -> Vec<String> {
     let mut out = get_config_list(config, &format!("build.{field}"));
     if let Some(table) = profile_table(config, profile)
@@ -299,6 +350,7 @@ pub fn get_list_with_profile(config: &Config, field: &str, profile: &str) -> Vec
     out
 }
 
+/// Helper function to check if a string contains a pattern ignoring case.
 fn contains_ignore_case(text: &str, pattern: &str) -> bool {
     if pattern.len() > text.len() {
         return false;
@@ -308,6 +360,7 @@ fn contains_ignore_case(text: &str, pattern: &str) -> bool {
         .any(|w| w.eq_ignore_ascii_case(pattern.as_bytes()))
 }
 
+/// Checks if target is a bare-metal or embedded target.
 pub fn is_bare_metal_target(target: Option<&str>) -> bool {
     match target {
         Some(t) => {
@@ -321,6 +374,7 @@ pub fn is_bare_metal_target(target: Option<&str>) -> bool {
     }
 }
 
+/// Returns default flags for a given profile.
 pub fn default_profile_flags(profile: &str) -> &'static [&'static str] {
     match profile {
         "release" => &["-O3", "-DNDEBUG"],
@@ -336,6 +390,7 @@ pub fn default_profile_flags(profile: &str) -> &'static [&'static str] {
     }
 }
 
+/// Retrieves boolean value with profile override support.
 pub fn get_bool_with_profile(config: &Config, field: &str, profile: &str, default: bool) -> bool {
     let base = config
         .get(&format!("build.{field}"))
@@ -345,6 +400,7 @@ pub fn get_bool_with_profile(config: &Config, field: &str, profile: &str, defaul
     profile_val.or(base).unwrap_or(default)
 }
 
+/// Retrieves language from config with profile support.
 pub fn get_language_with_profile(config: &Config, profile: &str) -> Result<String, String> {
     if let Some(table) = profile_table(config, profile)
         && let Some(value) = table.get("language")
@@ -357,10 +413,12 @@ pub fn get_language_with_profile(config: &Config, profile: &str) -> Result<Strin
     }
 }
 
+/// Retrieves language from config with profile support, defaulting to "c" on error.
 pub fn get_language_with_profile_or_default(config: &Config, profile: &str) -> String {
     get_language_with_profile(config, profile).unwrap_or_else(|_| "c".to_string())
 }
 
+/// Parses language value from config, supporting string or array format.
 pub fn parse_language_value(value: &toml::Value, key: &str) -> Result<String, String> {
     if let Some(s) = value.as_str() {
         let trimmed = s.trim();
@@ -389,6 +447,7 @@ pub fn parse_language_value(value: &toml::Value, key: &str) -> Result<String, St
     Ok(parts.join(","))
 }
 
+/// Resolves compiler name based on language, environment, and toolchain overrides.
 pub fn resolve_compiler(
     language: &str,
     compiler: &str,
@@ -407,6 +466,7 @@ pub fn resolve_compiler(
     }
 }
 
+/// Checks environment variables for compiler override.
 fn env_override_compiler(lang: &str) -> Option<String> {
     if let Ok(value) = std::env::var("DCR_COMPILER") {
         let trimmed = value.trim();
@@ -440,6 +500,7 @@ fn env_override_compiler(lang: &str) -> Option<String> {
     None
 }
 
+/// Checks toolchain overrides for compiler.
 fn toolchain_override_compiler(
     lang: &str,
     tc_cc: Option<&str>,
@@ -458,6 +519,7 @@ fn toolchain_override_compiler(
     tc_cc.map(|v| v.to_string())
 }
 
+/// Maps assembler compiler name to canonical form.
 fn map_asm_compiler(compiler: &str) -> String {
     match compiler.to_lowercase().as_str() {
         "gas" | "gnu-as" => "as".to_string(),
@@ -468,6 +530,7 @@ fn map_asm_compiler(compiler: &str) -> String {
     }
 }
 
+/// Determines primary language from comma-separated list.
 pub fn primary_language(language: &str) -> String {
     let tokens: Vec<&str> = language
         .split(',')
@@ -486,6 +549,7 @@ pub fn primary_language(language: &str) -> String {
     language.to_lowercase()
 }
 
+/// Resolves tool from environment variable or fallback.
 pub fn resolve_tool(env_key: &str, fallback: Option<&str>) -> Option<String> {
     if let Ok(value) = std::env::var(env_key) {
         let trimmed = value.trim();
@@ -496,6 +560,7 @@ pub fn resolve_tool(env_key: &str, fallback: Option<&str>) -> Option<String> {
     fallback.map(|v| v.to_string())
 }
 
+/// Resolves pkg-config flags for packages.
 pub fn resolve_pkg_config_flags(
     pkgs: &[String],
     base_cflags: &[String],
@@ -512,6 +577,7 @@ pub fn resolve_pkg_config_flags(
     Ok((cflags, ldflags))
 }
 
+/// Resolves pkg-config flags, falling back on error.
 pub fn resolve_pkg_config_flags_lossy(
     pkgs: &[String],
     base_cflags: &[String],
@@ -526,6 +592,7 @@ pub fn resolve_pkg_config_flags_lossy(
     }
 }
 
+/// Runs pkg-config command and returns output.
 pub fn run_pkg_config(pkg: &str, arg: &str) -> Result<String, String> {
     let output = std::process::Command::new("pkg-config")
         .arg(arg)
@@ -539,6 +606,7 @@ pub fn run_pkg_config(pkg: &str, arg: &str) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
+// The split_flags function parses pkg-config output, handling quoted strings and whitespace to split into individual flags.
 fn split_flags(value: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut current = String::new();
@@ -578,6 +646,7 @@ fn split_flags(value: &str) -> Vec<String> {
 mod tests {
     use super::*;
 
+    /// Test for normalize_target_short_names function.
     #[test]
     fn normalize_target_short_names() {
         assert_eq!(normalize_target_os(""), "");
@@ -591,6 +660,7 @@ mod tests {
         assert_eq!(normalize_target_os("unknown"), "unknown");
     }
 
+    /// Test for default_target_triple_uses_host_arch function.
     #[test]
     fn default_target_triple_uses_host_arch() {
         let target = default_target_triple();
@@ -635,6 +705,7 @@ mod tests {
         }
     }
 
+    /// Test for resolve_artifact_target_dir_native_and_workspace function.
     #[test]
     fn resolve_artifact_target_dir_native_and_workspace() {
         let root = Path::new("/proj");
@@ -655,6 +726,7 @@ mod tests {
         assert!(out.contains("dist"));
     }
 
+    /// Test for prepend_clang_target_flag_adds_once_for_clang function.
     #[test]
     fn prepend_clang_target_flag_adds_once_for_clang() {
         let mut flags = vec!["-O2".to_string()];
@@ -669,6 +741,7 @@ mod tests {
         );
     }
 
+    /// Test for prepend_clang_target_flag_ignores_non_clang_tools function.
     #[test]
     fn prepend_clang_target_flag_ignores_non_clang_tools() {
         let mut flags = vec!["-O2".to_string()];
@@ -676,6 +749,7 @@ mod tests {
         assert_eq!(flags, vec!["-O2".to_string()]);
     }
 
+    /// Test for parse_version_parts function.
     #[test]
     fn parse_version_parts() {
         let info = parse_version_info("1.2.3-beta");
@@ -687,6 +761,7 @@ mod tests {
         assert_eq!(info.suffix_dash, "-beta");
     }
 
+    /// Test for normalize_target_with_profile function.
     #[test]
     fn normalize_target_with_profile() {
         let linux = normalize_target_os("linux");
@@ -701,6 +776,7 @@ mod tests {
         assert_eq!(normalize_target("", "debug"), None);
     }
 
+    /// Test for normalize_kind_empty_defaults_to_bin function.
     #[test]
     fn normalize_kind_empty_defaults_to_bin() {
         assert_eq!(normalize_kind(""), "bin");
@@ -709,6 +785,7 @@ mod tests {
         assert_eq!(normalize_kind("  elf  "), "elf");
     }
 
+    /// Test for normalize_platform_empty_is_none function.
     #[test]
     fn normalize_platform_empty_is_none() {
         assert_eq!(normalize_platform(""), None);
@@ -717,6 +794,7 @@ mod tests {
         assert_eq!(normalize_platform(" efi "), Some("efi"));
     }
 
+    /// Test for default_profile_flags_by_profile function.
     #[test]
     fn default_profile_flags_by_profile() {
         assert!(default_profile_flags("debug").contains(&"-O0"));
@@ -726,6 +804,7 @@ mod tests {
         assert!(default_profile_flags("unknown").is_empty());
     }
 
+    /// Test for is_bare_metal_detects_embedded_targets function.
     #[test]
     fn is_bare_metal_detects_embedded_targets() {
         assert!(is_bare_metal_target(Some("aarch64-none-elf")));

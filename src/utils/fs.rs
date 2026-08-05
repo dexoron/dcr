@@ -19,6 +19,10 @@ use std::io;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+/// Resolves the path to the user's home directory across different operating systems.
+///
+/// Checks the `HOME` environment variable (Unix-like systems) first,
+/// then falls back to `USERPROFILE` (Windows).
 pub fn home_dir() -> Option<PathBuf> {
     if let Ok(home) = std::env::var("HOME") {
         return Some(PathBuf::from(home));
@@ -29,6 +33,7 @@ pub fn home_dir() -> Option<PathBuf> {
     None
 }
 
+/// Converts a byte slice into a lowercase hexadecimal string.
 pub fn to_hex(bytes: &[u8]) -> String {
     let mut out = String::with_capacity(bytes.len() * 2);
     for b in bytes {
@@ -37,6 +42,7 @@ pub fn to_hex(bytes: &[u8]) -> String {
     out
 }
 
+/// Lists all entry names (files and directories) inside a target directory.
 #[allow(dead_code)]
 pub fn check_dir(dir: Option<&str>) -> io::Result<Vec<String>> {
     let path: PathBuf = match dir {
@@ -53,6 +59,7 @@ pub fn check_dir(dir: Option<&str>) -> io::Result<Vec<String>> {
     Ok(items)
 }
 
+/// Searches upwards from a starting path to locate the root directory containing `dcr.toml`.
 pub fn find_project_root(start: &Path) -> io::Result<Option<PathBuf>> {
     let mut current = start.to_path_buf();
     loop {
@@ -66,6 +73,15 @@ pub fn find_project_root(start: &Path) -> io::Result<Option<PathBuf>> {
     Ok(None)
 }
 
+/// Executes a closure inside a specified directory and restores the original cwd afterwards.
+///
+/// # Parameters
+/// - `dir`: Directory to `cd` into for the duration of `f`.
+/// - `f`: Work to run with that cwd (its `Result` is returned as-is).
+///
+/// # Returns
+/// The closure's result, or an error if getting/changing directory fails.
+/// Cwd is restored even when `f` returns `Err`.
 pub fn with_dir<F, T>(dir: &Path, f: F) -> Result<T, String>
 where
     F: FnOnce() -> Result<T, String>,
@@ -73,10 +89,14 @@ where
     let prev = std::env::current_dir().map_err(|_| "Failed to get current dir".to_string())?;
     std::env::set_current_dir(dir).map_err(|_| "Failed to change directory".to_string())?;
     let result = f();
+    // Restore previous working directory regardless of closure result.
     let _ = std::env::set_current_dir(prev);
     result
 }
 
+/// Strips Windows verbatim/extended-length prefixes (e.g. `\\?\`, `\\.\`) and standardizes slashes.
+///
+/// Normalize path separators for cross-platform safety and removes platform-specific extended prefixes.
 pub fn strip_verbatim_prefix(path: PathBuf) -> PathBuf {
     let s = path.to_string_lossy();
     let mut cleaned = s.replace('\\', "/");
@@ -99,6 +119,9 @@ pub fn strip_verbatim_prefix(path: PathBuf) -> PathBuf {
     }
 }
 
+/// Canonicalizes a path to its absolute form and cleans up Windows extended-length prefixes.
+///
+/// Falls back to joining relative paths with the current working directory if canonicalization fails.
 pub fn canonicalize_path(path: &Path) -> PathBuf {
     let raw = std::fs::canonicalize(path).unwrap_or_else(|_| {
         if path.is_absolute() {
@@ -112,6 +135,7 @@ pub fn canonicalize_path(path: &Path) -> PathBuf {
     strip_verbatim_prefix(raw)
 }
 
+/// Resolves a path relative to a root directory and returns a canonicalized absolute path.
 pub fn absolute_join(root: &Path, path: &Path) -> PathBuf {
     let joined = if path.is_absolute() {
         path.to_path_buf()
@@ -121,12 +145,21 @@ pub fn absolute_join(root: &Path, path: &Path) -> PathBuf {
     canonicalize_path(&joined)
 }
 
+/// Ensures the `.dcr` internal metadata directory and its `ide` subfolder exist within a project root.
 pub fn ensure_dcr_dir(root: &Path) -> io::Result<PathBuf> {
     let dcr = root.join(".dcr");
     std::fs::create_dir_all(dcr.join("ide"))?;
     Ok(dcr)
 }
 
+/// Writes `contents` via a `.tmp.<pid>` file then renames into place (best-effort replace).
+///
+/// # Parameters
+/// - `path`: Final destination path (parent dirs are created).
+/// - `contents`: Bytes to write.
+///
+/// # Returns
+/// `Ok(())` after a successful rename (with fallbacks if the target already exists).
 pub fn atomic_write(path: &Path, contents: impl AsRef<[u8]>) -> io::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
@@ -145,6 +178,7 @@ pub fn atomic_write(path: &Path, contents: impl AsRef<[u8]>) -> io::Result<()> {
     match std::fs::rename(&tmp, path) {
         Ok(()) => Ok(()),
         Err(e) => {
+            // Handle cross-device moves or existing file replacement fallbacks.
             if path.exists() {
                 let _ = std::fs::remove_file(path);
                 match std::fs::rename(&tmp, path) {
@@ -162,6 +196,9 @@ pub fn atomic_write(path: &Path, contents: impl AsRef<[u8]>) -> io::Result<()> {
     }
 }
 
+/// Ensures that `.gitignore` exists in the project directory and includes the `.dcr/` output rule.
+///
+/// If `.gitignore` does not exist, creates one with standard `/target` and `.dcr/` entries.
 pub fn ensure_gitignore_has_dcr(project_dir: &Path) -> io::Result<()> {
     let path = project_dir.join(".gitignore");
     if path.exists() {

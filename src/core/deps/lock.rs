@@ -18,6 +18,7 @@
 use std::fs;
 use std::path::Path;
 
+/// Represents a locked dependency entry containing its name, version, source, and checksum.
 #[derive(Debug, Clone)]
 pub struct DepLock {
     pub name: String,
@@ -26,6 +27,7 @@ pub struct DepLock {
     pub source: String,
 }
 
+/// Writes the dcr.lock file in a Cargo-like format. The project entry comes first, followed by dependency entries.
 pub fn write_lock(
     project_root: &Path,
     project_name: &str,
@@ -47,6 +49,7 @@ pub fn write_lock(
     }
     out.push('\n');
 
+    // Write metadata for each package in the dependencies list
     for pkg in packages {
         out.push_str("[[package]]\n");
         out.push_str(&format!("name = \"{}\"\n", escape_value(&pkg.name)));
@@ -60,6 +63,7 @@ pub fn write_lock(
     Ok(())
 }
 
+/// Converts a list of strings into a comma-separated TOML array by quoting each item.
 fn quote_list(items: &[String]) -> String {
     items
         .iter()
@@ -68,6 +72,7 @@ fn quote_list(items: &[String]) -> String {
         .join(", ")
 }
 
+/// Escapes backslashes and double quotes in a string to make it safe for TOML.
 fn escape_value(input: &str) -> String {
     input.replace('\\', "\\\\").replace('"', "\\\"")
 }

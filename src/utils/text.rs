@@ -38,11 +38,15 @@ pub const BOLD_YELLOW: &str = "\x1b[1m\x1b[93m";
 #[allow(dead_code)]
 pub const BOLD_CYAN: &str = "\x1b[1m\x1b[96m";
 
+/// Applies ANSI escape codes to format the message with the given style.
+///
+/// This is a utility for colored output in terminal applications.
 #[allow(dead_code)]
 pub fn colored(msg: &str, style: &str) -> String {
     format!("{style}{msg}{RESET}")
 }
 
+/// Prints `msg` to stdout with the given ANSI `style`.
 #[allow(dead_code)]
 pub fn printc(msg: &str, style: &str) {
     println!("{style}{msg}{RESET}");

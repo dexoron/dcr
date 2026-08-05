@@ -17,14 +17,19 @@
 
 use std::path::{Path, PathBuf};
 
+/// Joins the given directory and file into a single path string, trimming trailing slashes
+/// for cross-platform compatibility.
 pub fn join_dir(dir: &str, file: &str) -> String {
     let trimmed = dir.trim_end_matches(['/', '\\']);
     Path::new(trimmed).join(file).to_string_lossy().into_owned()
 }
 
 #[cfg_attr(not(windows), allow(dead_code))]
+/// Adds `.exe` suffix to the name if it does not already have a recognized executable
+/// extension (`.exe`, `.dll`, `.sys`, `.com`, `.efi`) or any extension at all.
 pub fn with_exe_suffix(name: &str) -> String {
     let lower = name.to_ascii_lowercase();
+    // Check if name already qualifies for no suffix (has executable ext or any ext)
     if lower.ends_with(".exe")
         || lower.ends_with(".dll")
         || lower.ends_with(".sys")
@@ -38,6 +43,7 @@ pub fn with_exe_suffix(name: &str) -> String {
     }
 }
 
+/// Default relative binary path: `./target[/<triple>]/<profile>/<name>`.
 pub fn default_bin_rel(profile: &str, name: &str, triple_segment: Option<&str>) -> String {
     let mut p = PathBuf::from("./target");
     if let Some(t) = triple_segment {
@@ -46,6 +52,7 @@ pub fn default_bin_rel(profile: &str, name: &str, triple_segment: Option<&str>) 
     p.join(profile).join(name).to_string_lossy().into_owned()
 }
 
+/// Default relative library path: `./target[/<triple>]/<profile>/<file>`.
 pub fn default_lib_rel(profile: &str, file: &str, triple_segment: Option<&str>) -> String {
     let mut p = PathBuf::from("./target");
     if let Some(t) = triple_segment {

@@ -5,6 +5,13 @@ use crate::utils::build::{is_compile_only, is_flat_bin};
 use std::path::Path;
 use std::time::Instant;
 
+/// Keeps only assembler-relevant flags from a cflags list.
+///
+/// # Parameters
+/// - `flags`: Full compiler flag list (often shared with C/C++).
+///
+/// # Returns
+/// Cloned flags that start with `-I`/`-i` or equal `-g`.
 pub fn filter_asm_flags(flags: &[String]) -> Vec<String> {
     flags
         .iter()
@@ -16,6 +23,19 @@ pub fn filter_asm_flags(flags: &[String]) -> Vec<String> {
         .collect()
 }
 
+/// Builds assembly sources with direct flat emission when `kind` is `flat-bin`.
+///
+/// For non-flat kinds, assembles to objects and then links/archives as usual.
+///
+/// # Parameters
+/// - `ctx`: Build context (kind, sources, flags, …).
+/// - `backend_name`: Label used in error messages (e.g. `"NASM"`).
+/// - `default_assembler`: Assembler binary when `ctx.compiler` is empty.
+/// - `extensions`: Source extensions to collect.
+/// - `build_object`: Per-source assemble callback `(assembler, src, out, ctx)`.
+///
+/// # Returns
+/// Elapsed seconds, or an error string.
 pub fn build_assembly<F>(
     ctx: &BuildContext,
     backend_name: &str,
@@ -36,6 +56,15 @@ where
     )
 }
 
+/// Builds assembly sources; for `flat-bin`, assembles to objects then runs objcopy.
+///
+/// For non-flat kinds, assembles to objects and then links/archives as usual.
+///
+/// # Parameters
+/// - Same as [`build_assembly`]; only the flat emission strategy differs.
+///
+/// # Returns
+/// Elapsed seconds, or an error string.
 pub fn build_assembly_via_objcopy<F>(
     ctx: &BuildContext,
     backend_name: &str,
@@ -56,12 +85,14 @@ where
     )
 }
 
+/// Flat-bin emission strategy: direct assembler output, or object then objcopy.
 #[derive(Clone, Copy)]
 enum FlatEmit {
     Direct,
     ViaObjcopy,
 }
 
+/// Core assembly build with a chosen flat emission mode; `build_object` runs per source in parallel.
 fn build_assembly_with_mode<F>(
     ctx: &BuildContext,
     backend_name: &str,
@@ -74,6 +105,7 @@ where
     F: Fn(&str, &str, &str, &BuildContext) -> Result<(), String> + Sync,
 {
     let lang = ctx.language.to_lowercase();
+    // Validate language
     if lang.split(',').any(|p| {
         let t = p.trim();
         t != "asm" && t != "llvm_ir" && t != "llvm-ir" && t != "ll"
@@ -104,6 +136,7 @@ where
     };
 
     let objects = match (flat, flat_mode) {
+        // Dispatch based on flat binary kind and emission mode
         (true, FlatEmit::Direct) => {
             let outs: Vec<String> = sources
                 .iter()
@@ -148,6 +181,7 @@ where
     artifact::link_binary(ctx, &objects, "cc", start_time)
 }
 
+/// Compiles all sources to objects in parallel (non-flat path) and returns object paths.
 fn build_objects_common<F>(
     assembler: &str,
     sources: &[String],

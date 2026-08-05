@@ -5,10 +5,14 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+/// Builds an assembly file using the FASM assembler.
+///
+/// Delegates to the shared assembly build logic with FASM configuration.
 pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     asm::build_assembly(ctx, "FASM", "fasm", &["asm", "fasm"], build_object)
 }
 
+/// Collects all source files for assembly files using FASM.
 pub(crate) fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String> {
     common::collect_sources(
         ctx.source_roots,
@@ -18,6 +22,7 @@ pub(crate) fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String>
     )
 }
 
+/// Assembles one FASM source into an object file.
 fn build_object(
     assembler: &str,
     source: &str,
@@ -28,6 +33,7 @@ fn build_object(
         fs::create_dir_all(parent).map_err(|err| format!("obj dir error: {err}"))?;
     }
 
+    // Skip rebuilding if the object is up to date
     if !common::needs_rebuild(source, obj_path) {
         return Ok(());
     }

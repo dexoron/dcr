@@ -18,10 +18,12 @@
 use super::path_util::{default_bin_rel, default_lib_rel, join_dir};
 use crate::utils::build::default_target_triple;
 
+/// Returns the host target triple used for default artifact paths on BSD.
 fn host_triple() -> String {
     default_target_triple()
 }
 
+/// Returns the path to a binary for the given profile, name, and optional target directory.
 pub fn bin_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     match target_dir {
         Some(dir) => join_dir(dir, name),
@@ -29,6 +31,7 @@ pub fn bin_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     }
 }
 
+/// Returns the path to a static library for the given profile, name, and optional target directory.
 pub fn lib_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     let file = format!("lib{name}.a");
     match target_dir {
@@ -37,10 +40,12 @@ pub fn lib_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     }
 }
 
+/// Returns the path to an ELF binary for the given profile, name, and optional target directory.
 pub fn elf_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     bin_path(profile, name, target_dir)
 }
 
+/// Returns the path to an EFI binary for the given profile, name, and optional target directory.
 pub fn efi_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     let file = format!("{name}.efi");
     match target_dir {
@@ -49,6 +54,7 @@ pub fn efi_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     }
 }
 
+/// Returns the path to a shared library for the given profile, name, and optional target directory.
 pub fn shared_lib_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     let file = format!("lib{name}.so");
     match target_dir {

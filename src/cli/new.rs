@@ -25,6 +25,10 @@ use std::fs;
 use std::io::Write;
 use toml::Value;
 
+/// Executes the `dcr new` command to scaffold a new C/C++ project directory structure.
+///
+/// Handles command-line argument parsing, directory creation, default configuration generation (`dcr.toml`),
+/// template source file generation (`src/main.c`), and initial VCS setup.
 pub fn new(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
         printc("USAGE:", BOLD_GREEN);
@@ -38,6 +42,7 @@ pub fn new(args: &[String]) -> i32 {
 
     let items = check_dir(None).unwrap_or_default();
 
+    // Parse CLI options (--vcs) while extracting positional arguments for the project name.
     let mut vcs_str = None;
     let mut clean_args = Vec::new();
     let mut iter = args.iter();
@@ -103,6 +108,7 @@ pub fn new(args: &[String]) -> i32 {
         project_name
     );
 
+    // Initialize and write project configuration manifest (dcr.toml).
     let toml_path = format!("./{project_name}/dcr.toml");
     let mut config = match Config::new(&toml_path) {
         Ok(cfg) => cfg,
@@ -124,6 +130,7 @@ pub fn new(args: &[String]) -> i32 {
         colored("dcr.toml", BOLD_CYAN)
     );
 
+    // Generate src directory and populate initial main.c file.
     if fs::create_dir_all(format!("./{project_name}/src")).is_err() {
         error("Failed to create src/");
         return 1;
@@ -146,7 +153,7 @@ pub fn new(args: &[String]) -> i32 {
         colored("src/main.c", BOLD_CYAN)
     );
 
-    // settings VCS
+    // Resolve target VCS mode based on CLI flags or parent directory state.
     let mut vcs_kind = VcsKind::Git;
     if let Some(ref vcs_val) = vcs_str {
         match VcsKind::parse(vcs_val) {

@@ -18,17 +18,36 @@
 use crate::config::{PROFILE, flags};
 use crate::utils::log::warn;
 
+/// Flags shared by the `build` and `run` CLI commands.
 pub struct BuildRunFlags {
+    /// Build profile name (for example `debug` or `release`).
     pub profile: String,
+    /// Optional target triple or platform name.
     pub target: Option<String>,
+    /// Optional workspace member name (`--workspace <name>`).
     pub workspace: Option<String>,
+    /// Force a rebuild even when artifacts appear up to date.
     pub force: bool,
+    /// Clean build outputs before building.
     pub clean: bool,
+    /// Enable verbose logging during the build or run.
     pub verbose: bool,
+    /// Print the final artifact path to the user.
     pub print_artifact_path: bool,
+    /// Arguments forwarded to the binary after a `--` separator.
     pub bin_args: Vec<String>,
 }
 
+/// Splits CLI arguments at the first `--` separator.
+///
+/// Everything before `--` is treated as DCR flags; everything after is
+/// forwarded to the built binary as `bin_args`.
+///
+/// # Parameters
+/// - `args`: Full argument list for the command (without the program name).
+///
+/// # Returns
+/// `(dcr_args, bin_args)`. If `--` is absent, `bin_args` is empty.
 pub fn split_double_dash(args: &[String]) -> (&[String], &[String]) {
     match args.iter().position(|a| a == "--") {
         Some(i) => (&args[..i], &args[i + 1..]),
@@ -36,6 +55,19 @@ pub fn split_double_dash(args: &[String]) -> (&[String], &[String]) {
     }
 }
 
+/// Parses build/run flags from a list of CLI arguments.
+///
+/// Recognizes boolean flags (`--force`, `--clean`, `--verbose`,
+/// `--print-artifact-path`), value flags (`--workspace`, `--target`), and
+/// profile names registered via [`flags`]. Arguments after `--` become
+/// [`BuildRunFlags::bin_args`].
+///
+/// # Parameters
+/// - `args`: CLI arguments for build/run (may include `--`).
+///
+/// # Returns
+/// - `Ok(BuildRunFlags)` on success.
+/// - `Err(1)` for unknown flags, missing values, or a duplicate profile.
 pub fn parse_build_run_flags(args: &[String]) -> Result<BuildRunFlags, i32> {
     let (dcr_args, bin_args_slice) = split_double_dash(args);
     let mut profile = PROFILE.to_string();
@@ -48,6 +80,7 @@ pub fn parse_build_run_flags(args: &[String]) -> Result<BuildRunFlags, i32> {
     let mut iter = dcr_args.iter();
 
     while let Some(arg) = iter.next() {
+        // DCR build/run options are long flags only (`--name`).
         if !arg.starts_with("--") {
             warn("Unknown argument");
             return Err(1);
@@ -87,6 +120,7 @@ pub fn parse_build_run_flags(args: &[String]) -> Result<BuildRunFlags, i32> {
             }
             continue;
         }
+        // Profile names come from config::flags; only one profile may be set.
         if flags(candidate).is_some() {
             if profile != PROFILE {
                 warn("Duplicate profile flag");
@@ -115,10 +149,12 @@ pub fn parse_build_run_flags(args: &[String]) -> Result<BuildRunFlags, i32> {
 mod tests {
     use super::*;
 
+    /// Converts string literals into owned `String` CLI arguments for tests.
     fn s(args: &[&str]) -> Vec<String> {
         args.iter().map(|a| a.to_string()).collect()
     }
 
+    /// Checks that without `--`, the full list stays on the DCR side.
     #[test]
     fn split_double_dash_empty_tail() {
         let args = s(&["--release", "--force"]);
@@ -127,6 +163,7 @@ mod tests {
         assert!(right.is_empty());
     }
 
+    /// Checks that arguments after `--` are split into the bin-args slice.
     #[test]
     fn split_double_dash_with_bin_args() {
         let args = s(&["--release", "--", "--test_help", "x"]);
@@ -135,6 +172,7 @@ mod tests {
         assert_eq!(right, &s(&["--test_help", "x"]));
     }
 
+    /// Checks profile parsing and that bin args after `--` are forwarded.
     #[test]
     fn parse_run_flags_forwards_after_double_dash() {
         let flags = parse_build_run_flags(&s(&["--release", "--", "--test_help"])).unwrap();

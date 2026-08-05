@@ -25,6 +25,15 @@ use glob::glob;
 use std::fs;
 use std::path::Path;
 
+/// Entry point for the `dcr clean` command.
+///
+/// Removes build artifacts from the project (and optionally workspace members).
+///
+/// # Parameters
+/// - `args`: Tokens after `dcr clean` (`--debug`/`--release`, `--target`, `--all`).
+///
+/// # Returns
+/// Process exit code: `0` on success, `1` on failure.
 pub fn clean(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
         printc("USAGE:", BOLD_GREEN);
@@ -70,6 +79,7 @@ pub fn clean(args: &[String]) -> i32 {
         }
     };
 
+    // Run cleanup relative to the project root so paths resolve consistently.
     match with_dir(&root, || clean_from_root(&root, &flags)) {
         Ok(()) => 0,
         Err(msg) => {
@@ -79,12 +89,20 @@ pub fn clean(args: &[String]) -> i32 {
     }
 }
 
+/// Parsed flags controlling which artifacts `clean` should remove.
 struct CleanFlags {
+    /// Optional build profile name (e.g. `debug`, `release`).
     profile: Option<String>,
+    /// Optional target triple to clean under `target/<triple>/...`.
     target: Option<String>,
+    /// When true, also clean each workspace member that has a `target` directory.
     all: bool,
 }
 
+/// Parses CLI arguments into [`CleanFlags`].
+///
+/// Recognizes `--all`, `--target <triple>`, and profile flags such as `--debug`
+/// / `--release` (validated via [`default_profile_flags`]).
 fn parse_clean_flags(args: &[String]) -> Result<CleanFlags, String> {
     let mut profile: Option<String> = None;
     let mut target: Option<String> = None;
@@ -104,6 +122,7 @@ fn parse_clean_flags(args: &[String]) -> Result<CleanFlags, String> {
             continue;
         }
         if arg.starts_with("--") {
+            // Accept only known profile names (e.g. debug/release), not arbitrary flags.
             let candidate = arg.trim_start_matches("--").to_string();
             if !default_profile_flags(&candidate).is_empty() {
                 if profile.is_some() {
@@ -122,9 +141,14 @@ fn parse_clean_flags(args: &[String]) -> Result<CleanFlags, String> {
     })
 }
 
+/// Cleans the project at `root`, and optionally all workspace members.
+///
+/// Resolves the effective target triple from flags, `dcr.toml`, or host defaults,
+/// then removes the appropriate `target` subdirectories and custom clean paths.
 fn clean_from_root(root: &Path, flags: &CleanFlags) -> Result<(), String> {
     let config = Config::open("./dcr.toml").map_err(|err| err.to_string())?;
 
+    // Prefer CLI --target, then build.target from config, then host defaults on Linux/BSD.
     let target = flags.target.clone().or_else(|| {
         config
             .get("build.target")
@@ -165,6 +189,12 @@ fn clean_from_root(root: &Path, flags: &CleanFlags) -> Result<(), String> {
     clean_project_at(root, flags.profile.as_deref(), target.as_deref())
 }
 
+/// Removes build artifacts for a single project directory.
+///
+/// When `profile` is set, only that profile's directory under `target` (optionally
+/// scoped by `target` triple) is removed, plus custom paths for that profile.
+/// When `profile` is `None`, the entire `target` tree is removed and custom paths
+/// are cleaned for both `debug` and `release`.
 fn clean_project_at(
     project_root: &Path,
     profile: Option<&str>,
@@ -192,6 +222,7 @@ fn clean_project_at(
             };
             let target_items = check_dir(Some("target")).unwrap_or_default();
             let parent_dir = target.unwrap_or("");
+            // Existence check differs: with a triple, look for target/<triple>; otherwise target/<profile>.
             let dir_exists = if target.is_some() {
                 target_items.contains(&parent_dir.to_string())
             } else {
@@ -230,6 +261,10 @@ fn clean_project_at(
     })
 }
 
+/// Deletes extra paths listed under `build.clean` in `dcr.toml` for a profile.
+///
+/// Each pattern may contain `{profile}` and version placeholders, which are
+/// expanded before matching with `glob`. Matched files and directories are removed.
 fn clean_custom_paths(config: &Config, profile: &str) -> Result<(), String> {
     let patterns = match config.get("build.clean") {
         Some(v) => v
@@ -260,6 +295,10 @@ fn clean_custom_paths(config: &Config, profile: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Expands version-related placeholders in a clean path pattern.
+///
+/// Reads `package.version` from `config`, parses it, and applies
+/// [`crate::utils::build::substitute_version_vars`].
 fn substitute_clean_vars(value: &str, config: &Config) -> String {
     let version = config
         .get("package.version")

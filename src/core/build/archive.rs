@@ -22,6 +22,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
+/// File wrapper that shifts all seek offsets (used to skip the boot sector on a FAT image).
 struct OffsetFile<T> {
     inner: T,
     offset: u64,
@@ -73,6 +74,7 @@ impl<T: Seek> Seek for OffsetFile<T> {
     }
 }
 
+/// Parses a size string like `1.5m` or `500k` into bytes (1024-based; empty → 0).
 fn parse_size(s: &str) -> Result<u64, String> {
     let s = s.trim();
     if s.is_empty() {
@@ -101,6 +103,7 @@ fn parse_size(s: &str) -> Result<u64, String> {
     Ok((val * multiplier) as u64)
 }
 
+/// Creates a FAT image from layout config, substituting `{profile}` and optional boot sector.
 pub fn pack_archive(
     project_root: &Path,
     config: &ArchiveConfig,
@@ -142,6 +145,7 @@ pub fn pack_archive(
     if offset == 0
         && let Some(boot_rel) = &config.bootsector
     {
+        // Load and write bootsector if present
         let boot_rel_substituted = boot_rel.replace("{profile}", profile);
         let boot_path = project_root.join(&boot_rel_substituted);
         if boot_path.is_file() {

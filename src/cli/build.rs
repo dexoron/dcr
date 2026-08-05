@@ -35,19 +35,31 @@ use std::sync::{Arc, atomic::AtomicBool};
 
 pub use crate::core::build::get_build_string_with_profile;
 
+/// Formats a left-aligned status verb with the given style for CLI output.
 fn status(verb: &str, style: &str) -> String {
     colored(&format!("{verb:<9}"), style)
 }
 
+/// CLI build reporter that prints human-readable progress to stderr/stdout.
 struct CliReporter;
 
 impl CliReporter {
+    /// Prints a single status line with a styled verb and free-form rest text.
+    ///
+    /// # Parameters
+    /// - `verb`: Short status label (e.g. `"target"`, `"dep"`).
+    /// - `style`: Color/style constant for the verb.
+    /// - `rest`: Remaining message text after the verb.
     fn line(&self, verb: &str, style: &str, rest: &str) {
         eprintln!("  {} {}", status(verb, style), rest);
     }
 }
 
 impl BuildReporter for CliReporter {
+    /// Handles build events by printing progress, status lines, and compiler output.
+    ///
+    /// # Parameters
+    /// - `event`: Build pipeline event to report to the user.
     fn on_event(&mut self, event: BuildEvent<'_>) {
         match event {
             BuildEvent::TargetStart {
@@ -80,6 +92,7 @@ impl BuildReporter for CliReporter {
                 rebuilt,
             } => {
                 common::finish_progress_line();
+                // Only announce deps that were actually rebuilt this run.
                 if rebuilt {
                     self.line("ready", BOLD_GREEN, &format!("{name} v{version}"));
                 }
@@ -87,6 +100,7 @@ impl BuildReporter for CliReporter {
             BuildEvent::Compiling { name, version } => {
                 common::finish_progress_line();
                 let label = format!("  {} {} v{}", status("compile", BOLD_GREEN), name, version);
+                // Terminals use an in-place progress line; non-TTY gets a plain log line.
                 common::set_progress_label(Some(label.clone()));
                 if !std::io::stderr().is_terminal() {
                     eprintln!("{label}");
@@ -101,6 +115,7 @@ impl BuildReporter for CliReporter {
                 self.line("done", BOLD_GREEN, &format!("in {secs}s"));
             }
             BuildEvent::CompilerOutput { stream, text } => {
+                // Pause the progress spinner so compiler text is not overwritten.
                 common::interrupt_progress_for_output();
                 if stream == "stderr" {
                     eprint!("{text}");
@@ -112,6 +127,17 @@ impl BuildReporter for CliReporter {
     }
 }
 
+/// Runs the project build command from the CLI.
+///
+/// Parses flags, locates the project root, optionally cleans, then invokes the
+/// core build pipeline. On success, may write `.dcr` metadata and print the
+/// main artifact path when requested.
+///
+/// # Parameters
+/// - `args`: Tokens after `dcr build` (profile, target, force, clean, etc.).
+///
+/// # Returns
+/// Process exit code: `0` on success or help, non-zero on failure.
 pub fn build(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
         printc("USAGE:", BOLD_GREEN);
@@ -137,6 +163,7 @@ pub fn build(args: &[String]) -> i32 {
         return 0;
     }
 
+    // Shared cancel flag so Ctrl-C can stop an in-progress build cooperatively.
     let cancel = Arc::new(AtomicBool::new(false));
     let cancel_clone = cancel.clone();
     ctrlc::set_handler(move || {
@@ -166,6 +193,7 @@ pub fn build(args: &[String]) -> i32 {
         Err(code) => return code,
     };
 
+    // Prefer CLI --target; otherwise fall back to profile target from dcr.toml.
     if flags.target.is_none() {
         let config_path = root.join("dcr.toml");
         if let Ok(config) = Config::open(config_path.to_str().unwrap())
@@ -194,6 +222,7 @@ pub fn build(args: &[String]) -> i32 {
     let mut reporter = CliReporter;
     match run_build(&root, &req, &mut reporter) {
         Ok(_) => {
+            // Persist IDE/metadata and optionally echo the main artifact path.
             if let Some(info) =
                 resolve_post_build_info(&root, &flags.profile, flags.target.as_deref())
             {
@@ -219,6 +248,19 @@ pub fn build(args: &[String]) -> i32 {
     }
 }
 
+/// Collects project and artifact metadata after a successful build.
+///
+/// Reads `dcr.toml`, resolves language/compiler/kind/target/output settings for
+/// the given profile, and computes absolute artifact and target directory paths.
+///
+/// # Parameters
+/// - `root`: Project root with `dcr.toml`.
+/// - `profile`: Build profile used for the just-finished build.
+/// - `cli_target`: Optional target from the CLI (overrides config when set).
+///
+/// # Returns
+/// `Some(ProjectInfo)` for a normal package; `None` for workspace-only roots
+/// or when required config/paths cannot be resolved.
 fn resolve_post_build_info(
     root: &Path,
     profile: &str,
@@ -262,6 +304,7 @@ fn resolve_post_build_info(
         tc_as.as_deref(),
     );
     let out_dir = get_string_with_profile(&config, "out_dir", profile);
+    // Explicit target (CLI or config) changes how the artifact directory is laid out.
     let has_explicit = cli_target.is_some_and(|t| !t.is_empty()) || !build_target.trim().is_empty();
     let target_dir =
         resolve_artifact_target_dir(root, None, profile, &build_target, &out_dir, has_explicit);
@@ -319,6 +362,10 @@ fn resolve_post_build_info(
     })
 }
 
+/// Best-effort absolute main artifact path when full post-build info is unavailable.
+///
+/// Assumes a binary (`"bin"`) kind and uses the package name plus profile,
+/// target, and `out_dir` settings from config.
 fn fallback_artifact_path(root: &Path, profile: &str, target: Option<&str>) -> Option<String> {
     let config = Config::open(root.join("dcr.toml").to_str()?).ok()?;
     let name = get_config_str(&config, "package.name");

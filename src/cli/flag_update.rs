@@ -27,18 +27,32 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const LATEST_RELEASE_URL: &str = "https://api.github.com/repos/dexoron/dcr/releases/latest";
 
+/// Metadata for the latest GitHub release of DCR.
 #[derive(Debug, Deserialize)]
 struct Release {
+    /// Release tag, typically including a leading `v` (e.g. `v1.2.3`).
     tag_name: String,
+    /// Downloadable assets attached to the release.
     assets: Vec<ReleaseAsset>,
 }
 
+/// A single downloadable asset from a GitHub release.
 #[derive(Debug, Deserialize)]
 struct ReleaseAsset {
+    /// Asset file name as published on GitHub.
     name: String,
+    /// Direct URL used to download the asset.
     browser_download_url: String,
 }
 
+/// Handles the `dcr --update` flag: checks GitHub for a newer release and
+/// replaces the running binary when an update is available.
+///
+/// # Parameters
+/// - `args`: Remaining tokens after `--update` (only `--help` is accepted).
+///
+/// # Returns
+/// `0` on success / already up to date / pacman-managed refuse; `1` on error.
 pub fn flag_update(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
         printc("USAGE:", BOLD_GREEN);
@@ -62,6 +76,7 @@ pub fn flag_update(args: &[String]) -> i32 {
         }
     };
 
+    // Refuse self-update when the binary is owned by pacman/AUR.
     if let Some(package_name) = pacman_owned_package(&current_exe) {
         warn("This dcr binary is managed by pacman/AUR");
         println!(
@@ -81,6 +96,7 @@ pub fn flag_update(args: &[String]) -> i32 {
         }
     };
 
+    // Normalize the tag by stripping a leading `v` before comparison.
     let latest_version = release.tag_name.trim_start_matches('v');
     if latest_version == current_version {
         println!("Latest version is already installed: {current_version}");
@@ -113,6 +129,7 @@ pub fn flag_update(args: &[String]) -> i32 {
     }
     set_executable_permissions(&temp_path);
 
+    // Replace the running executable in place, then clean up the temp file.
     if self_replace::self_replace(&temp_path).is_err() {
         let _ = fs::remove_file(&temp_path);
         error("Failed to replace current binary");
@@ -124,6 +141,7 @@ pub fn flag_update(args: &[String]) -> i32 {
     0
 }
 
+/// Fetches the latest DCR release metadata from the GitHub Releases API.
 fn fetch_latest_release() -> Result<Release, String> {
     let response = ureq::get(LATEST_RELEASE_URL)
         .set("User-Agent", "dcr-updater")
@@ -138,6 +156,7 @@ fn fetch_latest_release() -> Result<Release, String> {
         .map_err(|_| "GitHub API response has an unexpected format".to_string())
 }
 
+/// Downloads a release asset from the given URL into memory.
 fn download_asset(url: &str) -> Result<Vec<u8>, String> {
     let response = ureq::get(url)
         .set("User-Agent", "dcr-updater")
@@ -155,9 +174,11 @@ fn download_asset(url: &str) -> Result<Vec<u8>, String> {
     Ok(data)
 }
 
+/// Builds the list of expected asset file names for the given build target.
 fn asset_candidates(target: &str) -> Vec<String> {
     let mut names = vec![format!("dcr-{target}")];
 
+    // Windows releases may publish the binary with an `.exe` suffix.
     if target.contains("-windows-") || target.ends_with("-windows") {
         names.push(format!("dcr-{target}.exe"));
     }
@@ -165,6 +186,7 @@ fn asset_candidates(target: &str) -> Vec<String> {
     names
 }
 
+/// Creates a unique temporary path next to the current executable for the download.
 fn temp_binary_path(current_exe: &Path) -> PathBuf {
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -177,6 +199,7 @@ fn temp_binary_path(current_exe: &Path) -> PathBuf {
     current_exe.with_extension(extension)
 }
 
+/// Sets executable permissions on Unix; no-op on other platforms.
 fn set_executable_permissions(_path: &Path) {
     #[cfg(unix)]
     {
@@ -189,6 +212,7 @@ fn set_executable_permissions(_path: &Path) {
     }
 }
 
+/// On Linux, returns the pacman package that owns `path`, if any.
 #[cfg(target_os = "linux")]
 fn pacman_owned_package(path: &Path) -> Option<String> {
     let output = Command::new("pacman").arg("-Qoq").arg(path).output().ok()?;
@@ -204,6 +228,7 @@ fn pacman_owned_package(path: &Path) -> Option<String> {
     Some(package_name)
 }
 
+/// Non-Linux stub: package-manager ownership is not checked.
 #[cfg(not(target_os = "linux"))]
 fn pacman_owned_package(_path: &Path) -> Option<String> {
     None

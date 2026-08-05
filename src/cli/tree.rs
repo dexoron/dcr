@@ -22,6 +22,10 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use toml::Value;
 
+/// Displays the dependency tree of the current project.
+///
+/// This function checks for the --help flag and prints usage information if present.
+/// Otherwise, it parses the dcr.toml configuration and prints the dependency tree.
 pub fn tree(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
         printc("USAGE:", BOLD_GREEN);
@@ -62,6 +66,9 @@ pub fn tree(args: &[String]) -> i32 {
     0
 }
 
+/// Recursively prints the dependency tree starting from the given dependencies table.
+///
+/// Sorts dependencies for consistent ordering and handles path resolution for sub-dependencies.
 fn print_deps(
     deps: &toml::value::Table,
     base_path: &Path,
@@ -81,6 +88,7 @@ fn print_deps(
         let mut sub_deps = None;
         let mut resolved_path = None;
 
+        // Resolve dependency path if it's a path-based dependency
         if let Some(path) = &dep_path {
             let dcr_toml = path.join("dcr.toml");
             if dcr_toml.exists()
@@ -117,6 +125,7 @@ fn print_deps(
 
         println!("{}{}{}{}", prefix, connector, name, version);
 
+        // Recurse only if sub-dependencies exist and this dep hasn't been seen
         if let Some(s_deps) = sub_deps
             && !seen.contains(*name)
         {
@@ -130,6 +139,7 @@ fn print_deps(
     }
 }
 
+/// Resolves the filesystem path for a dependency entry if it specifies a "path:" prefix or table with "path" key.
 fn resolve_dep_path(value: &Value, base_path: &Path) -> Option<PathBuf> {
     match value {
         Value::String(s) => s

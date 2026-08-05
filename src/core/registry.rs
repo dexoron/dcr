@@ -15,33 +15,40 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+/// Registry configuration management for DCR.
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
+/// Represents a registry configuration entry with its URL and priority.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Registry {
     pub url: String,
     pub priority: i32,
 }
 
+/// Represents the overall configuration loaded from config.toml, mapping registry names to their details.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
     pub registry: HashMap<String, Registry>,
 }
 
+/// Manages the DCR registry configuration, loading from ~/.dcr/config.toml.
 pub struct RegistryManager {
     pub config: Config,
     #[allow(dead_code)]
     pub path: PathBuf,
 }
 
+/// Returns the user's home directory path, used to locate the config file.
 fn home_dir() -> Option<PathBuf> {
     crate::utils::fs::home_dir()
 }
 
 impl RegistryManager {
+    /// Loads the registry configuration from ~/.dcr/config.toml.
+    /// Returns an error if the config file is missing.
     pub fn load() -> Result<Self, Box<dyn std::error::Error>> {
         let dcr_dir = home_dir()
             .ok_or("Cannot determine home directory")?
@@ -53,6 +60,7 @@ impl RegistryManager {
         }
 
         let content = fs::read_to_string(&config_path)?;
+        // Deserialize the TOML content into the Config struct
         let config: Config = toml::from_str(&content)?;
 
         Ok(Self {

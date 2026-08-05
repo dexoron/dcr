@@ -17,6 +17,7 @@
 
 use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, printc};
 
+/// Sets up DCR registries by loading the registry manager and printing the list of registries.
 pub fn setup(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
         printc("USAGE:", BOLD_GREEN);
@@ -29,6 +30,7 @@ pub fn setup(args: &[String]) -> i32 {
     }
 
     println!("Setting up DCR registries...");
+    // Load and process the registries, returning 0 on success or 1 on error
     match crate::core::registry::RegistryManager::load() {
         Ok(manager) => {
             println!("Loaded {} registries.", manager.config.registry.len());

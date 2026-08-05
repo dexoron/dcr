@@ -18,10 +18,14 @@
 use std::fs;
 use std::path::Path;
 
-// creating git init and .gitignore
+/// Initializes a Git repository in the target directory and configures its `.gitignore` file.
+///
+/// Executes `git init` via the VCS utility module, creates a default `.gitignore` if none exists,
+/// or updates an existing `.gitignore` to ensure `.dcr/` and build outputs are ignored.
 pub fn init(path: &Path) -> Result<(), String> {
     crate::utils::git::git_init(path)?;
 
+    // Populate default .gitignore entries or append DCR metadata rules.
     let gitignore_path = path.join(".gitignore");
     if !gitignore_path.exists() {
         fs::write(&gitignore_path, "/target\n.dcr/\n")

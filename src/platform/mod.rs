@@ -40,6 +40,17 @@ pub mod posix;
 #[cfg(target_os = "windows")]
 pub mod windows;
 
+/// Host OS path for a binary artifact.
+///
+/// Backend is chosen at compile time via `cfg!(target_os = …)`, not by the build target triple.
+///
+/// # Parameters
+/// - `profile`: Build profile directory segment.
+/// - `name`: Binary basename (may already include extension on some hosts).
+/// - `target_dir`: Optional absolute/relative artifact directory override.
+///
+/// # Returns
+/// Path string suitable for the current host layout.
 pub fn bin_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     #[cfg(target_os = "linux")]
     {
@@ -76,6 +87,9 @@ pub fn bin_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     }
 }
 
+/// Host OS path for an ELF-style artifact (`profile`, `name`, optional `target_dir`).
+///
+/// Backend is chosen at compile time via `cfg!(target_os = …)`, not by the build target triple.
 pub fn elf_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     #[cfg(target_os = "linux")]
     {
@@ -112,6 +126,9 @@ pub fn elf_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     }
 }
 
+/// Host OS path for an EFI (`.efi`) artifact (`profile`, `name`, optional `target_dir`).
+///
+/// Backend is chosen at compile time via `cfg!(target_os = …)`, not by the build target triple.
 pub fn efi_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     #[cfg(target_os = "linux")]
     {
@@ -148,6 +165,9 @@ pub fn efi_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     }
 }
 
+/// Host OS path for a static library (`profile`, `name`, optional `target_dir`).
+///
+/// Backend is chosen at compile time via `cfg!(target_os = …)`, not by the build target triple.
 pub fn lib_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     #[cfg(target_os = "linux")]
     {
@@ -184,6 +204,9 @@ pub fn lib_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     }
 }
 
+/// Host OS path for a shared library (`profile`, `name`, optional `target_dir`).
+///
+/// Backend is chosen at compile time via `cfg!(target_os = …)`, not by the build target triple.
 pub fn shared_lib_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     #[cfg(target_os = "linux")]
     {

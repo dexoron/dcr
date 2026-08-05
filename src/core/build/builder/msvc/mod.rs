@@ -15,6 +15,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+/// MSVC build backend for DCR.
+///
+/// This module provides the MSVC-specific build implementation for C and C++
+/// projects, including object compilation and linking for executables, static
+/// libraries, shared libraries, and flat binaries.
 use crate::core::build::builder::BuildContext;
 use crate::core::build::builder::artifact;
 use crate::core::build::common;
@@ -25,6 +30,7 @@ use std::path::Path;
 use std::process::Command;
 use std::time::Instant;
 
+/// Builds the project target using the MSVC compiler.
 pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     let compiler = if ctx.compiler.is_empty() {
         "cl"
@@ -159,6 +165,7 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     }
 }
 
+/// Links the flat binary output for MSVC build targets.
 fn link_flat_msvc(
     ctx: &BuildContext,
     compiler: &str,
@@ -214,6 +221,7 @@ fn link_flat_msvc(
     Ok(common::elapsed_secs(start_time))
 }
 
+/// Collects all source files for the build based on language extensions.
 pub(crate) fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String> {
     let extensions = source_extensions(ctx.language);
     common::collect_sources(
@@ -224,10 +232,12 @@ pub(crate) fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String>
     )
 }
 
+/// Source file extensions for `language` (owned `Vec` of static slices).
 fn source_extensions(language: &str) -> Vec<&'static str> {
     crate::core::build::common::source_extensions(language)
 }
 
+/// Maps the language and standard version to the corresponding MSVC flag string.
 fn msvc_standard_flag(language: &str, standard: &str) -> Result<String, String> {
     let lang = language.to_lowercase();
     let std = standard.to_lowercase();
@@ -251,6 +261,7 @@ fn msvc_standard_flag(language: &str, standard: &str) -> Result<String, String> 
     Err("Unsupported language".to_string())
 }
 
+/// Returns the MSVC architecture flag based on the target platform.
 fn msvc_arch_flag(platform: Option<&str>) -> Option<&'static str> {
     let raw = platform?.trim();
     if raw.is_empty() {
@@ -268,6 +279,7 @@ fn msvc_arch_flag(platform: Option<&str>) -> Option<&'static str> {
     }
 }
 
+/// Returns default compiler flags for the specified build profile.
 fn default_flags(profile: &str) -> &'static [&'static str] {
     match profile {
         "release" => &["/O2", "/DNDEBUG"],
@@ -276,6 +288,7 @@ fn default_flags(profile: &str) -> &'static [&'static str] {
     }
 }
 
+/// Compiles all sources into object files using parallel processing.
 fn build_objects(
     compiler: &str,
     sources: &[String],
@@ -297,6 +310,7 @@ fn build_objects(
     Ok(objects)
 }
 
+/// Compiles a single source file to an object file.
 fn build_object(
     compiler: &str,
     source: &str,
@@ -369,6 +383,7 @@ fn build_object(
     let mut headers = Vec::new();
     let mut clean_stdout = String::new();
 
+    // Parse compiler output to extract include file notes for dependency generation
     for line in stdout.lines() {
         if let Some(stripped) = line.strip_prefix("Note: including file:") {
             headers.push(stripped.trim().to_string());

@@ -34,14 +34,20 @@ use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, printc};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// Like `deps::resolve_deps` but does NOT require lib directories to exist.
-/// Used by `gen` commands where the project may not have been built yet.
+/// Path-dep include/lib/libs metadata for `dcr gen` (project may not be built yet).
+///
+/// Explicit include/lib lists may point at missing paths; default `include`/`lib`
+/// candidates are added only when those directories exist.
 struct GenDeps {
     include_dirs: Vec<String>,
     lib_dirs: Vec<String>,
     libs: Vec<String>,
 }
 
+/// Collects path-dependency include/lib/libs from `dcr.toml` for code generation.
+///
+/// Skips `system` deps and non-path entries. Falls back to common include/lib
+/// directory names only when those directories exist.
 fn resolve_deps_for_gen(config: &Config, profile: &str, project_root: &Path) -> GenDeps {
     let deps_val = match config.get("dependencies") {
         Some(v) => v,
@@ -168,6 +174,7 @@ fn resolve_deps_for_gen(config: &Config, profile: &str, project_root: &Path) -> 
 
 // ── public API ───────────────────────────────────────────────────────────────
 
+/// Per-project (or workspace member) metadata collected for `dcr gen`.
 pub struct ProjectInfo {
     pub name: String,
     pub version: String,
@@ -201,8 +208,13 @@ pub struct ProjectInfo {
     pub workspace_root: Option<PathBuf>,
 }
 
-// ── entry-point for `dcr gen` ────────────────────────────────────────────────
-
+/// Entry point for `dcr gen`: dispatches to project-info / compile-commands / vscode / clion.
+///
+/// # Parameters
+/// - `args`: First token is the subcommand; the rest are subcommand flags.
+///
+/// # Returns
+/// Process exit code from the chosen subcommand (`0` for help).
 pub fn r#gen(args: &[String]) -> i32 {
     let subcommand = match args.first() {
         Some(s) if s == "--help" => {
@@ -253,6 +265,7 @@ pub fn r#gen(args: &[String]) -> i32 {
 
 // ── shared: collect per-project data ─────────────────────────────────────────
 
+/// Collects [`ProjectInfo`] with cwd set to the project root so relative paths resolve.
 fn collect_project_info(
     root: &Path,
     profile: &str,
@@ -265,6 +278,9 @@ fn collect_project_info(
     result
 }
 
+/// Reads `dcr.toml` and resolves compiler, deps, sources, and artifact paths for one project.
+///
+/// Called once per project/member from [`collect_all`] (not recursive).
 fn collect_project_info_inner(
     root: &Path,
     profile: &str,
@@ -576,6 +592,10 @@ fn find_in_path(name: &str) -> Option<String> {
     None
 }
 
+/// Resolves a tool name (e.g. moc, uic, rcc) for generated metadata.
+///
+/// Prefers a PATH hit via [`find_in_path`]; otherwise returns the trimmed name
+/// as given (absolute or relative). Empty input yields `None`.
 fn resolve_tool_path(name: &str) -> Option<String> {
     let t = name.trim();
     if t.is_empty() {
@@ -584,6 +604,8 @@ fn resolve_tool_path(name: &str) -> Option<String> {
     find_in_path(t).or_else(|| Some(t.to_string()))
 }
 
+/// Picks a debugger name: configured value if set, else first of lldb/gdb on PATH,
+/// else `cppvsdbg` on Windows or `lldb` elsewhere (even if not on PATH).
 fn resolve_debugger(configured: Option<&str>) -> String {
     if let Some(d) = configured {
         let t = d.trim();
@@ -617,6 +639,7 @@ fn utc_now_iso() -> String {
     format!("{year:04}-{month:02}-{day:02}T{hour:02}:{min:02}:{sec:02}Z")
 }
 
+/// Converts days since the Unix epoch to `(year, month, day)` (proleptic Gregorian).
 fn civil_from_days(days: i64) -> (i32, u32, u32) {
     let z = days + 719468;
     let era = if z >= 0 { z } else { z - 146096 } / 146097;
@@ -631,6 +654,14 @@ fn civil_from_days(days: i64) -> (i32, u32, u32) {
     (y as i32, m, d)
 }
 
+/// Writes `.dcr/build-info.json` and `.dcr/toolchain.json` from project metadata.
+///
+/// # Parameters
+/// - `root`: Project root (creates `.dcr/` if needed).
+/// - `info`: Collected project metadata (compiler, artifact, toolchain tools).
+///
+/// # Returns
+/// `Ok(())` on success, or an error string if directory/file writes fail.
 pub fn write_dcr_metadata(root: &Path, info: &ProjectInfo) -> Result<(), String> {
     let dcr = ensure_dcr_dir(root).map_err(|e| format!("Failed to create .dcr/: {e}"))?;
 
@@ -723,6 +754,7 @@ fn ensure_clangd(root: &Path, quiet: bool) {
     let _ = std::fs::write(&path, desired);
 }
 
+/// Collects [`ProjectInfo`] for the root package and workspace members (skips failed members).
 fn collect_all(root: &Path, profile: &str) -> Result<Vec<ProjectInfo>, String> {
     let root = canonicalize_path(root);
     let config = {
@@ -776,6 +808,7 @@ fn collect_all(root: &Path, profile: &str) -> Result<Vec<ProjectInfo>, String> {
 
 // ── dcr gen project-info ─────────────────────────────────────────────────────
 
+/// `dcr gen project-info`: print project metadata JSON; writes `.dcr` meta from the last entry.
 fn gen_project_info(args: &[String]) -> i32 {
     let (root, profile, quiet) = match parse_gen_args(args) {
         Ok(v) => v,
@@ -811,6 +844,7 @@ fn gen_project_info(args: &[String]) -> i32 {
     0
 }
 
+/// Pretty multi-line JSON object for one [`ProjectInfo`] (used inside a JSON array).
 fn project_info_to_json(info: &ProjectInfo) -> String {
     let mut out = String::new();
     out.push_str("  {\n");
@@ -896,6 +930,7 @@ fn project_info_to_json(info: &ProjectInfo) -> String {
 
 // ── dcr gen compile-commands ─────────────────────────────────────────────────
 
+/// `dcr gen compile-commands`: write `.dcr/compile_commands.json`.
 fn gen_compile_commands(args: &[String]) -> i32 {
     let (root, profile, quiet) = match parse_gen_args(args) {
         Ok(v) => v,
@@ -913,6 +948,9 @@ fn gen_compile_commands(args: &[String]) -> i32 {
     gen_compile_commands_inner(&root, &profile, &all, quiet)
 }
 
+/// Writes compile_commands.json, build metadata, and ensures `.clangd`.
+///
+/// Used by `compile-commands`, `vscode`, and `clion`.
 fn gen_compile_commands_inner(root: &Path, profile: &str, all: &[ProjectInfo], quiet: bool) -> i32 {
     if let Err(e) = ensure_dcr_dir(root) {
         error(&format!("Failed to create .dcr/: {e}"));
@@ -942,6 +980,7 @@ fn gen_compile_commands_inner(root: &Path, profile: &str, all: &[ProjectInfo], q
     }
 }
 
+/// Builds a clangd/cpptools `compile_commands.json` array (one entry per source file).
 fn build_compile_commands(projects: &[ProjectInfo], profile: &str) -> String {
     let mut out = String::from("[\n");
     let mut first = true;
@@ -972,6 +1011,8 @@ fn build_compile_commands(projects: &[ProjectInfo], profile: &str) -> String {
     out
 }
 
+/// Assembles one compiler argv: compiler, `-c`, optional `-x` asm, source/obj paths,
+/// `-fPIC`, `-std=`, profile defaults, cflags, and include paths.
 fn build_compile_command(info: &ProjectInfo, source: &str, profile: &str) -> Vec<String> {
     let mut cmd: Vec<String> = Vec::new();
     let compiler = if info.compiler.is_empty() {
@@ -1027,7 +1068,7 @@ fn build_compile_command(info: &ProjectInfo, source: &str, profile: &str) -> Vec
         }
     }
 
-    // Default profile flags (mirrors unix_cc.rs defaults)
+    // Default profile flags (same idea as default_profile_flags)
     match profile {
         "release" => {
             cmd.push("-O3".to_string());
@@ -1076,6 +1117,7 @@ fn strip_src_prefix(p: &Path) -> PathBuf {
 
 // ── dcr gen vscode ───────────────────────────────────────────────────────────
 
+/// `dcr gen vscode`: compile_commands plus `.vscode/` tasks, launch, settings, extensions.
 fn gen_vscode(args: &[String]) -> i32 {
     let (root, profile, quiet) = match parse_gen_args(args) {
         Ok(v) => v,
@@ -1216,6 +1258,8 @@ fn gen_tasks_json() -> String {
     .to_string()
 }
 
+/// Absolute program path for a launch config; reuses `artifact_path` when profiles match,
+/// otherwise recomputes from kind/target/out_dir/filename.
 fn resolve_launch_program(info: &ProjectInfo, profile: &str) -> String {
     if info.profile == profile
         && let Some(ref p) = info.artifact_path
@@ -1257,6 +1301,7 @@ fn resolve_launch_program(info: &ProjectInfo, profile: &str) -> String {
     }
 }
 
+/// VS Code debug type from debugger name: `cppdbg`, `cppvsdbg`, or `lldb`.
 fn debug_type_for(info: &ProjectInfo) -> &'static str {
     let d = info.debugger.to_lowercase();
     if d.contains("gdb") || d == "cppdbg" {
@@ -1268,6 +1313,7 @@ fn debug_type_for(info: &ProjectInfo) -> &'static str {
     }
 }
 
+/// `launch.json` content: one debug config per `bin` target for debug and release.
 fn gen_launch_json(projects: &[ProjectInfo], _root: &Path) -> String {
     let mut configs = Vec::new();
 
@@ -1361,6 +1407,7 @@ fn gen_settings_json(root: &Path) -> String {
 
 // ── dcr gen clion ─────────────────────────────────────────────────────────────
 
+/// `dcr gen clion`: compile_commands plus `.idea/` tools, targets, misc, run configs.
 fn gen_clion(args: &[String]) -> i32 {
     let (root, profile, quiet) = match parse_gen_args(args) {
         Ok(v) => v,
@@ -1571,6 +1618,7 @@ fn gen_clion_misc_xml(root: &Path) -> String {
     )
 }
 
+/// XML for one CLion run configuration under `.idea/runConfigurations/`.
 fn gen_clion_run_config(info: &ProjectInfo, _root: &Path, profile: &str) -> String {
     let bin_path = resolve_launch_program(info, profile);
     let bin = xml_escape(&bin_path);
@@ -1623,6 +1671,7 @@ fn xml_escape(s: &str) -> String {
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
+/// Parses `--debug` / `--release` / `--quiet` and resolves the project root.
 fn parse_gen_args(args: &[String]) -> Result<(PathBuf, String, bool), i32> {
     let mut profile = "debug".to_string();
     let mut quiet = false;

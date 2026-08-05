@@ -24,12 +24,16 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Instant;
 
+/// Compiles C/C++ sources and links/archives by kind (`bin`, libs, `flat-bin`, or compile-only).
+///
+/// Handles Qt preprocessing when enabled. Returns elapsed seconds.
 pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     let compiler = if ctx.compiler.is_empty() {
         "cc"
     } else {
         ctx.compiler
     };
+    // Reject unsupported flat-bin with Qt
     if is_flat_bin(ctx.kind) && ctx.qt {
         return Err("flat-bin is not supported with build.qt = true".to_string());
     }
@@ -69,6 +73,9 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     artifact::link_binary(ctx, &objects, compiler, start_time)
 }
 
+/// Collects source files from the provided source roots for the build context.
+///
+/// Delegates to common source collection after resolving language-specific extensions.
 pub(crate) fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String> {
     let extensions = source_extensions(ctx.language);
     common::collect_sources(
@@ -79,14 +86,19 @@ pub(crate) fn collect_sources(ctx: &BuildContext) -> Result<Vec<String>, String>
     )
 }
 
+/// Source file extensions for `language` (owned `Vec` of static slices).
 fn source_extensions(language: &str) -> Vec<&'static str> {
     crate::core::build::common::source_extensions(language)
 }
 
+/// Retrieves default compiler flags for the specified build profile.
 fn default_flags(profile: &str) -> &'static [&'static str] {
     crate::utils::build::default_profile_flags(profile)
 }
 
+/// Compiles all provided sources into object files in parallel.
+///
+/// Prepares object file paths and spawns parallel tasks for each source compilation.
 fn build_objects(
     compiler: &str,
     sources: &[String],
@@ -100,6 +112,7 @@ fn build_objects(
         .map(|s| common::object_path(obj_dir, s, obj_ext))
         .collect();
 
+    // Compile objects in parallel
     common::parallel_build(
         sources.len(),
         |i| {
@@ -117,6 +130,9 @@ fn build_objects(
     Ok(objects)
 }
 
+/// Compiles a single source file to an object file.
+///
+/// Creates object directory if needed, checks for rebuild necessity, constructs and runs the compiler command with appropriate flags.
 fn build_object(
     compiler: &str,
     source: &str,
@@ -128,6 +144,7 @@ fn build_object(
         fs::create_dir_all(parent).map_err(|err| format!("obj dir error: {err}"))?;
     }
 
+    // Skip if object is already up to date
     if !common::needs_rebuild(source, obj_path) {
         return Ok(());
     }
@@ -183,6 +200,8 @@ fn build_object(
 
     let use_dcr_defaults = ctx.cflags.is_empty()
         && !(ctx.freestanding || is_bare_metal_target(ctx.target) || is_flat_bin(ctx.kind));
+
+    // Use default flags only if no custom flags and not special target
     if use_dcr_defaults {
         for flag in default_flags(ctx.profile) {
             cmd.arg(flag);
@@ -211,6 +230,7 @@ fn build_object(
     common::run_command_sync_output(&mut cmd)
 }
 
+/// Returns the assembly language flag for the compiler based on source extension.
 fn asm_lang_flag(source: &str) -> Option<&'static str> {
     crate::core::build::common::asm_lang_flag(source)
 }

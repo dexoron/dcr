@@ -39,6 +39,7 @@ const VALID_KINDS: &[&str] = &[
     "flat-bin",
 ];
 
+/// Represents errors that can occur during configuration loading, parsing, or validation.
 #[derive(Debug)]
 pub enum ConfigError {
     Io(std::io::Error),
@@ -80,6 +81,7 @@ impl From<toml::ser::Error> for ConfigError {
     }
 }
 
+/// Core configuration structure that manages TOML parsing, typed views, and validation for DCR projects.
 pub struct Config {
     path: PathBuf,
     data: Value,
@@ -91,6 +93,7 @@ pub struct Config {
 }
 
 #[allow(dead_code)]
+/// Top-level typed configuration parsed from TOML, containing optional sections for package, build, dependencies, etc.
 #[derive(Debug, Clone, Deserialize)]
 pub struct DcrConfig {
     #[serde(default)]
@@ -108,6 +111,7 @@ pub struct DcrConfig {
 }
 
 #[allow(dead_code)]
+/// Configuration for archive output formats (e.g. EFI, bootable images).
 #[derive(Debug, Clone, Deserialize)]
 pub struct ArchiveConfig {
     pub output: String,
@@ -121,12 +125,14 @@ pub struct ArchiveConfig {
 }
 
 #[allow(dead_code)]
+/// Layout definition for archive sections (from/to paths).
 #[derive(Debug, Clone, Deserialize)]
 pub struct ArchiveLayout {
     pub from: String,
     pub to: String,
 }
 
+/// Package metadata section (name, version, type).
 #[derive(Debug, Clone, Deserialize)]
 pub struct PackageConfig {
     pub name: String,
@@ -144,6 +150,7 @@ fn default_compiler() -> String {
 }
 
 #[allow(dead_code)]
+/// Build configuration section, including language, standards, compiler, and output settings.
 #[derive(Debug, Clone, Deserialize)]
 pub struct BuildConfig {
     #[serde(default = "default_language")]
@@ -182,6 +189,7 @@ pub struct BuildConfig {
     pub qt: Option<bool>,
 }
 
+/// Language configuration can be a single string or array of strings (e.g. for multi-language builds).
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum LanguageConfig {
@@ -198,6 +206,7 @@ impl LanguageConfig {
     }
 }
 
+/// Dependency configuration can be a version string or a full table of dependency details.
 #[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
@@ -206,6 +215,7 @@ pub enum DependencyConfig {
     Table(BTreeMap<String, Value>),
 }
 
+/// Toolchain configuration for custom compilers, assemblers, and linkers.
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct ToolchainConfig {
     pub cc: Option<String>,
@@ -216,6 +226,7 @@ pub struct ToolchainConfig {
     pub ld: Option<String>,
 }
 
+/// Workspace member configuration for multi-project workspaces.
 #[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct WorkspaceMemberConfig {
@@ -227,6 +238,7 @@ pub struct WorkspaceMemberConfig {
 }
 
 impl Config {
+    /// Creates a new Config instance from a TOML file path. If the file does not exist, it creates a default one.
     pub fn new(path: &str) -> Result<Self, ConfigError> {
         let path = PathBuf::from(path);
         let (data, doc) = if path.exists() {
@@ -249,6 +261,7 @@ impl Config {
         Ok(cfg)
     }
 
+    /// Opens an existing Config from a TOML file path, failing if the file does not exist.
     pub fn open(path: &str) -> Result<Self, ConfigError> {
         let path = PathBuf::from(path);
         if !path.exists() {
@@ -267,16 +280,19 @@ impl Config {
     }
 
     #[allow(dead_code)]
+    /// Returns the fully typed configuration struct.
     pub fn typed(&self) -> &DcrConfig {
         &self.typed
     }
 
     #[allow(dead_code)]
+    /// Returns the package configuration if present.
     pub fn package(&self) -> Option<&PackageConfig> {
         self.typed.package.as_ref()
     }
 
     #[allow(dead_code)]
+    /// Returns the build configuration if present.
     pub fn build_config(&self) -> Option<&BuildConfig> {
         self.typed.build.as_ref()
     }
@@ -290,7 +306,7 @@ impl Config {
             && !self.typed.workspace.is_empty()
     }
 
-    /// Merge build fields from parent config into self where self has empty/default values.
+    /// Merges build fields from a parent config into self where self has empty/default values.
     /// Used for workspace member inheritance (build.inherit = true).
     pub fn merge_parent(&mut self, parent: &Config) {
         let fields: &[&str] = &[
@@ -368,24 +384,29 @@ impl Config {
         }
     }
 
+    /// Retrieves a nested value from the config data using dot-separated path.
     pub fn get(&self, key: &str) -> Option<&Value> {
         let parts: Vec<&str> = key.split('.').collect();
         get_path(&self.data, &parts)
     }
 
     #[allow(dead_code)]
+    /// Adds a new key-value pair to the configuration (alias for set).
     pub fn add(&mut self, key: &str, value: Value) -> Result<(), ConfigError> {
         self.set(key, value)
     }
 
+    /// Updates a configuration value at the given key path.
     pub fn edit(&mut self, key: &str, value: Value) -> Result<(), ConfigError> {
         self.set(key, value)
     }
     #[allow(dead_code)]
+    /// Checks if the configuration is valid without returning the error.
     pub fn check(&self) -> bool {
         self.validate().is_ok()
     }
 
+    /// Performs comprehensive validation of the configuration, including package, build, toolchain, and workspace rules.
     pub fn validate(&self) -> Result<(), ConfigError> {
         if self.is_workspace_only() {
             return self.validate_workspace();
