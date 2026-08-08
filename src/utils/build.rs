@@ -31,6 +31,39 @@ pub struct VersionInfo {
     pub suffix_dash: String,
 }
 
+/// Compares two semver-like strings (`X.Y.Z` with optional `-suffix`, suffix ignored).
+///
+/// Returns `None` if either side has no parseable numeric major component.
+/// Ordering is tool-centric: `compare_semver(tool, required)` → `Less` means tool is older.
+pub fn compare_semver(left: &str, right: &str) -> Option<std::cmp::Ordering> {
+    let l = semver_numeric_parts(left)?;
+    let r = semver_numeric_parts(right)?;
+    Some(l.cmp(&r))
+}
+
+fn semver_numeric_parts(version: &str) -> Option<(u64, u64, u64)> {
+    let base = version
+        .trim()
+        .split_once('-')
+        .map(|(h, _)| h)
+        .unwrap_or(version.trim());
+    if base.is_empty() {
+        return None;
+    }
+    let mut parts = base.split('.');
+    let major = parts.next()?.parse::<u64>().ok()?;
+    let minor = parts.next().unwrap_or("0").parse::<u64>().unwrap_or(0);
+    let patch = parts
+        .next()
+        .unwrap_or("0")
+        .chars()
+        .take_while(|c| c.is_ascii_digit())
+        .collect::<String>()
+        .parse::<u64>()
+        .unwrap_or(0);
+    Some((major, minor, patch))
+}
+
 /// Parses a version string into VersionInfo struct.
 pub fn parse_version_info(version: &str) -> VersionInfo {
     let mut full = version.trim().to_string();
@@ -759,6 +792,16 @@ mod tests {
         assert_eq!(info.patch, "3");
         assert_eq!(info.suffix, "beta");
         assert_eq!(info.suffix_dash, "-beta");
+    }
+
+    #[test]
+    fn compare_semver_orders_and_ignores_prerelease() {
+        use std::cmp::Ordering;
+        assert_eq!(compare_semver("0.8.4", "0.8.4"), Some(Ordering::Equal));
+        assert_eq!(compare_semver("0.8.3", "0.8.4"), Some(Ordering::Less));
+        assert_eq!(compare_semver("0.9.0", "0.8.4"), Some(Ordering::Greater));
+        assert_eq!(compare_semver("1.0.0-dev", "1.0.0"), Some(Ordering::Equal));
+        assert_eq!(compare_semver("not-a-version", "0.1.0"), None);
     }
 
     /// Test for normalize_target_with_profile function.

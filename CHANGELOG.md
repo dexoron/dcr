@@ -1,5 +1,31 @@
 # Changelog
 
+## [v0.8.5] - 2026-08-08 "Фиксация версии dcr-version и предупреждения совместимости / Config Version Pinning & Compatibility Warnings"
+
+### RU
+
+**Добавлено:**
+
+- **`package.dcr-version`** — опциональный pin версии CLI в `dcr.toml`.
+  `dcr new` / `dcr init` пишут текущую версию. При загрузке конфига:
+  - нет / пустой pin → warn «добавь dcr-version»;
+  - dcr старше pin → warn «обнови dcr»;
+  - dcr новее pin → warn «проверь changelog, подними pin»;
+  - равенство — тишина.
+    Команды не падают, только предупреждение (раз на path за процесс).
+
+### EN
+
+**Added:**
+
+- **`package.dcr-version`** — optional CLI version pin in `dcr.toml`.
+  `dcr new` / `dcr init` write the current version. On config load:
+  - missing / empty pin → warn "add dcr-version";
+  - dcr older than pin → warn "update dcr";
+  - dcr newer than pin → warn "check changelog, update pin";
+  - equal → silent.
+    Commands do not fail, warning only (once per path per process).
+
 ## [0.8.4] - 2026-08-04 "Инфраструктура .dcr/ и интеграция с IDE / Internal .dcr/ Layout & IDE Integration"
 
 ### RU
