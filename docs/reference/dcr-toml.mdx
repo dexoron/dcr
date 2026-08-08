@@ -43,7 +43,8 @@ Main project configuration file. Located at the project root.
 | Field | Required | Description |
 |-------|----------|-------------|
 | `name` | yes | Project name |
-| `version` | yes | Semantic version |
+| `version` | yes | Semantic version of the **project** |
+| `dcr-version` | no | Semver of the **dcr tool** this project targets. Written by `dcr new` / `dcr init` to the current tool version. |
 | `type` | no | `app`, `lib`, `none` (defaults to `"none"`) |
 | `license` | no | SPDX license identifier |
 | `author` | no | Author |
@@ -52,10 +53,25 @@ Main project configuration file. Located at the project root.
 [package]
 name = "my-app"
 version = "0.1.0"
+dcr-version = "0.8.4"
 type = "app"
 license = "MIT"
 author = "John Doe"
 ```
+
+### `package.dcr-version`
+
+Optional pin of the DCR CLI the project was written for. On every `dcr.toml` load:
+
+| Situation | Behaviour |
+|-----------|-----------|
+| Field missing / empty | Warning: add `dcr-version` (set by `dcr new` / `dcr init`) |
+| Running dcr **older** than pin | Warning: upgrade dcr (`dcr --update`) |
+| Running dcr **newer** than pin | Warning: review changelog, bump the pin when ready |
+| Equal | Silent |
+| Invalid semver | Warning once, field ignored |
+
+Never fails the command — warnings only. Pre-release suffixes (`1.0.0-dev`) are ignored for comparison (`1.0.0-dev` ≡ `1.0.0`).
 
 ## [build]
 

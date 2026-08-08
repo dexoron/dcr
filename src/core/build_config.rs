@@ -132,11 +132,17 @@ pub struct ArchiveLayout {
     pub to: String,
 }
 
-/// Package metadata section (name, version, type).
+/// Package metadata section (name, version, type, dcr-version).
 #[derive(Debug, Clone, Deserialize)]
 pub struct PackageConfig {
     pub name: String,
     pub version: String,
+    /// Minimum/target DCR tool version this project was authored for (`package.dcr-version`).
+    ///
+    /// Compared against the running `dcr` binary (`CARGO_PKG_VERSION`) on config load.
+    /// Missing or empty means "no pin" — no warning is emitted.
+    #[serde(default, rename = "dcr-version")]
+    pub dcr_version: Option<String>,
     #[serde(default, rename = "type")]
     pub pkg_type: Option<String>,
 }
@@ -258,6 +264,7 @@ impl Config {
             doc,
         };
         cfg.validate()?;
+        cfg.warn_dcr_version_mismatch();
         Ok(cfg)
     }
 
@@ -276,6 +283,7 @@ impl Config {
             doc,
         };
         cfg.validate()?;
+        cfg.warn_dcr_version_mismatch();
         Ok(cfg)
     }
 
@@ -289,6 +297,68 @@ impl Config {
     /// Returns the package configuration if present.
     pub fn package(&self) -> Option<&PackageConfig> {
         self.typed.package.as_ref()
+    }
+
+    /// Warn once per config path about `package.dcr-version` vs this `dcr` binary.
+    ///
+    /// - Missing/`""` pin → recommend adding `dcr-version`.
+    /// - Tool older than pin → project may use features this binary does not support.
+    /// - Tool newer than pin → project may rely on outdated defaults; consider bumping the pin.
+    ///
+    /// Never fails the load; warnings only. Equal pin is silent.
+    fn warn_dcr_version_mismatch(&self) {
+        let Some(pkg) = self.typed.package.as_ref() else {
+            return;
+        };
+
+        let path_key = self
+            .path
+            .canonicalize()
+            .unwrap_or_else(|_| self.path.clone())
+            .to_string_lossy()
+            .into_owned();
+        if !dcr_version_warn_once(&path_key) {
+            return;
+        }
+
+        let tool = env!("CARGO_PKG_VERSION");
+        let required = pkg
+            .dcr_version
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
+        let Some(required) = required else {
+            crate::utils::log::warn(&format!(
+                "package.dcr-version is missing in {}. Add e.g. dcr-version = \"{tool}\" \
+                 so collaborators know which dcr this project targets \
+                 (written automatically by `dcr new` / `dcr init`).",
+                self.path.display()
+            ));
+            return;
+        };
+
+        match crate::utils::build::compare_semver(tool, required) {
+            Some(std::cmp::Ordering::Less) => {
+                crate::utils::log::warn(&format!(
+                    "this project requires dcr {required} (package.dcr-version), \
+                     but you are running dcr {tool}. Some features may be missing or misbehave. \
+                     Upgrade dcr (e.g. `dcr --update`) or lower package.dcr-version if intentional."
+                ));
+            }
+            Some(std::cmp::Ordering::Greater) => {
+                crate::utils::log::warn(&format!(
+                    "this project pins dcr {required} (package.dcr-version), \
+                     but you are running newer dcr {tool}. Config/defaults may be outdated. \
+                     Review the changelog and bump package.dcr-version when the project is verified."
+                ));
+            }
+            Some(std::cmp::Ordering::Equal) => {}
+            None => {
+                crate::utils::log::warn(&format!(
+                    "package.dcr-version = \"{required}\" is not a valid semver (expected X.Y.Z); ignoring"
+                ));
+            }
+        }
     }
 
     #[allow(dead_code)]
@@ -765,11 +835,13 @@ fn default_toml_text() -> String {
         .ok()
         .and_then(|p| p.file_name().map(|v| v.to_string_lossy().to_string()))
         .unwrap_or_else(|| "project".to_string());
+    let dcr_version = env!("CARGO_PKG_VERSION");
 
     format!(
         "[package]\n\
          name = \"{name}\"\n\
          version = \"{DEFAULT_VERSION}\"\n\
+         dcr-version = \"{dcr_version}\"\n\
          type = \"none\"\n\
          description = \"\"\n\
          author = \"\"\n\
@@ -783,6 +855,17 @@ fn default_toml_text() -> String {
          \n\
          [dependencies]\n"
     )
+}
+
+fn dcr_version_warn_once(path_key: &str) -> bool {
+    use std::collections::HashSet;
+    use std::sync::{Mutex, OnceLock};
+    static WARNED: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    let set = WARNED.get_or_init(|| Mutex::new(HashSet::new()));
+    let Ok(mut guard) = set.lock() else {
+        return true;
+    };
+    guard.insert(path_key.to_string())
 }
 
 fn set_doc_path(doc: &mut DocumentMut, path: &[&str], value: &Value) -> Result<(), ConfigError> {
@@ -937,11 +1020,21 @@ mod tests {
         let dir = temp_dir("typed_config");
         let path = write_toml_file(
             &dir,
-            "[package]\nname = \"typed\"\nversion = \"1.2.3\"\ntype = \"lib\"\n\n[build]\nlanguage = [\"c\", \"c++\"]\nstandard = \"c11\"\ncompiler = \"clang\"\nkind = \"staticlib\"\ncflags = [\"-Wall\"]\n\n[dependencies]\nfoo = \"1.0.0\"\n",
+            "[package]\nname = \"typed\"\nversion = \"1.2.3\"\ndcr-version = \"0.8.4\"\ntype = \"lib\"\n\n[build]\nlanguage = [\"c\", \"c++\"]\nstandard = \"c11\"\ncompiler = \"clang\"\nkind = \"staticlib\"\ncflags = [\"-Wall\"]\n\n[dependencies]\nfoo = \"1.0.0\"\n",
         );
         let config = Config::open(&path.to_string_lossy()).unwrap();
         assert_eq!(config.package().unwrap().name, "typed");
         assert_eq!(config.typed().package.as_ref().unwrap().version, "1.2.3");
+        assert_eq!(
+            config
+                .typed()
+                .package
+                .as_ref()
+                .unwrap()
+                .dcr_version
+                .as_deref(),
+            Some("0.8.4")
+        );
         assert_eq!(config.build_config().unwrap().compiler, "clang");
         assert_eq!(config.build_config().unwrap().cflags, ["-Wall"]);
         assert!(config.typed().dependencies.contains_key("foo"));

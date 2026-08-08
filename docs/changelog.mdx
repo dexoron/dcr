@@ -4,6 +4,16 @@ sidebar_label: Changelog
 
 # Changelog
 
+## 0.8.5 (2026-08-08)
+
+- **`package.dcr-version`** — optional CLI version pin in `dcr.toml`.
+  `dcr new` / `dcr init` write the current version. On config load:
+  - missing / empty pin → warn "add dcr-version";
+  - dcr older than pin → warn "update dcr";
+  - dcr newer than pin → warn "check changelog, update pin";
+  - equal → silent.
+    Commands do not fail, warning only (once per path per process).
+
 ## 0.8.4 (2026-08-04)
 
 **Added:**

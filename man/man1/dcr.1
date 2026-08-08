@@ -154,6 +154,11 @@ Project name (required).
 .B package.version
 Project version (default: \fB0.1.0\fR).
 .TP
+.B package.dcr\-version
+Semver of the DCR tool this project targets. Set automatically by
+\fBdcr new\fR / \fBdcr init\fR. Missing pin, or an installed \fBdcr\fR older/newer
+than the pin, prints a warning (commands still run).
+.TP
 .B build.language
 Programming language: \fBc\fR or \fBc++\fR (default: \fBc\fR).
 .TP
