@@ -270,7 +270,7 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$GITLAB_PAT" || { echo 'GITLAB_PAT is not configured' >&2; exit 0; }
-          
+
           project_id="${GITLAB_PROJECT//\//%2F}"
           api="https://gitlab.com/api/v4/projects/${project_id}"
           title=$(jq -r '.name // .tag_name' release.json)
@@ -284,7 +284,7 @@ jobs:
             echo "GitLab release ${TAG} already exists; skipping"
             exit 0
           fi
-          
+
           echo "Creating release on GitLab..."
           curl -fsSL -X POST -H "PRIVATE-TOKEN: $GITLAB_PAT" \
             -H 'Content-Type: application/json' --data "$payload" "${api}/releases" || true
