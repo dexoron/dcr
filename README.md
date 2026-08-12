@@ -222,8 +222,8 @@ The primary repository is hosted on GitHub. The following mirrors are available 
 
 | Region | Mirror | Contents |
 |---|---|---|
-| Russia | [GitVerse](https://gitverse.ru/dcr_labs/dcr) **(recommended)** | Source code and releases |
-| Russia | [SourceCraft](https://sourcecraft.dev/dexoron-dev/dcr) | Source code and releases |
+| Russia | [GitVerse](https://gitverse.ru/dcr_labs/dcr) **(recommended)** | Source code |
+| Russia | [SourceCraft](https://sourcecraft.dev/dexoron-dev/dcr) | Source code |
 | Worldwide | [SourceForge](https://sourceforge.net/projects/dcr-tool/) **(recommended)** | Source code and releases |
 | Worldwide | [GitLab](https://gitlab.com/dexoron-dev/dcr-tool/dcr) | Source code and releases |
 
