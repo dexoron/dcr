@@ -216,6 +216,30 @@ Full docs at **[dcr.dexoron.su](https://dcr.dexoron.su)** or in the [`docs/`](do
 
 ---
 
+## Repository Mirrors
+
+The primary repository is hosted on GitHub. The following mirrors are available for source code and releases:
+
+| Region | Mirror | Contents |
+|---|---|---|
+| Russia | [GitVerse](https://gitverse.ru/dcr_labs/dcr) **(recommended)** | Source code and releases |
+| Russia | [SourceCraft](https://sourcecraft.dev/dexoron-dev/dcr) | Source code and releases |
+| Worldwide | [SourceForge](https://sourceforge.net/projects/dcr-tool/) **(recommended)** | Source code and releases |
+| Worldwide | [GitLab](https://gitlab.com/dexoron-dev/dcr-tool/dcr) | Source code and releases |
+
+---
+
+## VS Code Extension
+
+Install the recommended [DCR extension by Dexoron-Labs](https://marketplace.visualstudio.com/items?itemName=Dexoron-Labs.dcr) for VS Code. Do not install Microsoft C/C++ extensions for DCR projects; DCR uses `clangd` instead. If you need debugging with Microsoft's debugger, use MS C/C++ only for its debugger component.
+
+Recommended companion extensions:
+
+- [Even Better TOML](https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml)
+- [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb), or MS C/C++ for debugger support only
+
+---
+
 ## Contributors
 
 <div align="center">
