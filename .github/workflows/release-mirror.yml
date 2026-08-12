@@ -81,6 +81,7 @@ jobs:
 
       - name: Sync tag and release to GitVerse
         if: steps.release.outputs.found == 'true'
+        continue-on-error: true
         env:
           GITVERSE_PAT: ${{ secrets.GITVERSE_PAT }}
           GITVERSE_ORG: ${{ vars.GITVERSE_ORG || 'dcr_labs' }}
@@ -89,36 +90,42 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$GITVERSE_PAT" || { echo 'GITVERSE_PAT is not configured' >&2; exit 1; }
-          project="${GITVERSE_ORG}%2F${GITVERSE_REPO}"
-          remote="https://oauth2:${GITVERSE_PAT}@gitverse.ru/${GITVERSE_ORG}/${GITVERSE_REPO}.git"
-          git clone --mirror "https://github.com/${GITHUB_REPOSITORY}.git" mirror.git
-          git -C mirror.git remote add gitverse "$remote"
-          git -C mirror.git push gitverse "refs/tags/${TAG}:refs/tags/${TAG}"
+          api="https://api.gitverse.ru"
+           accept='Accept: application/vnd.gitverse.object+json;version=1'
+           remote="https://oauth2:${GITVERSE_PAT}@gitverse.ru/${GITVERSE_ORG}/${GITVERSE_REPO}.git"
+           git clone --mirror "https://github.com/${GITHUB_REPOSITORY}.git" mirror.git
+           git -C mirror.git remote add gitverse "$remote"
+           git -C mirror.git push gitverse "refs/tags/${TAG}:refs/tags/${TAG}"
 
-          title=$(jq -r '.name // .tag_name' release.json)
-          notes=$(jq -r '.body // ""' release.json)
-          payload=$(jq -n --arg tag "$TAG" --arg title "$title" --arg notes "$notes" \
-            '{name:$title, tag_name:$tag, description:$notes, ref:$tag}')
-          curl -fsSL -X POST -H "PRIVATE-TOKEN: $GITVERSE_PAT" \
-            -H 'Content-Type: application/json' --data "$payload" \
-            "https://gitverse.ru/api/v4/projects/${project}/releases" || \
-          curl -fsSL -X PUT -H "PRIVATE-TOKEN: $GITVERSE_PAT" \
-            -H 'Content-Type: application/json' --data "$payload" \
-            "https://gitverse.ru/api/v4/projects/${project}/releases/${TAG}"
-          for file in assets/*; do
-            [ -f "$file" ] || continue
-            upload=$(curl -fsSL -X POST -H "PRIVATE-TOKEN: $GITVERSE_PAT" \
-              -F "file=@$file" "https://gitverse.ru/api/v4/projects/${project}/uploads")
-            url=$(jq -r '.url // .file_path' <<< "$upload")
-            name=$(basename "$file")
-            link=$(jq -n --arg name "$name" --arg url "$url" '{name:$name,url:$url}')
-            curl -fsSL -X POST -H "PRIVATE-TOKEN: $GITVERSE_PAT" \
-              -H 'Content-Type: application/json' --data "$link" \
-              "https://gitverse.ru/api/v4/projects/${project}/releases/${TAG}/assets/links" || true
-          done
+           title=$(jq -r '.name // .tag_name' release.json)
+           notes=$(jq -r '.body // ""' release.json)
+           payload=$(jq -n --arg tag "$TAG" --arg title "$title" --arg notes "$notes" \
+             '{name:$title, tag_name:$tag, body:$notes, draft:false, prerelease:false}')
+           created=0
+           if [ "$(curl -sS -o /dev/null -w '%{http_code}' -H "PRIVATE-TOKEN: $GITVERSE_PAT" \
+             "${api}/repos/${GITVERSE_ORG}/${GITVERSE_REPO}/releases/tags/${TAG}" 2>/dev/null)" = '404' ]; then
+             curl -fsSL -X POST -H "$accept" -H "PRIVATE-TOKEN: $GITVERSE_PAT" \
+               -H 'Content-Type: application/json' --data "$payload" \
+               "${api}/repos/${GITVERSE_ORG}/${GITVERSE_REPO}/releases" > gitverse-release.json
+             created=1
+           else
+             curl -fsSL -H "$accept" -H "PRIVATE-TOKEN: $GITVERSE_PAT" \
+               "${api}/repos/${GITVERSE_ORG}/${GITVERSE_REPO}/releases/tags/${TAG}" > gitverse-release.json
+           fi
+           for file in assets/*; do
+             [ -f "$file" ] || continue
+             # Upload replaces an existing asset with the same name.
+             curl -fsSL -X POST -H "$accept" -H "PRIVATE-TOKEN: $GITVERSE_PAT" \
+               -F "name=$(basename "$file")" -F "attachment=@$file" \
+               "${api}/repos/${GITVERSE_ORG}/${GITVERSE_REPO}/releases/$(jq -r '.id' gitverse-release.json)/assets" \
+               >/dev/null
+           done
+           echo "gitverse=ok" >> "$GITHUB_OUTPUT"
+
 
       - name: Sync tag and release to SourceCraft
         if: steps.release.outputs.found == 'true'
+        continue-on-error: true
         env:
           SOURCECRAFT_PAT: ${{ secrets.SOURCECRAFT_PAT }}
           SOURCECRAFT_ORG: ${{ vars.SOURCECRAFT_ORG || 'dexoron-dev' }}
@@ -147,9 +154,11 @@ jobs:
               -F "name=$(basename "$file")" -F "file=@$file" \
               "https://api.sourcecraft.tech/repos/${SOURCECRAFT_ORG}/${SOURCECRAFT_REPO}/releases/tag/${TAG}/attachments" || true
           done
+          echo "sourcecraft=ok" >> "$GITHUB_OUTPUT"
 
       - name: Sync release to GitLab
         if: steps.release.outputs.found == 'true'
+        continue-on-error: true
         env:
           GITLAB_PAT: ${{ secrets.GITLAB_PAT }}
           GITLAB_PROJECT: ${{ vars.GITLAB_PROJECT || 'dexoron-dev/dcr-tool/dcr' }}
@@ -184,3 +193,4 @@ jobs:
               -H 'Content-Type: application/json' --data "$link" \
               "${api}/releases/${TAG}/assets/links" || true
           done
+          echo "gitlab=ok" >> "$GITHUB_OUTPUT"
