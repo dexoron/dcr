@@ -180,11 +180,15 @@ jobs:
             link_http=$(echo "$link_response" | tail -n1)
             link_body=$(echo "$link_response" | sed '$d')
             
-            if [ "$link_http" != "201" ] && [ "$link_http" != "200" ]; then
+            # Accept 201 (created), 200 (ok), or 409 (already exists)
+            if [ "$link_http" = "201" ] || [ "$link_http" = "200" ]; then
+              uploaded=$((uploaded+1))
+            elif [ "$link_http" = "409" ]; then
+              echo "GitVerse: asset $name already exists (skipping)"
+              uploaded=$((uploaded+1))
+            else
               echo "::warning::GitVerse: failed to attach asset $name (HTTP $link_http): $link_body"
               failed=$((failed+1))
-            else
-              uploaded=$((uploaded+1))
             fi
           done
           echo "GitVerse: uploaded ${uploaded}, failed ${failed}"
@@ -234,19 +238,30 @@ jobs:
             echo "SourceCraft release ${TAG} already exists; continuing with assets."
           fi
 
-          uploaded=0; failed=0
+          uploaded=0; failed=0; skipped=0
           for file in assets/*; do
             [ -f "$file" ] || continue
-            if curl -fsSL -X POST -H "Authorization: Bearer $SOURCECRAFT_PAT" \
+            name=$(basename "$file")
+            
+            # Try to upload asset with error handling
+            upload_response=$(curl -sS -w "\n%{http_code}" -X POST -H "Authorization: Bearer $SOURCECRAFT_PAT" \
               -F "file=@$file" \
-              "${base}/releases/tag/${TAG}/assets" >/dev/null 2>&1; then
+              "${base}/releases/tag/${TAG}/assets")
+            http_code=$(echo "$upload_response" | tail -n1)
+            body=$(echo "$upload_response" | sed '$d')
+            
+            # Accept 201 (created), 200 (ok), 409 (conflict - already exists)
+            if [ "$http_code" = "201" ] || [ "$http_code" = "200" ]; then
               uploaded=$((uploaded+1))
+            elif [ "$http_code" = "409" ]; then
+              echo "SourceCraft: asset $name already exists (skipping)"
+              skipped=$((skipped+1))
             else
-              echo "::warning::SourceCraft: failed to attach asset $(basename "$file")"
+              echo "::warning::SourceCraft: failed to attach asset $name (HTTP $http_code)"
               failed=$((failed+1))
             fi
           done
-          echo "SourceCraft: uploaded ${uploaded}, failed ${failed}"
+          echo "SourceCraft: uploaded ${uploaded}, skipped ${skipped}, failed ${failed}"
           [ "$failed" -eq 0 ] || exit 1
 
   mirror-gitlab:
@@ -285,23 +300,33 @@ jobs:
             echo "GitLab release ${TAG} already exists; continuing with assets."
           fi
 
-          uploaded=0; failed=0
+          uploaded=0; failed=0; skipped=0
           for file in assets/*; do
             [ -f "$file" ] || continue
+            name=$(basename "$file")
+            
             upload=$(curl -fsSL -X POST -H "PRIVATE-TOKEN: $GITLAB_PAT" \
               -F "file=@$file" "${api}/uploads")
             url="https://gitlab.com/${GITLAB_PROJECT}$(jq -r '.url' <<< "$upload")"
-            name=$(basename "$file")
             link=$(jq -n --arg name "$name" --arg url "$url" \
               '{name:$name, url:$url, link_type:"other"}')
-            if curl -fsSL -X POST -H "PRIVATE-TOKEN: $GITLAB_PAT" \
+            
+            link_response=$(curl -sS -w "\n%{http_code}" -X POST -H "PRIVATE-TOKEN: $GITLAB_PAT" \
               -H 'Content-Type: application/json' --data "$link" \
-              "${api}/releases/${TAG}/assets/links" >/dev/null 2>&1; then
+              "${api}/releases/${TAG}/assets/links")
+            link_http=$(echo "$link_response" | tail -n1)
+            link_body=$(echo "$link_response" | sed '$d')
+            
+            # Accept 201 (created), 200 (ok), 409 (already exists)
+            if [ "$link_http" = "201" ] || [ "$link_http" = "200" ]; then
               uploaded=$((uploaded+1))
+            elif [ "$link_http" = "409" ]; then
+              echo "GitLab: asset $name already exists (skipping)"
+              skipped=$((skipped+1))
             else
-              echo "::warning::GitLab: failed to attach asset $name"
+              echo "::warning::GitLab: failed to attach asset $name (HTTP $link_http)"
               failed=$((failed+1))
             fi
           done
-          echo "GitLab: uploaded ${uploaded}, failed ${failed}"
+          echo "GitLab: uploaded ${uploaded}, skipped ${skipped}, failed ${failed}"
           [ "$failed" -eq 0 ] || exit 1
