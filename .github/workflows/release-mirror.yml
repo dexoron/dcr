@@ -101,26 +101,27 @@ jobs:
            notes=$(jq -r '.body // ""' release.json)
            payload=$(jq -n --arg tag "$TAG" --arg title "$title" --arg notes "$notes" \
              '{name:$title, tag_name:$tag, body:$notes, draft:false, prerelease:false}')
-           created=0
-           if [ "$(curl -sS -o /dev/null -w '%{http_code}' -H "PRIVATE-TOKEN: $GITVERSE_PAT" \
-             "${api}/repos/${GITVERSE_ORG}/${GITVERSE_REPO}/releases/tags/${TAG}" 2>/dev/null)" = '404' ]; then
-             curl -fsSL -X POST -H "$accept" -H "PRIVATE-TOKEN: $GITVERSE_PAT" \
-               -H 'Content-Type: application/json' --data "$payload" \
-               "${api}/repos/${GITVERSE_ORG}/${GITVERSE_REPO}/releases" > gitverse-release.json
-             created=1
-           else
-             curl -fsSL -H "$accept" -H "PRIVATE-TOKEN: $GITVERSE_PAT" \
-               "${api}/repos/${GITVERSE_ORG}/${GITVERSE_REPO}/releases/tags/${TAG}" > gitverse-release.json
-           fi
-           for file in assets/*; do
-             [ -f "$file" ] || continue
-             # Upload replaces an existing asset with the same name.
-             curl -fsSL -X POST -H "$accept" -H "PRIVATE-TOKEN: $GITVERSE_PAT" \
-               -F "name=$(basename "$file")" -F "attachment=@$file" \
-               "${api}/repos/${GITVERSE_ORG}/${GITVERSE_REPO}/releases/$(jq -r '.id' gitverse-release.json)/assets" \
-               >/dev/null
-           done
-           echo "gitverse=ok" >> "$GITHUB_OUTPUT"
+            created=0
+            if [ "$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $GITVERSE_PAT" \
+              "${api}/repos/${GITVERSE_ORG}/${GITVERSE_REPO}/releases/tags/${TAG}" 2>/dev/null)" = '404' ]; then
+              curl -fsSL -X POST -H "$accept" -H "Authorization: Bearer $GITVERSE_PAT" \
+                -H 'Content-Type: application/json' --data "$payload" \
+                "${api}/repos/${GITVERSE_ORG}/${GITVERSE_REPO}/releases" > gitverse-release.json
+              created=1
+            else
+              curl -fsSL -H "$accept" -H "Authorization: Bearer $GITVERSE_PAT" \
+                "${api}/repos/${GITVERSE_ORG}/${GITVERSE_REPO}/releases/tags/${TAG}" > gitverse-release.json
+            fi
+            for file in assets/*; do
+              [ -f "$file" ] || continue
+              # Upload replaces an existing asset with the same name.
+              curl -fsSL -X POST -H "$accept" -H "Authorization: Bearer $GITVERSE_PAT" \
+                -F "name=$(basename "$file")" -F "attachment=@$file" \
+                "${api}/repos/${GITVERSE_ORG}/${GITVERSE_REPO}/releases/$(jq -r '.id' gitverse-release.json)/assets" \
+                >/dev/null
+            done
+            echo "gitverse=ok" >> "$GITHUB_OUTPUT"
+
 
 
       - name: Sync tag and release to SourceCraft
