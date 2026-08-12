@@ -6,6 +6,13 @@ sidebar_label: Интеграция с IDE
 
 ## VS Code
 
+Install the recommended [DCR extension by Dexoron-Labs](https://marketplace.visualstudio.com/items?itemName=Dexoron-Labs.dcr). Do not install Microsoft C/C++ extensions for DCR projects: DCR uses `clangd`. MS C/C++ is acceptable only when you need its debugger.
+
+Recommended companion extensions:
+
+* [Even Better TOML](https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml)
+* [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb), or MS C/C++ for debugger support only
+
 ```bash
 dcr gen vscode
 ```
