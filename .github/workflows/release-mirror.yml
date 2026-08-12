@@ -150,18 +150,41 @@ jobs:
           uploaded=0; failed=0
           for file in assets/*; do
             [ -f "$file" ] || continue
-            upload=$(curl -fsSL -X POST -H "PRIVATE-TOKEN: $GITVERSE_PAT" \
-              -F "file=@$file" "https://gitverse.ru/api/v4/projects/${project}/uploads")
-            url=$(jq -r '.url // .file_path' <<< "$upload")
             name=$(basename "$file")
-            link=$(jq -n --arg name "$name" --arg url "$url" '{name:$name,url:$url}')
-            if curl -fsSL -X POST -H "PRIVATE-TOKEN: $GITVERSE_PAT" \
-              -H 'Content-Type: application/json' --data "$link" \
-              "https://gitverse.ru/api/v4/projects/${project}/releases/${TAG}/assets/links" >/dev/null 2>&1; then
-              uploaded=$((uploaded+1))
-            else
-              echo "::warning::GitVerse: failed to attach asset $name"
+            
+            # Step 1: Upload file and capture response with HTTP code
+            upload_response=$(curl -sS -w "\n%{http_code}" -X POST -H "PRIVATE-TOKEN: $GITVERSE_PAT" \
+              -F "file=@$file" "https://gitverse.ru/api/v4/projects/${project}/uploads")
+            http_code=$(echo "$upload_response" | tail -n1)
+            body=$(echo "$upload_response" | sed '$d')
+            
+            if [ "$http_code" != "201" ] && [ "$http_code" != "200" ]; then
+              echo "::warning::GitVerse: failed to upload $name (HTTP $http_code): $body"
               failed=$((failed+1))
+              continue
+            fi
+            
+            # Extract file path from upload response
+            url=$(jq -r '.url // .file_path' <<< "$body" 2>/dev/null || echo "")
+            if [ -z "$url" ]; then
+              echo "::warning::GitVerse: failed to parse upload response for $name: $body"
+              failed=$((failed+1))
+              continue
+            fi
+            
+            # Step 2: Create asset link in release
+            link=$(jq -n --arg name "$name" --arg url "$url" '{name:$name,url:$url}')
+            link_response=$(curl -sS -w "\n%{http_code}" -X POST -H "PRIVATE-TOKEN: $GITVERSE_PAT" \
+              -H 'Content-Type: application/json' --data "$link" \
+              "https://gitverse.ru/api/v4/projects/${project}/releases/${TAG}/assets/links")
+            link_http=$(echo "$link_response" | tail -n1)
+            link_body=$(echo "$link_response" | sed '$d')
+            
+            if [ "$link_http" != "201" ] && [ "$link_http" != "200" ]; then
+              echo "::warning::GitVerse: failed to attach asset $name (HTTP $link_http): $link_body"
+              failed=$((failed+1))
+            else
+              uploaded=$((uploaded+1))
             fi
           done
           echo "GitVerse: uploaded ${uploaded}, failed ${failed}"
@@ -215,8 +238,8 @@ jobs:
           for file in assets/*; do
             [ -f "$file" ] || continue
             if curl -fsSL -X POST -H "Authorization: Bearer $SOURCECRAFT_PAT" \
-              -F "name=$(basename "$file")" -F "file=@$file" \
-              "${base}/releases/tag/${TAG}/attachments" >/dev/null 2>&1; then
+              -F "file=@$file" \
+              "${base}/releases/tag/${TAG}/assets" >/dev/null 2>&1; then
               uploaded=$((uploaded+1))
             else
               echo "::warning::SourceCraft: failed to attach asset $(basename "$file")"
