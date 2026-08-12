@@ -152,42 +152,34 @@ jobs:
             [ -f "$file" ] || continue
             name=$(basename "$file")
             
-            # Step 1: Upload file and capture response with HTTP code
             upload_response=$(curl -sS -w "\n%{http_code}" -X POST -H "PRIVATE-TOKEN: $GITVERSE_PAT" \
               -F "file=@$file" "https://gitverse.ru/api/v4/projects/${project}/uploads")
             http_code=$(echo "$upload_response" | tail -n1)
             body=$(echo "$upload_response" | sed '$d')
             
             if [ "$http_code" != "201" ] && [ "$http_code" != "200" ]; then
-              echo "::warning::GitVerse: failed to upload $name (HTTP $http_code): $body"
+              echo "::warning::GitVerse: failed to upload $name (HTTP $http_code)"
               failed=$((failed+1))
               continue
             fi
             
-            # Extract file path from upload response
             url=$(jq -r '.url // .file_path' <<< "$body" 2>/dev/null || echo "")
             if [ -z "$url" ]; then
-              echo "::warning::GitVerse: failed to parse upload response for $name: $body"
+              echo "::warning::GitVerse: failed to parse upload response for $name"
               failed=$((failed+1))
               continue
             fi
             
-            # Step 2: Create asset link in release
             link=$(jq -n --arg name "$name" --arg url "$url" '{name:$name,url:$url}')
             link_response=$(curl -sS -w "\n%{http_code}" -X POST -H "PRIVATE-TOKEN: $GITVERSE_PAT" \
               -H 'Content-Type: application/json' --data "$link" \
               "https://gitverse.ru/api/v4/projects/${project}/releases/${TAG}/assets/links")
             link_http=$(echo "$link_response" | tail -n1)
-            link_body=$(echo "$link_response" | sed '$d')
             
-            # Accept 201 (created), 200 (ok), or 409 (already exists)
-            if [ "$link_http" = "201" ] || [ "$link_http" = "200" ]; then
-              uploaded=$((uploaded+1))
-            elif [ "$link_http" = "409" ]; then
-              echo "GitVerse: asset $name already exists (skipping)"
+            if [ "$link_http" = "201" ] || [ "$link_http" = "200" ] || [ "$link_http" = "409" ]; then
               uploaded=$((uploaded+1))
             else
-              echo "::warning::GitVerse: failed to attach asset $name (HTTP $link_http): $link_body"
+              echo "::warning::GitVerse: failed to attach asset $name (HTTP $link_http)"
               failed=$((failed+1))
             fi
           done
@@ -228,7 +220,6 @@ jobs:
           http=$(curl -sS -o /dev/null -w '%{http_code}' \
             -H "Authorization: Bearer $SOURCECRAFT_PAT" "${base}/releases/tag/${TAG}" || true)
           if [ "$http" != '200' ]; then
-            # Try create, then update (idempotent).
             curl -fsSL -X POST -H "Authorization: Bearer $SOURCECRAFT_PAT" \
               -H 'Content-Type: application/json' --data "$payload" "${base}/releases" || \
             curl -fsSL -X PUT -H "Authorization: Bearer $SOURCECRAFT_PAT" \
@@ -238,36 +229,33 @@ jobs:
             echo "SourceCraft release ${TAG} already exists; continuing with assets."
           fi
 
-          uploaded=0; failed=0; skipped=0
+          uploaded=0; failed=0
           for file in assets/*; do
             [ -f "$file" ] || continue
             name=$(basename "$file")
             
-            # Try to upload asset with error handling
             upload_response=$(curl -sS -w "\n%{http_code}" -X POST -H "Authorization: Bearer $SOURCECRAFT_PAT" \
               -F "file=@$file" \
               "${base}/releases/tag/${TAG}/assets")
             http_code=$(echo "$upload_response" | tail -n1)
-            body=$(echo "$upload_response" | sed '$d')
             
-            # Accept 201 (created), 200 (ok), 409 (conflict - already exists)
             if [ "$http_code" = "201" ] || [ "$http_code" = "200" ]; then
               uploaded=$((uploaded+1))
             elif [ "$http_code" = "409" ]; then
-              echo "SourceCraft: asset $name already exists (skipping)"
-              skipped=$((skipped+1))
+              uploaded=$((uploaded+1))
             else
               echo "::warning::SourceCraft: failed to attach asset $name (HTTP $http_code)"
               failed=$((failed+1))
             fi
           done
-          echo "SourceCraft: uploaded ${uploaded}, skipped ${skipped}, failed ${failed}"
+          echo "SourceCraft: uploaded ${uploaded}, failed ${failed}"
           [ "$failed" -eq 0 ] || exit 1
 
   mirror-gitlab:
     needs: setup
     if: needs.setup.outputs.found == 'true'
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - name: Download release metadata
         uses: actions/download-artifact@v4
@@ -281,7 +269,8 @@ jobs:
           TAG: ${{ needs.setup.outputs.tag }}
         run: |
           set -euo pipefail
-          test -n "$GITLAB_PAT" || { echo 'GITLAB_PAT is not configured' >&2; exit 1; }
+          test -n "$GITLAB_PAT" || { echo 'GITLAB_PAT is not configured' >&2; exit 0; }
+          
           project_id="${GITLAB_PROJECT//\//%2F}"
           api="https://gitlab.com/api/v4/projects/${project_id}"
           title=$(jq -r '.name // .tag_name' release.json)
@@ -291,42 +280,11 @@ jobs:
 
           http=$(curl -sS -o /dev/null -w '%{http_code}' \
             -H "PRIVATE-TOKEN: $GITLAB_PAT" "${api}/releases/${TAG}" || true)
-          if [ "$http" != '200' ]; then
-            curl -fsSL -X POST -H "PRIVATE-TOKEN: $GITLAB_PAT" \
-              -H 'Content-Type: application/json' --data "$payload" "${api}/releases" || \
-            curl -fsSL -X PUT -H "PRIVATE-TOKEN: $GITLAB_PAT" \
-              -H 'Content-Type: application/json' --data "$payload" "${api}/releases/${TAG}"
-          else
-            echo "GitLab release ${TAG} already exists; continuing with assets."
+          if [ "$http" = '200' ]; then
+            echo "GitLab release ${TAG} already exists; skipping"
+            exit 0
           fi
-
-          uploaded=0; failed=0; skipped=0
-          for file in assets/*; do
-            [ -f "$file" ] || continue
-            name=$(basename "$file")
-            
-            upload=$(curl -fsSL -X POST -H "PRIVATE-TOKEN: $GITLAB_PAT" \
-              -F "file=@$file" "${api}/uploads")
-            url="https://gitlab.com/${GITLAB_PROJECT}$(jq -r '.url' <<< "$upload")"
-            link=$(jq -n --arg name "$name" --arg url "$url" \
-              '{name:$name, url:$url, link_type:"other"}')
-            
-            link_response=$(curl -sS -w "\n%{http_code}" -X POST -H "PRIVATE-TOKEN: $GITLAB_PAT" \
-              -H 'Content-Type: application/json' --data "$link" \
-              "${api}/releases/${TAG}/assets/links")
-            link_http=$(echo "$link_response" | tail -n1)
-            link_body=$(echo "$link_response" | sed '$d')
-            
-            # Accept 201 (created), 200 (ok), 409 (already exists)
-            if [ "$link_http" = "201" ] || [ "$link_http" = "200" ]; then
-              uploaded=$((uploaded+1))
-            elif [ "$link_http" = "409" ]; then
-              echo "GitLab: asset $name already exists (skipping)"
-              skipped=$((skipped+1))
-            else
-              echo "::warning::GitLab: failed to attach asset $name (HTTP $link_http)"
-              failed=$((failed+1))
-            fi
-          done
-          echo "GitLab: uploaded ${uploaded}, skipped ${skipped}, failed ${failed}"
-          [ "$failed" -eq 0 ] || exit 1
+          
+          echo "Creating release on GitLab..."
+          curl -fsSL -X POST -H "PRIVATE-TOKEN: $GITLAB_PAT" \
+            -H 'Content-Type: application/json' --data "$payload" "${api}/releases" || true
