@@ -145,16 +145,22 @@ jobs:
           notes=$(jq -r '.body // ""' release.json)
           payload=$(jq -n --arg tag "$TAG" --arg title "$title" --arg notes "$notes" \
             '{tag:$tag,title:$title,release_notes:$notes,publish:true}')
+
+          # Force update release + attach all assets
           curl -fsSL -X POST -H "Authorization: Bearer $SOURCECRAFT_PAT" \
             -H 'Content-Type: application/json' --data "$payload" \
             "https://api.sourcecraft.tech/repos/${SOURCECRAFT_ORG}/${SOURCECRAFT_REPO}/releases" || \
-          echo 'SourceCraft release already exists; continuing with assets.'
+          curl -fsSL -X PUT -H "Authorization: Bearer $SOURCECRAFT_PAT" \
+            -H 'Content-Type: application/json' --data "$payload" \
+            "https://api.sourcecraft.tech/repos/${SOURCECRAFT_ORG}/${SOURCECRAFT_REPO}/releases/${TAG}"
+
           for file in assets/*; do
             [ -f "$file" ] || continue
             curl -fsSL -X POST -H "Authorization: Bearer $SOURCECRAFT_PAT" \
               -F "name=$(basename "$file")" -F "file=@$file" \
               "https://api.sourcecraft.tech/repos/${SOURCECRAFT_ORG}/${SOURCECRAFT_REPO}/releases/tag/${TAG}/attachments" || true
           done
+
           echo "sourcecraft=ok" >> "$GITHUB_OUTPUT"
 
       - name: Sync release to GitLab
