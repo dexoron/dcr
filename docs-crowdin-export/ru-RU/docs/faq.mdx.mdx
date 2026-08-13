@@ -61,6 +61,15 @@ Use `kind = "flat-bin"` (NASM `-f bin`) and optional `[archive]` for a FAT disk 
 
 See [OS-dev recipe](/docs/recipes/os-flat-bin-archive).
 
+## How do I choose a download mirror?
+
+`dcrup install` uses `--mirror auto` by default and tries **cf → gh → sf → ya**.
+
+```bash
+dcrup install stable --mirror cf
+export DCRUP_MIRROR=ya
+```
+
 ## Lock-файл устарел
 
 При изменении зависимостей `dcr.lock` автоматически обновляется при следующем `dcr add`. Если нужно принудительно обновить — удалите `dcr.lock` и выполните `dcr build`.
