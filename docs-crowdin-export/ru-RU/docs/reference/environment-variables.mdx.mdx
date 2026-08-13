@@ -58,3 +58,27 @@ export DCR_INDEX_PATH=/custom/path/index.json
 ```
 
 По умолчанию: `~/.dcr/index.json`.
+
+## DCRUP_MIRROR
+
+Download mirror for `dcrup` (prebuilt binaries only).
+
+```bash
+export DCRUP_MIRROR=auto   # cf → gh → sf → ya (default)
+export DCRUP_MIRROR=cf     # CloudFlare CDN
+export DCRUP_MIRROR=gh     # GitHub Releases
+export DCRUP_MIRROR=sf     # SourceForge
+export DCRUP_MIRROR=ya     # Yandex CDN (RU fallback)
+```
+
+CLI override: `dcrup install stable --mirror cf`.
+
+## DCRUP_HOME / DCRUP_BIN / DCRUP_REPO
+
+Installer layout and source clone URL:
+
+```bash
+export DCRUP_HOME=~/.dcr
+export DCRUP_BIN=~/.dcr/bin
+export DCRUP_REPO=https://github.com/dexoron/dcr
+```
