@@ -45,10 +45,12 @@ After `self-install`, the command is **`dcrup`** (no `.sh` / `.ps1`): shims live
 ### Common dcrup commands
 
 ```sh
-dcrup install stable              # latest stable prebuilt
+dcrup install stable              # latest stable prebuilt (auto: cf → gh → sf → ya)
 dcrup install 0.8.2               # pin → 0.8.2@stable
 dcrup install 0.8.2@dev
 dcrup install stable --libc musl  # Linux: musl asset (default: gnu)
+dcrup install stable --mirror cf  # CloudFlare CDN
+dcrup install stable --mirror ya  # Yandex CDN (RU fallback)
 dcrup install stable --build      # cargo build --features archive
 dcrup install night               # always build from branch dev HEAD
 dcrup default 0.8.2
@@ -59,6 +61,22 @@ dcrup which
 ```
 
 Layout: `~/.dcr/toolchains/\<id>/dcr` and `~/.dcr/bin/dcr` → active version.
+
+### Download mirrors
+
+Prebuilt installs try **cf → gh → sf → ya** unless you pin a host.
+
+| Code | URL                                                                                                          | Notes                      |
+| ---- | ------------------------------------------------------------------------------------------------------------ | -------------------------- |
+| `cf` | `https://cdn-global.dcr-tool.ru/\<tag>/\<asset>`                           | CloudFlare CDN (worldwide) |
+| `gh` | `https://github.com/dexoron/dcr/releases/download/\<tag>/\<asset>`         | GitHub Releases            |
+| `sf` | `https://sourceforge.net/projects/dcr-tool/files/\<tag>/\<asset>/download` | SourceForge                |
+| `ya` | `https://cdn-ru.dcr-tool.ru/\<tag>/\<asset>`                               | Yandex CDN (RU fallback)   |
+
+```sh
+dcrup install stable --mirror auto   # default
+export DCRUP_MIRROR=cf               # persist for this shell
+```
 
 ---
 
