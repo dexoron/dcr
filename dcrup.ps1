@@ -6,6 +6,7 @@ $DcrupBin  = if ($env:DCRUP_BIN)  { $env:DCRUP_BIN  } else { Join-Path $DcrupHom
 $DcrupTc   = Join-Path $DcrupHome 'toolchains'
 $DcrupMeta = Join-Path $DcrupHome 'meta'
 $RepoUrl   = if ($env:DCRUP_REPO) { $env:DCRUP_REPO } else { 'https://github.com/dexoron/dcr' }
+$DcrupMirror = if ($env:DCRUP_MIRROR) { $env:DCRUP_MIRROR } else { 'auto' }
 $ApiLatest = 'https://api.github.com/repos/dexoron/dcr/releases/latest'
 $ApiAll    = 'https://api.github.com/repos/dexoron/dcr/releases'
 $Features  = if ($env:DCR_FEATURES) { $env:DCR_FEATURES } else { 'archive' }
@@ -20,7 +21,7 @@ function Show-Usage {
 dcrup — install and switch DCR versions (Windows)
 
 Usage:
-  dcrup install <spec> [--build|--release] [--force]
+  dcrup install <spec> [--build|--release] [--force] [--mirror auto|cf|gh|sf|ya]
   dcrup default <spec>
   dcrup update
   dcrup list
@@ -38,15 +39,24 @@ Spec:
   night                → always build from branch "dev" HEAD
 
 Modes:
-  --release   download GitHub Release binary (default for stable/dev)
+  --release   download prebuilt binary (default for stable/dev)
   --build     cargo build --release --features archive
   night       always --build (prebuilt not available)
+
+Mirrors (prebuilt download only):
+  --mirror auto   try cf → gh → sf → ya, first successful download wins (default)
+  --mirror cf     download from cdn-global.dcr-tool.ru
+  --mirror gh     download from github.com/dexoron/dcr
+  --mirror sf     download from sourceforge.net/projects/dcr-tool
+  --mirror ya     download from cdn-ru.dcr-tool.ru
+  DCRUP_MIRROR    env override (default: auto)
 
 Env:
   DCRUP_HOME      default ~/.dcr
   DCRUP_BIN       default $DCRUP_HOME/bin
   DCR_FEATURES    default archive
   DCRUP_REPO      git/GitHub repo URL
+  DCRUP_MIRROR    auto|cf|gh|sf|ya (default: auto)
 '@ | Write-Host
 }
 
@@ -123,6 +133,53 @@ function Link-Default([string]$id) {
     Ok "default → $id ($dst)"
 }
 
+function Set-Mirror([string]$value) {
+    if ($value -notin @('auto', 'cf', 'gh', 'sf', 'ya')) {
+        Die "invalid --mirror: $value (use auto|cf|gh|sf|ya)"
+    }
+    $script:DcrupMirror = $value
+}
+
+function Get-MirrorUrl([string]$mirror, [string]$tag, [string]$asset) {
+    switch ($mirror) {
+        'cf' { return "https://cdn-global.dcr-tool.ru/$tag/$asset" }
+        'gh' { return "https://github.com/dexoron/dcr/releases/download/$tag/$asset" }
+        'sf' { return "https://sourceforge.net/projects/dcr-tool/files/$tag/$asset/download" }
+        'ya' { return "https://cdn-ru.dcr-tool.ru/$tag/$asset" }
+        default { Die "invalid mirror: $mirror" }
+    }
+}
+
+function Get-MirrorsToTry {
+    switch ($script:DcrupMirror) {
+        'auto' { return @('cf', 'gh', 'sf', 'ya') }
+        { $_ -in @('cf', 'gh', 'sf', 'ya') } { return @($script:DcrupMirror) }
+        default { Die "invalid mirror: $($script:DcrupMirror) (use auto|cf|gh|sf|ya)" }
+    }
+}
+
+function Download-FromMirrors([string]$tag, [string]$asset, [string]$destFile) {
+    $tmp = "$destFile.download"
+    foreach ($m in (Get-MirrorsToTry)) {
+        $url = Get-MirrorUrl $m $tag $asset
+        Info "trying mirror $m …"
+        Remove-Item $tmp -ErrorAction SilentlyContinue
+        try {
+            Invoke-WebRequest -Uri $url -OutFile $tmp -UserAgent 'dcrup'
+            $size = (Get-Item $tmp).Length
+            if ($size -gt 100000) {
+                Move-Item $tmp $destFile -Force
+                return $m
+            }
+            Warn "mirror $m returned a too-small file ($size bytes)"
+        } catch {
+            Warn "mirror $m failed"
+        }
+        Remove-Item $tmp -ErrorAction SilentlyContinue
+    }
+    return $null
+}
+
 function Fetch-Release($channel, $version) {
     if ($version) {
         return Invoke-RestMethod -Uri "https://api.github.com/repos/dexoron/dcr/releases/tags/v$version"
@@ -142,8 +199,6 @@ function Install-Prebuilt([switch]$Force) {
     $tag = $rel.tag_name
     $ver = Normalize-Version $tag
     $assetName = "dcr-$triple-$ver.exe"
-    $asset = $rel.assets | Where-Object { $_.name -eq $assetName } | Select-Object -First 1
-    if (-not $asset) { Die "asset not found: $assetName" }
 
     $id = if ($script:SpecFloating) { Toolchain-Id $ver } else { Toolchain-Id }
     $dest = Join-Path $DcrupTc $id
@@ -155,16 +210,19 @@ function Install-Prebuilt([switch]$Force) {
     }
     Ensure-Dirs
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
-    Info "downloading $assetName …"
-    Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $bin
+    Info "downloading $assetName (mirror=$($script:DcrupMirror)) …"
+    $mirror = Download-FromMirrors $tag $assetName $bin
+    if (-not $mirror) { Die "no mirror reachable for $assetName (try: --mirror cf|gh|sf|ya)" }
+    Info "mirror → $mirror"
     @"
 channel=$($script:SpecChannel)
 version=$ver
 tag=$tag
 source=release
 triple=$triple
+mirror=$mirror
 "@ | Set-Content (Join-Path $dest 'dcrup-meta')
-    Ok "installed prebuilt $id"
+    Ok "installed prebuilt $id ($triple via $mirror)"
     Link-Default $id
 }
 
@@ -270,23 +328,32 @@ function Cmd-Install {
     $mode = 'release'
     $force = $false
     $spec = $null
-    foreach ($a in $Args) {
+    $i = 0
+    while ($i -lt $Args.Count) {
+        $a = $Args[$i]
         switch -Regex ($a) {
-            '^--build$' { $mode = 'build'; continue }
-            '^--release$' { $mode = 'release'; continue }
-            '^--force$' { $force = $true; continue }
+            '^--build$' { $mode = 'build' }
+            '^--release$' { $mode = 'release' }
+            '^--force$' { $force = $true }
+            '^--mirror$' {
+                if ($i + 1 -ge $Args.Count) { Die '--mirror needs auto|cf|gh|sf|ya' }
+                $i++
+                Set-Mirror $Args[$i]
+            }
+            '^--mirror=(.+)$' { Set-Mirror $Matches[1] }
             '^-' { Die "unknown flag: $a" }
             default {
                 if ($spec) { Die "unexpected: $a" }
                 $spec = $a
             }
         }
+        $i++
     }
-    if (-not $spec) { Die 'usage: dcrup install <spec> [--build|--release] [--force]' }
+    if (-not $spec) { Die 'usage: dcrup install <spec> [--build|--release] [--force] [--mirror auto|cf|gh|sf|ya]' }
     Parse-Spec $spec
     Ensure-Dirs
     if ($script:SpecChannel -eq 'night') { $mode = 'build' }
-    Info "install spec=$spec channel=$($script:SpecChannel) mode=$mode"
+    Info "install spec=$spec channel=$($script:SpecChannel) mode=$mode mirror=$($script:DcrupMirror)"
     if ($mode -eq 'build') { Install-Build -Force:$force } else { Install-Prebuilt -Force:$force }
     Ensure-UserPath
     Install-CmdShim

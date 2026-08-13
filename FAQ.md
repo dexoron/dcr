@@ -61,7 +61,18 @@ Available installation methods may vary by project version.
 Recommended path:
 
 - check instructions in `README.md`;
+- use `dcrup install stable` (default mirror chain: **cf → gh → sf → ya**);
+- pin a host with `--mirror cf|gh|sf|ya` or `DCRUP_MIRROR` if needed;
 - if there is no prebuilt package for your platform, build from source using `cargo build --release`.
+
+## How do I choose a download mirror?
+
+`dcrup` defaults to `--mirror auto`: CloudFlare CDN, then GitHub, then SourceForge, then Yandex CDN.
+
+```sh
+dcrup install stable --mirror cf
+export DCRUP_MIRROR=ya
+```
 
 ## How can I get started quickly?
 

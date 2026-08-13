@@ -11,6 +11,7 @@ Thanks for your interest in the project.
 
 ```bash
 git clone https://github.com/dexoron/dcr.git
+# or a source mirror: GitVerse / SourceCraft / SourceForge / GitLab (see README)
 cd dcr
 cargo check
 ```

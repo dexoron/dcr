@@ -6,6 +6,7 @@ DCRUP_BIN="${DCRUP_BIN:-$DCRUP_HOME/bin}"
 DCRUP_TC="${DCRUP_HOME}/toolchains"
 DCRUP_META="${DCRUP_HOME}/meta"
 REPO_URL="${DCRUP_REPO:-https://github.com/dexoron/dcr}"
+DCRUP_MIRROR="${DCRUP_MIRROR:-auto}"
 API_LATEST="https://api.github.com/repos/dexoron/dcr/releases/latest"
 API_ALL="https://api.github.com/repos/dexoron/dcr/releases"
 FEATURES="${DCR_FEATURES:-archive}"
@@ -26,7 +27,7 @@ usage() {
 dcrup — install and switch DCR versions
 
 Usage:
-  dcrup install <spec> [--build|--release] [--force] [--libc gnu|musl|auto]
+  dcrup install <spec> [--build|--release] [--force] [--libc gnu|musl|auto] [--mirror auto|cf|gh|sf|ya]
   dcrup default <spec>
   dcrup update
   dcrup list
@@ -44,7 +45,7 @@ Spec:
   night                → always build from branch "dev" HEAD
 
 Modes:
-  --release   download GitHub Release binary (default for stable/dev)
+  --release   download prebuilt binary (default for stable/dev)
   --build     cargo build --release --features archive
   night       always --build (prebuilt not available)
 
@@ -53,12 +54,21 @@ Linux libc (prebuilt triple only):
   --libc musl   x86_64-unknown-linux-musl
   --libc auto   musl if host ldd/libc is musl, else gnu
 
+Mirrors (prebuilt download only):
+  --mirror auto   try cf → gh → sf → ya, first successful download wins (default)
+  --mirror cf     download from cdn-global.dcr-tool.ru
+  --mirror gh     download from github.com/dexoron/dcr
+  --mirror sf     download from sourceforge.net/projects/dcr-tool
+  --mirror ya     download from cdn-ru.dcr-tool.ru
+  DCRUP_MIRROR    env override (default: auto)
+
 Env:
   DCRUP_HOME      default ~/.dcr
   DCRUP_BIN       default $DCRUP_HOME/bin
   DCR_FEATURES    default archive
   DCRUP_REPO      git/GitHub repo URL
   DCRUP_LIBC      gnu|musl|auto (default: gnu)
+  DCRUP_MIRROR    auto|cf|gh|sf|ya (default: auto)
 EOF
 }
 
@@ -239,9 +249,57 @@ json_tag() {
     printf '%s' "$1" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1
 }
 
-json_asset_url() {
-    local json="$1" asset="$2"
-    printf '%s' "$json" | sed -n "s#.*\"browser_download_url\"[[:space:]]*:[[:space:]]*\"\([^\"]*/${asset}\)\"#\1#p" | head -n1
+set_mirror() {
+    case "$1" in
+        auto|cf|gh|sf|ya) DCRUP_MIRROR="$1" ;;
+        *) die "invalid --mirror: $1 (use auto|cf|gh|sf|ya)" ;;
+    esac
+}
+
+mirror_url() {
+    local mirror="$1" tag="$2" asset="$3"
+    case "$mirror" in
+        cf) printf 'https://cdn-global.dcr-tool.ru/%s/%s' "$tag" "$asset" ;;
+        gh) printf 'https://github.com/dexoron/dcr/releases/download/%s/%s' "$tag" "$asset" ;;
+        sf) printf 'https://sourceforge.net/projects/dcr-tool/files/%s/%s/download' "$tag" "$asset" ;;
+        ya) printf 'https://cdn-ru.dcr-tool.ru/%s/%s' "$tag" "$asset" ;;
+        *) return 1 ;;
+    esac
+}
+
+mirror_chain() { echo "cf gh sf ya"; }
+
+mirrors_to_try() {
+    case "$DCRUP_MIRROR" in
+        auto) mirror_chain ;;
+        cf|gh|sf|ya) echo "$DCRUP_MIRROR" ;;
+        *) die "invalid mirror: $DCRUP_MIRROR (use auto|cf|gh|sf|ya)" ;;
+    esac
+}
+
+download_from_mirrors() {
+    local tag="$1" asset="$2" dest="$3"
+    local tmp="$dest/dcr.download" m url size
+    USED_MIRROR=""
+    for m in $(mirrors_to_try); do
+        url="$(mirror_url "$m" "$tag" "$asset")"
+        log "trying mirror $m …"
+        rm -f "$tmp"
+        if curl -fL --retry 2 --retry-delay 1 --connect-timeout 10 --max-time 180 \
+            -A "dcrup" "$url" -o "$tmp"; then
+            size="$(wc -c <"$tmp" | tr -d ' ')"
+            if [[ "${size:-0}" -gt 100000 ]]; then
+                mv "$tmp" "$dest/dcr"
+                USED_MIRROR="$m"
+                return 0
+            fi
+            warn "mirror $m returned a too-small file (${size:-0} bytes)"
+        else
+            warn "mirror $m failed"
+        fi
+        rm -f "$tmp"
+    done
+    return 1
 }
 
 latest_stable_json() {
@@ -281,7 +339,7 @@ release_json_for_spec() {
 }
 
 install_prebuilt() {
-    local triple asset tag version url json id dest
+    local triple asset tag version id dest mirror
     need_cmd curl
     triple="$(detect_triple)"
     json="$(release_json_for_spec)"
@@ -292,8 +350,6 @@ install_prebuilt() {
     case "$triple" in
         *windows*) asset="${asset}.exe" ;;
     esac
-    url="$(json_asset_url "$json" "$asset")"
-    [[ -n "$url" ]] || die "asset not found: $asset (tag $tag)"
 
     id="$(toolchain_id "$version")"
     dest="$DCRUP_TC/$id"
@@ -303,9 +359,12 @@ install_prebuilt() {
         return 0
     fi
 
-    log "downloading $asset …"
     mkdir -p "$dest"
-    curl -fL "$url" -o "$dest/dcr"
+    log "downloading $asset (mirror=$DCRUP_MIRROR) …"
+    download_from_mirrors "$tag" "$asset" "$dest" \
+        || die "no mirror reachable for $asset (try: --mirror cf|gh|sf|ya)"
+    mirror="$USED_MIRROR"
+    log "mirror → $mirror"
     chmod +x "$dest/dcr"
     printf '%s\n' \
         "channel=$SPEC_CHANNEL" \
@@ -313,9 +372,10 @@ install_prebuilt() {
         "tag=$tag" \
         "source=release" \
         "triple=$triple" \
+        "mirror=$mirror" \
         "libc=${DCRUP_LIBC:-gnu}" \
         >"$dest/dcrup-meta"
-    ok "installed prebuilt $id ($triple)"
+    ok "installed prebuilt $id ($triple via $mirror)"
     link_default "$id"
 }
 
@@ -405,6 +465,15 @@ cmd_install() {
                 libc_cli="${1#--libc=}"
                 shift
                 ;;
+            --mirror)
+                [[ $# -ge 2 ]] || die "--mirror needs auto|cf|gh|sf|ya"
+                set_mirror "$2"
+                shift 2
+                ;;
+            --mirror=*)
+                set_mirror "${1#--mirror=}"
+                shift
+                ;;
             -h|--help) usage; exit 0 ;;
             -*) die "unknown flag: $1" ;;
             *)
@@ -414,7 +483,7 @@ cmd_install() {
                 ;;
         esac
     done
-    [[ -n "$spec" ]] || die "usage: dcrup install <spec> [--build|--release] [--force] [--libc gnu|musl|auto]"
+    [[ -n "$spec" ]] || die "usage: dcrup install <spec> [--build|--release] [--force] [--libc gnu|musl|auto] [--mirror auto|cf|gh|sf|ya]"
     parse_spec "$spec"
     ensure_dirs
 
@@ -431,7 +500,7 @@ cmd_install() {
     fi
 
     export FORCE
-    log "install spec=$SPEC_RAW channel=$SPEC_CHANNEL version=${SPEC_VERSION:-∅} mode=$mode libc=$DCRUP_LIBC"
+    log "install spec=$SPEC_RAW channel=$SPEC_CHANNEL version=${SPEC_VERSION:-∅} mode=$mode libc=$DCRUP_LIBC mirror=$DCRUP_MIRROR"
     if [[ "$mode" == "build" ]]; then
         install_build
     else

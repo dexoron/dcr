@@ -1,5 +1,29 @@
 # Changelog
 
+## [Unreleased]
+
+### RU
+
+**Добавлено:**
+
+- **Зеркала загрузок в `dcrup`** — `--mirror auto|cf|gh|sf|ya` и `DCRUP_MIRROR`.
+  По умолчанию `auto`: **cf → gh → sf → ya** (CloudFlare CDN, GitHub, SourceForge, Yandex CDN).
+
+**Удалено:**
+
+- **`install.sh` / `install.ps1` / `install_bsd.sh`** — устарели, заменены `dcrup`.
+
+### EN
+
+**Added:**
+
+- **Download mirrors in `dcrup`** — `--mirror auto|cf|gh|sf|ya` and `DCRUP_MIRROR`.
+  Default `auto` tries **cf → gh → sf → ya** (CloudFlare CDN, GitHub, SourceForge, Yandex CDN).
+
+**Removed:**
+
+- **`install.sh` / `install.ps1` / `install_bsd.sh`** — superseded by `dcrup`.
+
 ## [v0.8.5] - 2026-08-08 "Фиксация версии dcr-version и предупреждения совместимости / Config Version Pinning & Compatibility Warnings"
 
 ### RU
