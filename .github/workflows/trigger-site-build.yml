@@ -1,0 +1,14 @@
+name: Trigger site rebuild
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'docs/**'
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Cloudflare Pages build
+        run: curl -sS -X POST "${{ secrets.CF_PAGES_DEPLOY_HOOK }}"

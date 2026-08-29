@@ -83,7 +83,9 @@ cargo install dcr
 ```sh
 curl -fsSL https://sh.dcr-tool.ru | sh -s -- self-install
 export PATH="$HOME/.dcr/bin:$PATH"
-dcrup install stable
+dcrup install stable                 # auto: cf → gh → sf → ya
+# dcrup install stable --mirror cf   # CloudFlare CDN
+# dcrup install stable --mirror ya   # Yandex CDN (RU)
 ```
 
 </td>
@@ -98,7 +100,9 @@ irm https://ps1.dcr-tool.ru | iex
 # irm https://ps1.dcr-tool.ru -OutFile dcrup.ps1
 # powershell -File .\dcrup.ps1 self-install
 # $env:Path += ";$env:USERPROFILE\.dcr\bin"
-dcrup install stable
+dcrup install stable                 # auto: cf → gh → sf → ya
+# dcrup install stable --mirror cf   # CloudFlare CDN
+# dcrup install stable --mirror ya   # Yandex CDN (RU)
 ```
 
 </td>
@@ -213,6 +217,41 @@ other in [docs/](docs/), `dcr --help` and `dcr <command> --help`
 ## Documentation
 
 Full docs at **[dcr.dexoron.su](https://dcr.dexoron.su)** or in the [`docs/`](docs/) directory.
+
+---
+
+## Repository Mirrors
+
+The primary repository is hosted on GitHub. Source and release mirrors:
+
+| Region | Mirror | Contents |
+|---|---|---|
+| Worldwide | [GitHub](https://github.com/dexoron/dcr) | Source code and releases |
+| Worldwide | [SourceForge](https://sourceforge.net/projects/dcr-tool/) | Source code and releases |
+| Russia | [GitVerse](https://gitverse.ru/dcr_labs/dcr) | Source code |
+| Russia | [SourceCraft](https://sourcecraft.dev/dexoron-dev/dcr) | Source code |
+
+Release CDN (used by `dcrup`):
+
+| Code | Host | Role |
+|---|---|---|
+| `cf` | [cdn-global.dcr-tool.ru](https://cdn-global.dcr-tool.ru) (CloudFlare) | Worldwide CDN |
+| `gh` | GitHub Releases | Primary host |
+| `sf` | SourceForge | Worldwide fallback |
+| `ya` | [cdn-ru.dcr-tool.ru](https://cdn-ru.dcr-tool.ru) (Yandex) | Paid RU fallback for restrictions |
+
+`dcrup install` defaults to `--mirror auto` and tries **cf → gh → sf → ya**. Override with `--mirror cf|gh|sf|ya` or `DCRUP_MIRROR`.
+
+---
+
+## VS Code Extension
+
+Install the recommended [DCR extension by Dexoron-Labs](https://marketplace.visualstudio.com/items?itemName=Dexoron-Labs.dcr) for VS Code. Do not install Microsoft C/C++ extensions for DCR projects; DCR uses `clangd` instead. If you need debugging with Microsoft's debugger, use MS C/C++ only for its debugger component.
+
+Recommended companion extensions:
+
+- [Even Better TOML](https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml)
+- [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb), or MS C/C++ for debugger support only
 
 ---
 

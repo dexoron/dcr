@@ -1,0 +1,38 @@
+name: Mirror source code to GitVerse
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: code-mirror-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Mirror all branches
+        env:
+          GITVERSE_PAT: ${{ secrets.GITVERSE_PAT }}
+          GITVERSE_ORG: ${{ vars.GITVERSE_ORG || 'dcr_labs' }}
+          GITVERSE_REPO: ${{ vars.GITVERSE_REPO || 'dcr' }}
+        run: |
+          set -euo pipefail
+          test -n "$GITVERSE_PAT" || { echo 'GITVERSE_PAT is not configured' >&2; exit 1; }
+          remote="https://oauth2:${GITVERSE_PAT}@gitverse.ru/${GITVERSE_ORG}/${GITVERSE_REPO}.git"
+          git remote add gitverse "$remote"
+          # Use a private ref namespace: Git will not overwrite the checked-out
+          # branch, and broken legacy submodule metadata is not traversed.
+          git fetch --no-recurse-submodules origin '+refs/heads/*:refs/mirror/*'
+          git push --prune --force gitverse 'refs/mirror/*:refs/heads/*'

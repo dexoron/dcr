@@ -8,3 +8,4 @@ sandbox/**
 personal/
 .*
 !.gitignore
+!.github/

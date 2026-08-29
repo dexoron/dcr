@@ -1,0 +1,290 @@
+name: Mirror releases to GitVerse, SourceCraft, and GitLab
+
+on:
+  workflow_run:
+    workflows:
+      - Release
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Git tag of the GitHub release to mirror (for example v0.7.1)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      found: ${{ steps.release.outputs.found }}
+    steps:
+      - name: Resolve release tag
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MANUAL_TAG: ${{ inputs.tag }}
+          WORKFLOW_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          WORKFLOW_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          tag="$MANUAL_TAG"
+          if [ -z "$tag" ] && [[ "$WORKFLOW_HEAD_BRANCH" == v* ]]; then
+            tag="$WORKFLOW_HEAD_BRANCH"
+          fi
+          if [ -z "$tag" ] && [ -n "$WORKFLOW_HEAD_SHA" ]; then
+            releases=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+              -H 'Accept: application/vnd.github+json' \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases?per_page=100")
+            while IFS= read -r candidate; do
+              ref=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+                -H 'Accept: application/vnd.github+json' \
+                "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/ref/tags/${candidate}")
+              sha=$(jq -r '.object.sha' <<< "$ref")
+              if [ "$(jq -r '.object.type' <<< "$ref")" = tag ]; then
+                sha=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+                  -H 'Accept: application/vnd.github+json' \
+                  "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/tags/${sha}" | jq -r '.object.sha')
+              fi
+              if [ "$sha" = "$WORKFLOW_HEAD_SHA" ]; then
+                tag="$candidate"
+                break
+              fi
+            done < <(jq -r '.[].tag_name' <<< "$releases")
+          fi
+          if [ -z "$tag" ] || [[ "$tag" != v* ]]; then
+            echo 'No release tag was found; release.yml may have failed before creating a GitHub release.'
+            echo 'found=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo 'found=true' >> "$GITHUB_OUTPUT"
+
+      - name: Download GitHub release metadata and assets
+        if: steps.release.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p assets
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" > release.json
+          jq -e '.tag_name == $tag' --arg tag "$TAG" release.json >/dev/null
+
+          total=$(jq '.assets | length' release.json)
+          downloaded=0
+          failed=0
+          while IFS=$'	' read -r name url; do
+            if curl -fsSL -L -H "Authorization: Bearer $GH_TOKEN" \
+              -H 'Accept: application/octet-stream' -o "assets/$name" "$url"; then
+              downloaded=$((downloaded+1))
+            else
+              echo "::warning::Failed to download asset: $name"
+              failed=$((failed+1))
+            fi
+          done < <(jq -r '.assets[] | [.name, .browser_download_url] | @tsv' release.json)
+
+          echo "Downloaded ${downloaded}/${total} assets (${failed} failed)"
+          [ "$failed" -eq 0 ] || { echo 'Not all release assets were downloaded.' >&2; exit 1; }
+
+      - name: Upload release metadata artifact
+        if: steps.release.outputs.found == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-mirror-data
+          path: |
+            release.json
+            assets/*
+          if-no-files-found: error
+
+  mirror-gitverse:
+    needs: setup
+    if: needs.setup.outputs.found == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release metadata
+        uses: actions/download-artifact@v4
+        with:
+          name: release-mirror-data
+
+      - name: Sync tag and release to GitVerse
+        env:
+          GITVERSE_PAT: ${{ secrets.GITVERSE_PAT }}
+          GITVERSE_ORG: ${{ vars.GITVERSE_ORG || 'dcr_labs' }}
+          GITVERSE_REPO: ${{ vars.GITVERSE_REPO || 'dcr' }}
+          TAG: ${{ needs.setup.outputs.tag }}
+        run: |
+          set -euo pipefail
+          test -n "$GITVERSE_PAT" || { echo 'GITVERSE_PAT is not configured' >&2; exit 1; }
+          project="${GITVERSE_ORG}%2F${GITVERSE_REPO}"
+          remote="https://oauth2:${GITVERSE_PAT}@gitverse.ru/${GITVERSE_ORG}/${GITVERSE_REPO}.git"
+          git clone --mirror "https://github.com/${GITHUB_REPOSITORY}.git" mirror.git
+          git -C mirror.git remote add gitverse "$remote"
+          git -C mirror.git push gitverse "refs/tags/${TAG}:refs/tags/${TAG}"
+
+          title=$(jq -r '.name // .tag_name' release.json)
+          notes=$(jq -r '.body // ""' release.json)
+          payload=$(jq -n --arg tag "$TAG" --arg title "$title" --arg notes "$notes" \
+            '{name:$title, tag_name:$tag, description:$notes, ref:$tag}')
+
+          http=$(curl -sS -o gitverse-release.json -w '%{http_code}' \
+            -H "PRIVATE-TOKEN: $GITVERSE_PAT" \
+            "https://gitverse.ru/api/v4/projects/${project}/releases/${TAG}" || true)
+          if [ "$http" = '200' ]; then
+            echo "GitVerse release ${TAG} already exists; skipping create."
+          else
+            curl -fsSL -X POST -H "PRIVATE-TOKEN: $GITVERSE_PAT" \
+              -H 'Content-Type: application/json' --data "$payload" \
+              "https://gitverse.ru/api/v4/projects/${project}/releases" || \
+            curl -fsSL -X PUT -H "PRIVATE-TOKEN: $GITVERSE_PAT" \
+              -H 'Content-Type: application/json' --data "$payload" \
+              "https://gitverse.ru/api/v4/projects/${project}/releases/${TAG}"
+          fi
+
+          uploaded=0; failed=0
+          for file in assets/*; do
+            [ -f "$file" ] || continue
+            name=$(basename "$file")
+            
+            upload_response=$(curl -sS -w "\n%{http_code}" -X POST -H "PRIVATE-TOKEN: $GITVERSE_PAT" \
+              -F "file=@$file" "https://gitverse.ru/api/v4/projects/${project}/uploads")
+            http_code=$(echo "$upload_response" | tail -n1)
+            body=$(echo "$upload_response" | sed '$d')
+            
+            if [ "$http_code" != "201" ] && [ "$http_code" != "200" ]; then
+              echo "::warning::GitVerse: failed to upload $name (HTTP $http_code)"
+              failed=$((failed+1))
+              continue
+            fi
+            
+            url=$(jq -r '.url // .file_path' <<< "$body" 2>/dev/null || echo "")
+            if [ -z "$url" ]; then
+              echo "::warning::GitVerse: failed to parse upload response for $name"
+              failed=$((failed+1))
+              continue
+            fi
+            
+            link=$(jq -n --arg name "$name" --arg url "$url" '{name:$name,url:$url}')
+            link_response=$(curl -sS -w "\n%{http_code}" -X POST -H "PRIVATE-TOKEN: $GITVERSE_PAT" \
+              -H 'Content-Type: application/json' --data "$link" \
+              "https://gitverse.ru/api/v4/projects/${project}/releases/${TAG}/assets/links")
+            link_http=$(echo "$link_response" | tail -n1)
+            
+            if [ "$link_http" = "201" ] || [ "$link_http" = "200" ] || [ "$link_http" = "409" ]; then
+              uploaded=$((uploaded+1))
+            else
+              echo "::warning::GitVerse: failed to attach asset $name (HTTP $link_http)"
+              failed=$((failed+1))
+            fi
+          done
+          echo "GitVerse: uploaded ${uploaded}, failed ${failed}"
+          [ "$failed" -eq 0 ] || exit 1
+
+  mirror-sourcecraft:
+    needs: setup
+    if: needs.setup.outputs.found == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release metadata
+        uses: actions/download-artifact@v4
+        with:
+          name: release-mirror-data
+
+      - name: Sync tag and release to SourceCraft
+        env:
+          SOURCECRAFT_PAT: ${{ secrets.SOURCECRAFT_PAT }}
+          SOURCECRAFT_ORG: ${{ vars.SOURCECRAFT_ORG || 'dexoron-dev' }}
+          SOURCECRAFT_REPO: ${{ vars.SOURCECRAFT_REPO || 'dcr' }}
+          TAG: ${{ needs.setup.outputs.tag }}
+        run: |
+          set -euo pipefail
+          test -n "$SOURCECRAFT_PAT" || { echo 'SOURCECRAFT_PAT is not configured' >&2; exit 1; }
+          remote="https://anyname:${SOURCECRAFT_PAT}@git.sourcecraft.dev/${SOURCECRAFT_ORG}/${SOURCECRAFT_REPO}.git"
+          git clone "$remote" sourcecraft
+          git -C sourcecraft remote add github "https://github.com/${GITHUB_REPOSITORY}.git"
+          git -C sourcecraft fetch github "refs/tags/${TAG}:refs/tags/${TAG}"
+          git -C sourcecraft push origin "refs/tags/${TAG}"
+
+          title=$(jq -r '.name // .tag_name' release.json)
+          notes=$(jq -r '.body // ""' release.json)
+          payload=$(jq -n --arg tag "$TAG" --arg title "$title" --arg notes "$notes" \
+            '{tag:$tag,title:$title,release_notes:$notes,publish:true}')
+          base="https://api.sourcecraft.tech/repos/${SOURCECRAFT_ORG}/${SOURCECRAFT_REPO}"
+
+          http=$(curl -sS -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer $SOURCECRAFT_PAT" "${base}/releases/tag/${TAG}" || true)
+          if [ "$http" != '200' ]; then
+            curl -fsSL -X POST -H "Authorization: Bearer $SOURCECRAFT_PAT" \
+              -H 'Content-Type: application/json' --data "$payload" "${base}/releases" || \
+            curl -fsSL -X PUT -H "Authorization: Bearer $SOURCECRAFT_PAT" \
+              -H 'Content-Type: application/json' --data "$payload" "${base}/releases/${TAG}" || \
+            echo 'SourceCraft release already exists; continuing with assets.'
+          else
+            echo "SourceCraft release ${TAG} already exists; continuing with assets."
+          fi
+
+          uploaded=0; failed=0
+          for file in assets/*; do
+            [ -f "$file" ] || continue
+            name=$(basename "$file")
+            
+            upload_response=$(curl -sS -w "\n%{http_code}" -X POST -H "Authorization: Bearer $SOURCECRAFT_PAT" \
+              -F "file=@$file" \
+              "${base}/releases/tag/${TAG}/assets")
+            http_code=$(echo "$upload_response" | tail -n1)
+            
+            if [ "$http_code" = "201" ] || [ "$http_code" = "200" ]; then
+              uploaded=$((uploaded+1))
+            elif [ "$http_code" = "409" ]; then
+              uploaded=$((uploaded+1))
+            else
+              echo "::warning::SourceCraft: failed to attach asset $name (HTTP $http_code)"
+              failed=$((failed+1))
+            fi
+          done
+          echo "SourceCraft: uploaded ${uploaded}, failed ${failed}"
+          [ "$failed" -eq 0 ] || exit 1
+
+  mirror-gitlab:
+    needs: setup
+    if: needs.setup.outputs.found == 'true'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Download release metadata
+        uses: actions/download-artifact@v4
+        with:
+          name: release-mirror-data
+
+      - name: Sync release to GitLab
+        env:
+          GITLAB_PAT: ${{ secrets.GITLAB_PAT }}
+          GITLAB_PROJECT: ${{ vars.GITLAB_PROJECT || 'dexoron-dev/dcr-tool/dcr' }}
+          TAG: ${{ needs.setup.outputs.tag }}
+        run: |
+          set -euo pipefail
+          test -n "$GITLAB_PAT" || { echo 'GITLAB_PAT is not configured' >&2; exit 0; }
+
+          project_id="${GITLAB_PROJECT//\//%2F}"
+          api="https://gitlab.com/api/v4/projects/${project_id}"
+          title=$(jq -r '.name // .tag_name' release.json)
+          notes=$(jq -r '.body // ""' release.json)
+          payload=$(jq -n --arg tag "$TAG" --arg title "$title" --arg notes "$notes" \
+            '{tag_name:$tag, name:$title, description:$notes}')
+
+          http=$(curl -sS -o /dev/null -w '%{http_code}' \
+            -H "PRIVATE-TOKEN: $GITLAB_PAT" "${api}/releases/${TAG}" || true)
+          if [ "$http" = '200' ]; then
+            echo "GitLab release ${TAG} already exists; skipping"
+            exit 0
+          fi
+
+          echo "Creating release on GitLab..."
+          curl -fsSL -X POST -H "PRIVATE-TOKEN: $GITLAB_PAT" \
+            -H 'Content-Type: application/json' --data "$payload" "${api}/releases" || true

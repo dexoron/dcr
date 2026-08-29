@@ -45,6 +45,10 @@ on:
         description: "Update Homebrew tap"
         type: boolean
         default: false
+      run_s3:
+        description: "Mirror Release to Yandex Object Storage (S3)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -1254,3 +1258,72 @@ jobs:
   #
   # publish-snap:
   #   if: ...
+
+  # ── Mirror Release to Yandex Object Storage (S3) ─────────────────────────
+  publish-s3:
+    if: |
+      (github.event_name == 'push' && needs.setup.outputs.prerelease == 'false') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.run_s3 == 'true')
+    needs:
+      - setup
+      - create-release
+      - man-pages
+      - build-linux
+      - build-macos
+      - build-bsd
+      - build-windows
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.setup.outputs.tag }}
+
+      - name: Prepare Directory and Download GitHub Release Assets
+        id: fetch-assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.setup.outputs.tag }}"
+          
+          mkdir -p dist
+          cd dist
+
+          echo "Downloading assets from GitHub Release for tag: ${TAG}"
+          gh release download "${TAG}" --dir . --repo "${{ github.repository }}"
+          
+          cd ..
+          echo "Archiving source code..."
+          git archive --format=tar.gz --prefix="dcr-${TAG}/" "${TAG}" -o "dist/dcr-src-${TAG}.tar.gz"
+          git archive --format=zip --prefix="dcr-${TAG}/" "${TAG}" -o "dist/dcr-src-${TAG}.zip"
+
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Everything to Yandex Object Storage
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_EC2_METADATA_DISABLED: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.setup.outputs.tag }}"
+
+          aws s3 sync dist/ "s3://${{ secrets.S3_BUCKET_NAME }}/${TAG}/" \
+            --endpoint-url https://storage.yandexcloud.net \
+            --region ru-central1
+
+      - name: Upload Everything to Cloudflare R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_EC2_METADATA_DISABLED: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.setup.outputs.tag }}"
+
+          aws s3 sync dist/ "s3://${{ secrets.R2_BUCKET_NAME }}/${TAG}/" \
+            --endpoint-url https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com \
+            --region auto
