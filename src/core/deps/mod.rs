@@ -39,8 +39,8 @@ fn dep_version(path: &Path) -> String {
 
 /// Resolves dependencies from config into include/lib dirs and lib names, and writes the lock file.
 ///
-/// Registry and path deps contribute to `ResolvedDeps`. Git deps are recorded in the lock only
-/// (no fetch or include/lib resolution).
+/// Registry, path, and git deps contribute to `ResolvedDeps`. Path and git sources support both
+/// DCR packages (built from `dcr.toml`) and prebuilt libraries (described with include/lib/libs).
 ///
 /// # Parameters
 /// - `config`: Loaded `dcr.toml`.
@@ -88,6 +88,9 @@ pub fn resolve_deps(
                         .to_string(),
                 );
                 resolved.libs.push(name.clone());
+                resolved
+                    .package_roots
+                    .push(dep_root.to_string_lossy().to_string());
 
                 lock_packages.push(DepLock {
                     name: name.clone(),
@@ -107,6 +110,8 @@ pub fn resolve_deps(
                 });
             } else if let Some(path) = path_dep_path(value) {
                 let dep_root = project_root.join(path);
+                let dcr_package_name = package_name(&dep_root);
+                let use_dcr_package = use_dcr_package(value, dcr_package_name.is_some(), name)?;
                 if let Some(table) = value.as_table() {
                     if let Some(includes) = table.get("include").and_then(|v| v.as_array()) {
                         for inc in includes {
@@ -118,10 +123,7 @@ pub fn resolve_deps(
                         }
                     } else {
                         push_if_exists(&mut resolved.include_dirs, &dep_root.join("include"));
-                        push_if_exists(
-                            &mut resolved.include_dirs,
-                            &dep_root.join("target").join("include"),
-                        );
+                        push_package_output_dirs(&mut resolved, &dep_root);
                     }
 
                     if let Some(lib_dirs) = table.get("lib").and_then(|v| v.as_array()) {
@@ -143,16 +145,29 @@ pub fn resolve_deps(
                             }
                         }
                     } else {
-                        resolved.libs.push(name.clone());
+                        resolved
+                            .libs
+                            .push(dcr_package_name.clone().unwrap_or_else(|| name.clone()));
                     }
                 } else {
                     push_if_exists(&mut resolved.include_dirs, &dep_root.join("include"));
-                    push_if_exists(
-                        &mut resolved.include_dirs,
-                        &dep_root.join("target").join("include"),
-                    );
+                    push_package_output_dirs(&mut resolved, &dep_root);
                     push_default_lib_dirs(&mut resolved.lib_dirs, &dep_root);
-                    resolved.libs.push(name.clone());
+                    resolved
+                        .libs
+                        .push(dcr_package_name.clone().unwrap_or_else(|| name.clone()));
+                }
+
+                if use_dcr_package {
+                    resolved
+                        .package_roots
+                        .push(dep_root.to_string_lossy().to_string());
+                    push_package_output_dirs(&mut resolved, &dep_root);
+                } else if !has_complete_prebuilt_layout(value) {
+                    return Err(format!(
+                        "Path dependency `{}` has no dcr.toml; specify include, lib, and libs for a prebuilt library",
+                        name
+                    ));
                 }
 
                 lock_packages.push(DepLock {
@@ -162,11 +177,46 @@ pub fn resolve_deps(
                     source: format!("path+{}", dep_root.display()),
                 });
             } else if let Some(git_info) = git_dep(value) {
+                let dep_root = register::fetch_git_dependency(
+                    git_info.url,
+                    git_info.branch.as_deref(),
+                    git_info.tag.as_deref(),
+                    git_info.rev.as_deref(),
+                )?;
+                let dcr_package_name = package_name(&dep_root);
+                let use_dcr_package = use_dcr_package(value, dcr_package_name.is_some(), name)?;
+                let (has_include, has_lib, has_libs) = value
+                    .as_table()
+                    .map(|table| push_explicit_layout(&mut resolved, &dep_root, table))
+                    .unwrap_or((false, false, false));
+                if !has_include {
+                    push_if_exists(&mut resolved.include_dirs, &dep_root.join("include"));
+                    if use_dcr_package {
+                        push_package_output_dirs(&mut resolved, &dep_root);
+                    }
+                }
+                if !has_lib {
+                    push_default_lib_dirs(&mut resolved.lib_dirs, &dep_root);
+                }
+                if !has_libs && let Some(package_name) = dcr_package_name.as_deref() {
+                    resolved.libs.push(package_name.to_string());
+                }
+                if use_dcr_package {
+                    resolved
+                        .package_roots
+                        .push(dep_root.to_string_lossy().to_string());
+                } else if !(has_include && has_lib && has_libs) {
+                    return Err(format!(
+                        "Git dependency `{}` has no dcr.toml; specify include, lib, and libs for a prebuilt library",
+                        name
+                    ));
+                }
+                let commit = register::git_commit(&dep_root)?;
                 lock_packages.push(DepLock {
                     name: name.clone(),
-                    version: git_info.version.unwrap_or_default(),
-                    checksum: String::new(),
-                    source: format!("git+{}", git_info.url),
+                    version: git_info.version.unwrap_or(commit.clone()),
+                    checksum: commit.clone(),
+                    source: format!("git+{}#{}", git_info.url, commit),
                 });
             }
         }
@@ -187,6 +237,9 @@ pub fn resolve_deps(
 struct GitDep<'a> {
     url: &'a str,
     version: Option<String>,
+    branch: Option<String>,
+    tag: Option<String>,
+    rev: Option<String>,
 }
 
 /// Parses a git dependency from a TOML value table.
@@ -198,7 +251,25 @@ fn git_dep(value: &toml::Value) -> Option<GitDep<'_>> {
             .get("version")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
-        return Some(GitDep { url, version });
+        let branch = table
+            .get("branch")
+            .and_then(|v| v.as_str())
+            .map(str::to_string);
+        let tag = table
+            .get("tag")
+            .and_then(|v| v.as_str())
+            .map(str::to_string);
+        let rev = table
+            .get("rev")
+            .and_then(|v| v.as_str())
+            .map(str::to_string);
+        return Some(GitDep {
+            url,
+            version,
+            branch,
+            tag,
+            rev,
+        });
     }
     None
 }
@@ -224,6 +295,117 @@ fn push_default_lib_dirs(paths: &mut Vec<String>, dep_root: &Path) {
         push_if_exists(paths, &dep_root.join(dir));
     }
     push_if_exists(paths, &dep_root.join("target").join("lib"));
+}
+
+/// Adds explicitly configured prebuilt include/lib directories and linker names.
+fn push_explicit_layout(
+    resolved: &mut ResolvedDeps,
+    dep_root: &Path,
+    table: &toml::map::Map<String, toml::Value>,
+) -> (bool, bool, bool) {
+    let mut has_include = false;
+    let mut has_lib = false;
+    let mut has_libs = false;
+    if let Some(includes) = table.get("include").and_then(|v| v.as_array()) {
+        has_include = true;
+        for inc in includes {
+            if let Some(path) = inc.as_str() {
+                resolved
+                    .include_dirs
+                    .push(dep_root.join(path).to_string_lossy().to_string());
+            }
+        }
+    }
+    if let Some(lib_dirs) = table.get("lib").and_then(|v| v.as_array()) {
+        has_lib = true;
+        for path in lib_dirs {
+            if let Some(path) = path.as_str() {
+                resolved
+                    .lib_dirs
+                    .push(dep_root.join(path).to_string_lossy().to_string());
+            }
+        }
+    }
+    if let Some(libs) = table.get("libs").and_then(|v| v.as_array()) {
+        has_libs = true;
+        for lib in libs {
+            if let Some(name) = lib.as_str() {
+                resolved.libs.push(name.to_string());
+            }
+        }
+    }
+    (has_include, has_lib, has_libs)
+}
+
+/// Reports whether a source without a DCR manifest fully describes its prebuilt layout.
+fn has_complete_prebuilt_layout(value: &toml::Value) -> bool {
+    value.as_table().is_some_and(|table| {
+        ["include", "lib", "libs"].iter().all(|field| {
+            table
+                .get(*field)
+                .and_then(|value| value.as_array())
+                .is_some_and(|values| !values.is_empty())
+        })
+    })
+}
+
+/// Selects automatic, forced-build, or forced-prebuilt dependency resolution.
+fn use_dcr_package(
+    value: &toml::Value,
+    has_manifest: bool,
+    dependency_name: &str,
+) -> Result<bool, String> {
+    let mode = value
+        .as_table()
+        .and_then(|table| table.get("mode"))
+        .map(|value| {
+            value.as_str().ok_or_else(|| {
+                format!(
+                    "Dependency `{dependency_name}` field `mode` must be \"build\" or \"prebuild\""
+                )
+            })
+        })
+        .transpose()?;
+    match mode {
+        None => Ok(has_manifest),
+        Some("build") if has_manifest => Ok(true),
+        Some("build") => Err(format!(
+            "Dependency `{dependency_name}` uses mode = \"build\" but has no dcr.toml"
+        )),
+        Some("prebuild") => Ok(false),
+        Some(_) => Err(format!(
+            "Dependency `{dependency_name}` field `mode` must be \"build\" or \"prebuild\""
+        )),
+    }
+}
+
+/// Adds DCR's packaged output directories even before the dependency is built.
+fn push_package_output_dirs(resolved: &mut ResolvedDeps, dep_root: &Path) {
+    push_unique_path(
+        &mut resolved.include_dirs,
+        dep_root.join("target").join("include"),
+    );
+    push_unique_path(&mut resolved.lib_dirs, dep_root.join("target").join("lib"));
+}
+
+/// Adds a path once, preserving the linker and include-search order.
+fn push_unique_path(paths: &mut Vec<String>, path: std::path::PathBuf) {
+    let path = path.to_string_lossy().to_string();
+    if !paths.contains(&path) {
+        paths.push(path);
+    }
+}
+
+/// Reads a DCR package name when the dependency has a manifest.
+fn package_name(path: &Path) -> Option<String> {
+    Config::open(&path.join("dcr.toml").to_string_lossy())
+        .ok()
+        .and_then(|config| {
+            config
+                .get("package.name")
+                .and_then(|value| value.as_str())
+                .map(str::to_string)
+        })
 }
 
 #[cfg(test)]

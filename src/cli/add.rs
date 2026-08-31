@@ -288,8 +288,15 @@ fn parse_add_args(args: &[String]) -> Result<AddArgs, i32> {
         || source_spec.starts_with("git@")
     {
         git = Some(source_spec);
+    } else if source_spec.starts_with("./")
+        || source_spec.starts_with("../")
+        || std::path::Path::new(&source_spec).is_absolute()
+    {
+        path = Some(source_spec);
     } else {
-        error("Source must have a prefix (path:, git:, github:, gitlab:) or be a full URL");
+        error(
+            "Source must be a path, a prefixed source (path:, git:, github:, gitlab:), or a full URL",
+        );
         return Err(1);
     }
 

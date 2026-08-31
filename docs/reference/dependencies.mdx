@@ -23,16 +23,25 @@ The version string is used as-is for registry lookup.
 
 ```toml
 [dependencies]
-fmt = { git = "https://github.com/fmtlib/fmt", tag = "10.1.1" }
+dcr-math = { git = "https://github.com/dexoron/dcr-math-lib.git", tag = "v0.1.0" }
 ```
 
-Fields: `git`, `branch`, `tag`, `rev`.
+Fields: `git`, `branch`, `tag`, `rev`, `mode`, `include`, `lib`, `libs`.
 
 ### Table (path)
 
 ```toml
 [dependencies]
 mylib = { path = "../mylib" }
+```
+
+For a prebuilt external library, specify its layout explicitly. The three
+arrays are paths relative to the dependency root (`include`, `lib`) and linker
+names (`libs`):
+
+```toml
+[dependencies]
+dcr-math = { path = "../deps/dcr-math", include = ["include"], lib = ["lib"], libs = ["dcr-math"] }
 ```
 
 ## Registry
@@ -42,7 +51,7 @@ DCR uses a package registry for dependency lookup by name.
 ```toml
 # ~/.dcr/config.toml
 [registry.default]
-url = "https://index.dcr.pm"
+url = "https://index.dcr.dexoron.tech"
 priority = 1
 ```
 
@@ -50,7 +59,23 @@ Registry priority: order in `config.toml`. The `DCR_INDEX_PATH` variable overrid
 
 ## Git dependencies
 
-Git dependencies are parsed and recorded in `dcr.lock`. DCR supports specifying branch/tag/rev for git sources:
+Git dependencies are cloned into `~/.dcr/git/`; their exact checked-out commit is written to `dcr.lock`.
+
+Both Git and path dependencies have two modes:
+
+- **DCR package:** the source has `dcr.toml`. DCR builds it before the consumer and uses the package name from its manifest for linking.
+- **Prebuilt library:** it provides existing headers and binaries through `include`, `lib`, and `libs`. DCR passes them to the compiler/linker without building the dependency.
+
+The mode is normally detected automatically. Use `mode = "build"` or `mode = "prebuild"` when a source contains both a manifest and prebuilt artifacts and you need to choose explicitly.
+
+`dcr-math-lib` publishes both forms. Select its prebuilt library explicitly:
+
+```toml
+[dependencies]
+dcr-math = { git = "https://github.com/dexoron/dcr-math-lib.git", tag = "v0.1.0", mode = "prebuild", include = ["include"], lib = ["lib"], libs = ["dcr-math"] }
+```
+
+DCR supports specifying branch/tag/rev for git sources:
 
 - `branch` — switch to a branch
 - `tag` — switch to a tag
@@ -59,7 +84,7 @@ Git dependencies are parsed and recorded in `dcr.lock`. DCR supports specifying 
 
 ## Path dependencies
 
-Local paths. DCR automatically discovers include and lib directories from the neighbor's `dcr.toml`.
+Local paths may point at a DCR package or a prebuilt external library. A path DCR package is built before its consumer, including its own path/git dependencies. DCR detects dependency cycles. A prebuilt library is never built by DCR; it is linked from the directories declared in its dependency entry.
 
 ```toml
 [dependencies]
@@ -67,18 +92,51 @@ mylib = { path = "/abs/path/to/lib" }
 mylib = { path = "../relative/path" }
 ```
 
-*Note: Header resolution automatically checks the packaged `target/include` directory of path dependencies, ensuring consumer packages can find headers from compiled static or dynamic libraries.*
+For DCR packages, the package name from `dcr.toml` is used for linking (so the dependency key may differ from the library name). Header resolution includes the packaged `target/include` directory and link search includes `target/lib`.
+
+### Recommended library layouts
+
+Buildable DCR library:
+
+```text
+dcr-math-lib/
+├── dcr.toml
+└── src/
+    ├── dcr_math.c
+    └── dcr_math.h
+```
+
+Prebuilt library:
+
+```text
+dcr-math-lib/
+├── include/
+│   └── dcr_math.h
+└── lib/
+    └── libdcr-math.a       # or .so / .lib
+```
+
+`libs` contains linker names without the `lib` prefix and file extension: use
+`["dcr-math"]` for `libdcr-math.a`.
+
+If one repository contains both forms, keep the prebuilt files in `include/` and `lib/` and select the mode explicitly:
+
+```toml
+[dependencies]
+dcr-math = { git = "https://github.com/dexoron/dcr-math-lib.git", tag = "v0.1.0", mode = "prebuild", include = ["include"], lib = ["lib"], libs = ["dcr-math"] }
+```
+
+For a local copy, replace `git` with `path = "../dcr-math-lib"`. In `prebuild` mode DCR does not run the dependency build, even when `dcr.toml` is present.
 
 ## dcr.lock
 
 Dependency lock file. Contains package names and sources.
 
-Created during `dcr build` when registry dependencies are present. Not updated during `dcr add` — only on the next `dcr build`.
+Created during `dcr build` for resolved registry, path, and Git dependencies. Not updated during `dcr add` — only on the next `dcr build`.
 
 ## Resolution process
 
-1. Load all dependencies (registry → git → path)
-2. For path deps: recursively read their `dcr.toml`
-3. For registry deps: search `index.json`
-4. For git deps: clone to cache
-5. Collect `include_dirs`, `lib_dirs`, `libs` for the compiler
+1. Resolve dependency sources (registry → git → path)
+2. Fetch git dependencies into `~/.dcr/git/` and check out the requested ref
+3. Build DCR package dependencies recursively
+4. Collect `include_dirs`, `lib_dirs`, `libs` for the compiler

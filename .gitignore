@@ -9,3 +9,4 @@ personal/
 .*
 !.gitignore
 !.github/
+graphify-out/

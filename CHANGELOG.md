@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [v0.9.0] - 2026-08-31 "Полные Path/Git-зависимости и готовые библиотеки / Complete Path/Git Dependencies & Prebuilt Libraries"
 
 ### RU
 
@@ -8,6 +8,10 @@
 
 - **Зеркала загрузок в `dcrup`** — `--mirror auto|cf|gh|sf|ya` и `DCRUP_MIRROR`.
   По умолчанию `auto`: **cf → gh → sf → ya** (CloudFlare CDN, GitHub, SourceForge, Yandex CDN).
+- **Полные Path/Git-зависимости** — DCR-пакеты из `path` и `git` собираются перед потребителем; Git-код кешируется в `~/.dcr/git`, поддерживает `branch`/`tag`/`rev` и фиксирует точный commit в `dcr.lock`.
+- **Транзитивные зависимости и защита от циклов** — DCR рекурсивно собирает DCR-пакеты и показывает цепочку циклической зависимости.
+- **Внешние готовые библиотеки через path/Git** — `include`, `lib` и `libs` подключают библиотеку без `dcr.toml`; Git prebuilt-источники тоже фиксируются по точному commit.
+- **Явный режим зависимости** — `mode = "build"` и `mode = "prebuild"` позволяют выбрать сборку DCR-пакета или подключение готовых артефактов, даже когда репозиторий содержит оба варианта.
 
 **Удалено:**
 
@@ -19,6 +23,10 @@
 
 - **Download mirrors in `dcrup`** — `--mirror auto|cf|gh|sf|ya` and `DCRUP_MIRROR`.
   Default `auto` tries **cf → gh → sf → ya** (CloudFlare CDN, GitHub, SourceForge, Yandex CDN).
+- **Complete Path/Git dependencies** — DCR packages from `path` and `git` are built before their consumer; Git sources are cached in `~/.dcr/git`, support `branch`/`tag`/`rev`, and lock the exact commit in `dcr.lock`.
+- **Transitive dependencies and cycle protection** — DCR recursively builds DCR packages and reports the dependency cycle chain.
+- **Prebuilt external libraries through path/Git** — `include`, `lib`, and `libs` link libraries without `dcr.toml`; Git prebuilt sources are locked to their exact commit as well.
+- **Explicit dependency mode** — `mode = "build"` and `mode = "prebuild"` select DCR package builds or ready-made artifacts when a repository contains both forms.
 
 **Removed:**
 

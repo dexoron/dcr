@@ -35,7 +35,7 @@ use crate::core::build::steps::{
     get_build_steps_with_profile, run_build_steps, verify_expectations,
 };
 use crate::core::build_config::Config;
-use crate::core::deps::{register, resolve_deps};
+use crate::core::deps::resolve_deps;
 use crate::core::workspace::parse_workspace;
 use crate::utils::build::{
     default_target_triple, get_bool_with_profile, get_config_opt, get_config_str,
@@ -335,6 +335,81 @@ fn build_project_at(
     workspace_root: Option<&Path>,
     cancel: &Arc<AtomicBool>,
     rep: &mut dyn BuildReporter,
+) -> Result<(), String> {
+    let mut dependency_stack = Vec::new();
+    build_project_at_with_stack(
+        project_root,
+        profile,
+        target,
+        explicit_target,
+        exclude_dirs,
+        force,
+        verbose,
+        workspace_root,
+        cancel,
+        rep,
+        &mut dependency_stack,
+    )
+}
+
+/// Builds a package while tracking the dependency chain to reject cycles.
+#[allow(clippy::too_many_arguments)]
+fn build_project_at_with_stack(
+    project_root: &Path,
+    profile: &str,
+    target: Option<&str>,
+    explicit_target: bool,
+    exclude_dirs: &[std::path::PathBuf],
+    force: bool,
+    verbose: bool,
+    workspace_root: Option<&Path>,
+    cancel: &Arc<AtomicBool>,
+    rep: &mut dyn BuildReporter,
+    dependency_stack: &mut Vec<PathBuf>,
+) -> Result<(), String> {
+    let root = project_root
+        .canonicalize()
+        .unwrap_or_else(|_| project_root.to_path_buf());
+    if let Some(index) = dependency_stack.iter().position(|item| item == &root) {
+        let mut chain: Vec<String> = dependency_stack[index..]
+            .iter()
+            .map(|item| item.display().to_string())
+            .collect();
+        chain.push(root.display().to_string());
+        return Err(format!("Dependency cycle detected: {}", chain.join(" -> ")));
+    }
+    dependency_stack.push(root);
+    let result = build_project_at_inner(
+        project_root,
+        profile,
+        target,
+        explicit_target,
+        exclude_dirs,
+        force,
+        verbose,
+        workspace_root,
+        cancel,
+        rep,
+        dependency_stack,
+    );
+    dependency_stack.pop();
+    result
+}
+
+/// Builds one DCR package after the dependency-cycle guard has been installed.
+#[allow(clippy::too_many_arguments)]
+fn build_project_at_inner(
+    project_root: &Path,
+    profile: &str,
+    target: Option<&str>,
+    explicit_target: bool,
+    exclude_dirs: &[std::path::PathBuf],
+    force: bool,
+    verbose: bool,
+    workspace_root: Option<&Path>,
+    cancel: &Arc<AtomicBool>,
+    rep: &mut dyn BuildReporter,
+    dependency_stack: &mut Vec<PathBuf>,
 ) -> Result<(), String> {
     if cancel.load(Ordering::SeqCst) {
         return Err("Build interrupted".to_string());
@@ -641,62 +716,57 @@ fn build_project_at(
         }
     }
 
-    let deps_table = config.get("dependencies").and_then(|v| v.as_table());
     let mut resolved = resolve_deps(&config, profile, build_target, project_root)?;
     resolved.include_dirs.extend(ws_include_dirs);
     resolved.lib_dirs.extend(ws_lib_dirs);
     resolved.libs.extend(ws_libs);
 
-    // Registry dependencies are cached under the DCR registry root. Build
-    // them as normal DCR projects before the current project is linked.
-    if let Some(deps) = deps_table {
-        for (name, value) in deps {
-            if register::is_registry_dep(value) {
-                let pkg_info = register::resolve_package_from_registry(name)?;
-                let version = pkg_info
-                    .get("latest_version")
-                    .or_else(|| pkg_info.get("version"))
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown");
-                let dep_root = register::package_root_from_registry_info(&pkg_info)?;
-                let include_dir = dep_root.join("target").join("include");
-                let lib_dir = dep_root.join("target").join("lib");
-
-                if !include_dir.exists() || !lib_dir.exists() {
-                    rep.on_event(BuildEvent::DepBuilding { name, version });
-                    if !dep_root.join("dcr.toml").is_file() {
-                        return Err(format!(
-                            "Registry dependency `{}` is missing dcr.toml at {}",
-                            name,
-                            dep_root.display()
-                        ));
-                    }
-                    build_project_at(
-                        &dep_root,
-                        profile,
-                        build_target,
-                        has_explicit_target,
-                        &[],
-                        force,
-                        verbose,
-                        None,
-                        cancel,
-                        &mut *rep,
-                    )?;
-                    rep.on_event(BuildEvent::DepReady {
-                        name,
-                        version,
-                        rebuilt: true,
-                    });
-                } else {
-                    rep.on_event(BuildEvent::DepReady {
-                        name,
-                        version,
-                        rebuilt: false,
-                    });
-                }
-            }
+    let mut built_roots = std::collections::HashSet::new();
+    let mut transitive_roots = std::collections::HashSet::new();
+    let direct_package_roots = resolved.package_roots.clone();
+    for dep_root in &direct_package_roots {
+        if !built_roots.insert(dep_root.clone()) {
+            continue;
         }
+        let dep_root = Path::new(dep_root);
+        let dep_config =
+            Config::open(&dep_root.join("dcr.toml").to_string_lossy()).map_err(|_| {
+                format!(
+                    "DCR dependency is missing dcr.toml at {}",
+                    dep_root.display()
+                )
+            })?;
+        let name = get_config_str(&dep_config, "package.name");
+        let version = get_config_str(&dep_config, "package.version");
+        rep.on_event(BuildEvent::DepBuilding {
+            name: &name,
+            version: &version,
+        });
+        build_project_at_with_stack(
+            dep_root,
+            profile,
+            build_target,
+            has_explicit_target,
+            &[],
+            force,
+            verbose,
+            None,
+            cancel,
+            &mut *rep,
+            dependency_stack,
+        )?;
+        rep.on_event(BuildEvent::DepReady {
+            name: &name,
+            version: &version,
+            rebuilt: true,
+        });
+        extend_transitive_link_deps(
+            dep_root,
+            profile,
+            build_target,
+            &mut resolved,
+            &mut transitive_roots,
+        )?;
     }
 
     let (resolved_cflags, resolved_ldflags) =
@@ -915,6 +985,40 @@ fn build_project_at(
                 "disk image packing requires building dcr with --features archive".to_string(),
             );
         }
+    }
+    Ok(())
+}
+
+/// Adds link flags needed by dependencies of a static DCR library.
+/// Static archives do not contain their own dependency objects, so the final
+/// consumer must link every transitive package in dependency order.
+fn extend_transitive_link_deps(
+    package_root: &Path,
+    profile: &str,
+    target: Option<&str>,
+    consumer_deps: &mut crate::core::deps::common::ResolvedDeps,
+    visited: &mut std::collections::HashSet<PathBuf>,
+) -> Result<(), String> {
+    let root = package_root
+        .canonicalize()
+        .unwrap_or_else(|_| package_root.to_path_buf());
+    if !visited.insert(root.clone()) {
+        return Ok(());
+    }
+    let config =
+        Config::open(&root.join("dcr.toml").to_string_lossy()).map_err(|err| err.to_string())?;
+    let deps = resolve_deps(&config, profile, target, &root)?;
+    consumer_deps.include_dirs.extend(deps.include_dirs);
+    consumer_deps.lib_dirs.extend(deps.lib_dirs);
+    consumer_deps.libs.extend(deps.libs);
+    for child_root in deps.package_roots {
+        extend_transitive_link_deps(
+            Path::new(&child_root),
+            profile,
+            target,
+            consumer_deps,
+            visited,
+        )?;
     }
     Ok(())
 }

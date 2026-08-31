@@ -17,8 +17,10 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use toml::Value as TomlValue;
 
 /// Represents a registry configuration entry with its URL and priority.
@@ -147,6 +149,95 @@ pub fn registry_include_dir(dep_root: &Path) -> PathBuf {
 /// Returns the library directory path for a dependency root, typically under target/lib.
 pub fn registry_lib_dir(dep_root: &Path) -> PathBuf {
     dep_root.join("target").join("lib")
+}
+
+/// Fetches a git dependency into the DCR cache and returns its working tree.
+/// The URL and selected ref determine the cache key; an existing checkout is reused.
+pub fn fetch_git_dependency(
+    url: &str,
+    branch: Option<&str>,
+    tag: Option<&str>,
+    rev: Option<&str>,
+) -> Result<PathBuf, String> {
+    if !crate::utils::git::is_git_available() {
+        return Err("git executable not found in PATH".to_string());
+    }
+    let mut hasher = Sha256::new();
+    hasher.update(url.as_bytes());
+    hasher.update(b"\0");
+    hasher.update(branch.unwrap_or("").as_bytes());
+    hasher.update(b"\0");
+    hasher.update(tag.unwrap_or("").as_bytes());
+    hasher.update(b"\0");
+    hasher.update(rev.unwrap_or("").as_bytes());
+    let key = format!("{:x}", hasher.finalize());
+    let root = dcr_config_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("git")
+        .join(&key);
+    if root.join(".git").is_dir() {
+        let status = Command::new("git")
+            .args(["fetch", "--all", "--tags", "--prune"])
+            .current_dir(&root)
+            .status()
+            .map_err(|e| format!("failed to execute git fetch: {e}"))?;
+        if !status.success() {
+            eprintln!("Warning: git fetch failed for {url}; using the cached checkout");
+        }
+        return checkout_git_ref(&root, branch, tag, rev);
+    }
+    if root.exists() {
+        return Err(format!(
+            "git cache path is not a repository: {}",
+            root.display()
+        ));
+    }
+    if let Some(parent) = root.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("failed to create git cache: {e}"))?;
+    }
+    let status = Command::new("git")
+        .args(["clone", "--", url])
+        .arg(&root)
+        .status()
+        .map_err(|e| format!("failed to execute git clone: {e}"))?;
+    if !status.success() {
+        return Err(format!("git clone failed for {url}"));
+    }
+    checkout_git_ref(&root, branch, tag, rev)
+}
+
+/// Returns the exact commit checked out in a cached git dependency.
+pub fn git_commit(root: &Path) -> Result<String, String> {
+    let output = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(root)
+        .output()
+        .map_err(|e| format!("failed to execute git rev-parse: {e}"))?;
+    if !output.status.success() {
+        return Err(format!("failed to read git revision at {}", root.display()));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+fn checkout_git_ref(
+    root: &Path,
+    branch: Option<&str>,
+    tag: Option<&str>,
+    rev: Option<&str>,
+) -> Result<PathBuf, String> {
+    let selected = rev.or(tag).or(branch);
+    let Some(reference) = selected else {
+        return Ok(root.to_path_buf());
+    };
+    let status = Command::new("git")
+        .args(["checkout", "--force", reference])
+        .current_dir(root)
+        .status()
+        .map_err(|e| format!("failed to execute git checkout: {e}"))?;
+    if !status.success() {
+        return Err(format!("git checkout failed for ref `{reference}`"));
+    }
+    Ok(root.to_path_buf())
 }
 
 /// Looks up `name` in the local package index (`DCR_INDEX_PATH` / `~/.dcr/index.json`).
