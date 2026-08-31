@@ -322,7 +322,10 @@ fn git_dcr_dependency_is_cloned_built_and_locked() {
             .unwrap();
         assert!(status.success());
     }
-    let origin_url = origin.to_string_lossy().to_string();
+    // TOML basic strings treat backslashes as escapes. Git for Windows emits
+    // paths with `\\`, so normalize the local repository path before embedding
+    // it into dcr.toml (the slash form is accepted by Git on every platform).
+    let origin_url = origin.to_string_lossy().replace('\\', "/");
     std::fs::write(
         app.join("dcr.toml"),
         format!("[package]\nname = \"app\"\nversion = \"0.1.0\"\n\n[build]\nlanguage = \"c\"\ncompiler = \"clang\"\nkind = \"bin\"\n\n[dependencies]\ngitmath = {{ git = \"{origin_url}\", tag = \"v0.1.0\" }}\n"),
@@ -393,7 +396,8 @@ fn git_prebuilt_dependency_without_manifest_links() {
             .unwrap();
         assert!(status.success());
     }
-    let origin_url = origin.to_string_lossy().to_string();
+    // Keep the Git source TOML-safe on Windows (`C:/...`, not `C:\\...`).
+    let origin_url = origin.to_string_lossy().replace('\\', "/");
     std::fs::write(
         app.join("dcr.toml"),
         format!("[package]\nname = \"app\"\nversion = \"0.1.0\"\n\n[build]\nlanguage = \"c\"\ncompiler = \"clang\"\nkind = \"bin\"\n\n[dependencies]\ngitprebuilt = {{ git = \"{origin_url}\", tag = \"v0.1.0\", include = [\"include\"], lib = [\"lib\"], libs = [\"gitprebuilt\"] }}\n"),
