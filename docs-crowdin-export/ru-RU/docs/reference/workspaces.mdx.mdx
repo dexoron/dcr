@@ -1,0 +1,80 @@
+---
+sidebar_label: Рабочие пространства
+---
+
+# Рабочие пространства
+
+Workspaces позволяют управлять несколькими пакетами в одном репозитории.
+
+## Конфигурация
+
+```toml
+[workspace]
+members = [
+    { path = "pkg-a" },
+    { path = "pkg-b", deps = ["pkg-a"] },
+    { path = "pkg-c", deps = ["pkg-a", "pkg-b"], main = true },
+]
+```
+
+### Поля member
+
+| Поле   | Описание                                     |
+| ------ | -------------------------------------------- |
+| `path` | Путь к пакету (относительно корня workspace) |
+| `deps` | Зависимости от других member-ов              |
+| `main` | Пометить как главный пакет                   |
+
+## Топологическая сортировка
+
+DCR автоматически сортирует пакеты по зависимостям: пакет A собирается раньше B, если B зависит от A.
+
+Циклические зависимости обнаруживаются и приводят к ошибке.
+
+## Сборка
+
+```bash
+dcr build                    # собрать все пакеты
+dcr build --workspace pkg-a  # собрать только pkg-a
+```
+
+When building a workspace, DCR automatically injects include and library paths of dependent workspace members:
+
+* **Include Paths**: Automatically resolves and injects header directories of dependencies, including the member's `src/` directory, local `include/` directory, and the packaged `target/include` directory.
+* **Library Paths**: Injects compiled library search paths (`target/lib` as well as target-specific build folders) to allow automatic linking with member libraries.
+
+## Очистка
+
+```bash
+dcr clean                    # очистить только корневой target/
+dcr clean --all              # очистить target/ всех пакетов
+```
+
+## Наследование
+
+Если у member-а нет своей секции `[build]`, а в корневом `[build]` указано `inherit = true`:
+
+```toml
+[build]
+inherit = true
+language = "c"
+standard = "c17"
+```
+
+## Workspace-only root (no build of its own)
+
+A workspace root can set `workspace_only = true` — it won't be built itself, and doesn't need `language` or `compiler`:
+
+```toml
+[package]
+name = "my-workspace"
+version = "0.1.0"
+
+[build]
+workspace_only = true
+kind = "bin"
+
+[workspace]
+lib-core = { path = "lib-core" }
+app = { path = "app", deps = ["lib-core"] }
+```

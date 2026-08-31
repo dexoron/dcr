@@ -1,0 +1,46 @@
+---
+sidebar_label: Self Update
+---
+
+# Self Update
+
+## dcr --update
+
+Automatic update to the latest version. Downloads a binary (not an archive) from GitHub Releases and replaces the current executable.
+
+```bash
+dcr --update
+```
+
+## How it works
+
+1. DCR detects the current platform and architecture
+2. Fetches the latest release from `api.github.com/repos/dexoron/dcr/releases/latest`
+3. Compares versions
+4. Downloads the matching asset (direct binary URL, not archive)
+5. Replaces the current executable via `self_replace`
+
+## Asset naming
+
+Pattern: `dcr-\<triple>` or `dcr-\<triple>.exe`
+
+| Platform       | Asset name                       |
+| -------------- | -------------------------------- |
+| Linux x86_64   | `dcr-x86_64-unknown-linux-gnu`   |
+| macOS x86_64   | `dcr-x86_64-apple-darwin`        |
+| macOS ARM64    | `dcr-aarch64-apple-darwin`       |
+| Windows x86_64 | `dcr-x86_64-pc-windows-msvc.exe` |
+
+## AUR
+
+If DCR was installed via AUR, `--update` shows a warning:
+
+```
+Update via package manager: yay/paru -Syu {package_name} or sudo pacman -Syu {package_name}
+```
+
+## Errors
+
+* Cannot detect platform — error
+* Cannot fetch release — error with URL
+* No write permission — error (use `sudo` or manual install)

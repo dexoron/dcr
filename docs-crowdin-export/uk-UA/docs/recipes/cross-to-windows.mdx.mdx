@@ -1,0 +1,49 @@
+---
+sidebar_label: Cross-compile to Windows
+---
+
+# Cross-Compile to Windows from Linux
+
+Building a Windows binary on Linux using mingw-w64.
+
+## Install toolchain
+
+```bash
+# Ubuntu/Debian
+sudo apt install mingw-w64
+
+# Fedora
+sudo dnf install mingw64-gcc mingw64-binutils
+```
+
+## Configuration
+
+```toml
+[package]
+name = "my-app"
+version = "0.1.0"
+type = "none"
+
+[build]
+language = "c"
+standard = "c11"
+compiler = "clang"
+kind = "bin"
+target = "x86_64-pc-windows-gnu"    # explicit mingw, not msvc
+```
+
+## Build
+
+```bash
+dcr build --target x86_64-pc-windows-gnu --release
+```
+
+Artifact: `target/x86_64-pc-windows-gnu/release/my-app.exe`.
+
+## Custom toolchain
+
+```toml
+[toolchain]
+cc = "x86_64-w64-mingw32-gcc"
+cxx = "x86_64-w64-mingw32-g++"
+```
