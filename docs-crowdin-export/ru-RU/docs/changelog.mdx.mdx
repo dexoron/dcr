@@ -4,10 +4,15 @@ sidebar_label: Список изменений
 
 # Список изменений
 
-## Unreleased
+## 0.9.0 (2026-08-31)
 
 * **Download mirrors in `dcrup`** — `--mirror auto|cf|gh|sf|ya` and `DCRUP_MIRROR`.
   Default `auto` tries **cf → gh → sf → ya** (CloudFlare CDN, GitHub, SourceForge, Yandex CDN).
+* **Complete Path/Git dependencies** — DCR packages from `path` and `git` are built before their consumer. Git sources are cached in `~/.dcr/git`, support `branch`/`tag`/`rev`, and record the exact commit in `dcr.lock`.
+* **Build and prebuild modes** — `path` and `git` dependencies can build a DCR package from `dcr.toml` or link existing `include`/`lib`/`libs` artifacts; `mode = "build"` / `"prebuild"` selects explicitly when both forms are present.
+* **Prebuilt dependency examples** — documentation now shows the `dcr-math-lib` Git repository and recommended build/prebuilt layouts for both `git` and `path`.
+* **Transitive dependency builds and cycle reporting** — DCR recursively builds DCR packages and reports a clear dependency chain for cycles.
+* **Bare path arguments for `dcr add`** — `dcr add mylib ../mylib` now works in addition to the explicit `path:` form.
 * **Removed `install.sh` / `install.ps1` / `install_bsd.sh`** — superseded by `dcrup`.
 
 ## 0.8.5 (2026-08-08)
