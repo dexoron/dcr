@@ -39,7 +39,10 @@
 
 ```sh
 yay -S dcr
+# or
+paru -S dcr
 ```
+> 💡 Do you like DCR? Vote for the package on the [AUR](https://aur.archlinux.org/packages/dcr) page—it will help the project get into the official "extra" repository!
 
 </td>
 </tr>

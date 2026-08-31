@@ -16,6 +16,15 @@ fn dcr_add_dependencies() {
         "path dep not found in toml"
     );
 
+    // A bare filesystem path is equivalent to the explicit path: form.
+    let out = run_dcr(&["add", "otherlib", "../otherlib"], &dir);
+    assert!(out.status.success(), "dcr add bare path should succeed");
+    let toml = std::fs::read_to_string(dir.join("dcr.toml")).unwrap();
+    assert!(
+        toml.contains("otherlib = { path = \"../otherlib\" }"),
+        "bare path dep not found in toml"
+    );
+
     // Test github: prefix
     let out = run_dcr(&["add", "gh_lib", "github:user/repo"], &dir);
     assert!(out.status.success(), "dcr add github should succeed");
@@ -94,6 +103,369 @@ fn dcr_builds_lib_package() {
         "include/my_lib.h missing"
     );
     assert!(target_dir.join("lib").exists(), "lib directory missing");
+}
+
+#[test]
+fn path_prebuilt_dependency_without_manifest_links() {
+    let Some(compiler) = available_compiler() else {
+        eprintln!("no compiler found; skipping prebuilt path dependency test");
+        return;
+    };
+    if !is_ar_in_path() {
+        eprintln!("ar unavailable; skipping prebuilt path dependency test");
+        return;
+    }
+
+    let root = unique_sandbox_dir("path_prebuilt_dep");
+    let dep = root.join("dep");
+    let app = root.join("app");
+    write_prebuilt_library(
+        &dep,
+        compiler,
+        "prebuilt",
+        "int prebuilt_answer(void);\n",
+        "int prebuilt_answer(void) { return 42; }\n",
+    );
+    std::fs::create_dir_all(app.join("src")).unwrap();
+    std::fs::write(
+        app.join("dcr.toml"),
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\n\n[build]\nlanguage = \"c\"\ncompiler = \"clang\"\nkind = \"bin\"\n\n[dependencies]\nprebuilt = { path = \"../dep\", include = [\"include\"], lib = [\"lib\"], libs = [\"prebuilt\"] }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        app.join("src/main.c"),
+        "#include \"prebuilt.h\"\nint main(void) { return prebuilt_answer() == 42 ? 0 : 1; }\n",
+    )
+    .unwrap();
+
+    let out = run_dcr_env(&["build"], &app, &[("DCR_COMPILER", compiler)]);
+    assert!(
+        out.status.success(),
+        "prebuilt path dependency build failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+#[test]
+fn path_dcr_dependency_is_built_before_consumer() {
+    let Some(compiler) = available_compiler() else {
+        eprintln!("no compiler found; skipping path dependency build test");
+        return;
+    };
+    let root = unique_sandbox_dir("path_dcr_dep");
+    let dep = root.join("dep");
+    let app = root.join("app");
+    std::fs::create_dir_all(dep.join("src")).unwrap();
+    std::fs::create_dir_all(app.join("src")).unwrap();
+    std::fs::write(
+        dep.join("dcr.toml"),
+        "[package]\nname = \"mathlib\"\nversion = \"0.1.0\"\ntype = \"lib\"\n\n[build]\nlanguage = \"c\"\ncompiler = \"clang\"\nkind = \"staticlib\"\n",
+    )
+    .unwrap();
+    std::fs::write(dep.join("src/mathlib.h"), "int answer(void);\n").unwrap();
+    std::fs::write(
+        dep.join("src/mathlib.c"),
+        "int answer(void) { return 42; }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        app.join("dcr.toml"),
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\n\n[build]\nlanguage = \"c\"\ncompiler = \"clang\"\nkind = \"bin\"\n\n[dependencies]\nrenamed = { path = \"../dep\" }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        app.join("src/main.c"),
+        "#include \"mathlib.h\"\nint main(void) { return answer() == 42 ? 0 : 1; }\n",
+    )
+    .unwrap();
+
+    let out = run_dcr_env(&["build"], &app, &[("DCR_COMPILER", compiler)]);
+    assert!(
+        out.status.success(),
+        "path dependency build failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(dep.join("target/include/mathlib.h").is_file());
+    assert!(dep.join("target/lib").is_dir());
+}
+
+#[test]
+fn path_dcr_dependencies_build_transitively() {
+    let Some(compiler) = available_compiler() else {
+        eprintln!("no compiler found; skipping transitive path dependency test");
+        return;
+    };
+    let root = unique_sandbox_dir("path_dcr_transitive");
+    let leaf = root.join("leaf");
+    let middle = root.join("middle");
+    let app = root.join("app");
+    for project in [&leaf, &middle, &app] {
+        std::fs::create_dir_all(project.join("src")).unwrap();
+    }
+    std::fs::write(
+        leaf.join("dcr.toml"),
+        "[package]\nname = \"leaf\"\nversion = \"0.1.0\"\ntype = \"lib\"\n\n[build]\nlanguage = \"c\"\ncompiler = \"clang\"\nkind = \"staticlib\"\n",
+    )
+    .unwrap();
+    std::fs::write(leaf.join("src/leaf.h"), "int leaf_value(void);\n").unwrap();
+    std::fs::write(
+        leaf.join("src/leaf.c"),
+        "int leaf_value(void) { return 40; }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        middle.join("dcr.toml"),
+        "[package]\nname = \"middle\"\nversion = \"0.1.0\"\ntype = \"lib\"\n\n[build]\nlanguage = \"c\"\ncompiler = \"clang\"\nkind = \"staticlib\"\n\n[dependencies]\nleaf = { path = \"../leaf\" }\n",
+    )
+    .unwrap();
+    std::fs::write(middle.join("src/middle.h"), "int middle_value(void);\n").unwrap();
+    std::fs::write(
+        middle.join("src/middle.c"),
+        "#include \"leaf.h\"\nint middle_value(void) { return leaf_value() + 2; }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        app.join("dcr.toml"),
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\n\n[build]\nlanguage = \"c\"\ncompiler = \"clang\"\nkind = \"bin\"\n\n[dependencies]\nmiddle = { path = \"../middle\" }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        app.join("src/main.c"),
+        "#include \"middle.h\"\nint main(void) { return middle_value() == 42 ? 0 : 1; }\n",
+    )
+    .unwrap();
+
+    let out = run_dcr_env(&["build"], &app, &[("DCR_COMPILER", compiler)]);
+    assert!(
+        out.status.success(),
+        "transitive path dependency build failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(leaf.join("target/lib").is_dir());
+    assert!(middle.join("target/lib").is_dir());
+}
+
+#[test]
+fn path_dependency_cycle_reports_the_full_chain() {
+    let root = unique_sandbox_dir("path_dcr_cycle");
+    let first = root.join("first");
+    let second = root.join("second");
+    for project in [&first, &second] {
+        std::fs::create_dir_all(project.join("src")).unwrap();
+    }
+    std::fs::write(
+        first.join("dcr.toml"),
+        "[package]\nname = \"first\"\nversion = \"0.1.0\"\n\n[build]\nlanguage = \"c\"\nkind = \"staticlib\"\n\n[dependencies]\nsecond = { path = \"../second\" }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        second.join("dcr.toml"),
+        "[package]\nname = \"second\"\nversion = \"0.1.0\"\n\n[build]\nlanguage = \"c\"\nkind = \"staticlib\"\n\n[dependencies]\nfirst = { path = \"../first\" }\n",
+    )
+    .unwrap();
+
+    let out = run_dcr(&["build"], &first);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(!out.status.success());
+    assert!(stderr.contains("Dependency cycle detected"), "{stderr}");
+    assert!(
+        stderr.contains("first") && stderr.contains("second"),
+        "{stderr}"
+    );
+}
+
+#[test]
+fn git_dcr_dependency_is_cloned_built_and_locked() {
+    let Some(compiler) = available_compiler() else {
+        eprintln!("no compiler found; skipping git dependency build test");
+        return;
+    };
+    if !is_git_in_path() {
+        eprintln!("git unavailable; skipping git dependency build test");
+        return;
+    }
+    let root = unique_sandbox_dir("git_dcr_dep");
+    let home = root.join("home");
+    let origin = root.join("origin");
+    let app = root.join("app");
+    std::fs::create_dir_all(origin.join("src")).unwrap();
+    std::fs::create_dir_all(app.join("src")).unwrap();
+    std::fs::write(
+        origin.join("dcr.toml"),
+        "[package]\nname = \"gitmath\"\nversion = \"0.1.0\"\ntype = \"lib\"\n\n[build]\nlanguage = \"c\"\ncompiler = \"clang\"\nkind = \"staticlib\"\n",
+    )
+    .unwrap();
+    std::fs::write(origin.join("src/gitmath.h"), "int git_answer(void);\n").unwrap();
+    std::fs::write(
+        origin.join("src/gitmath.c"),
+        "int git_answer(void) { return 7; }\n",
+    )
+    .unwrap();
+    for args in [
+        vec!["init"],
+        vec!["add", "."],
+        vec![
+            "-c",
+            "user.email=dcr@example.test",
+            "-c",
+            "user.name=DCR",
+            "commit",
+            "-m",
+            "init",
+        ],
+        vec!["tag", "v0.1.0"],
+    ] {
+        let status = std::process::Command::new("git")
+            .args(args)
+            .current_dir(&origin)
+            .status()
+            .unwrap();
+        assert!(status.success());
+    }
+    // TOML basic strings treat backslashes as escapes. Git for Windows emits
+    // paths with `\\`, so normalize the local repository path before embedding
+    // it into dcr.toml (the slash form is accepted by Git on every platform).
+    let origin_url = origin.to_string_lossy().replace('\\', "/");
+    std::fs::write(
+        app.join("dcr.toml"),
+        format!("[package]\nname = \"app\"\nversion = \"0.1.0\"\n\n[build]\nlanguage = \"c\"\ncompiler = \"clang\"\nkind = \"bin\"\n\n[dependencies]\ngitmath = {{ git = \"{origin_url}\", tag = \"v0.1.0\" }}\n"),
+    )
+    .unwrap();
+    std::fs::write(
+        app.join("src/main.c"),
+        "#include \"gitmath.h\"\nint main(void) { return git_answer() == 7 ? 0 : 1; }\n",
+    )
+    .unwrap();
+    let home_s = home.to_string_lossy().to_string();
+    let out = run_dcr_env(
+        &["build"],
+        &app,
+        &[("DCR_COMPILER", compiler), ("HOME", home_s.as_str())],
+    );
+    assert!(
+        out.status.success(),
+        "git dependency build failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let lock = std::fs::read_to_string(app.join("dcr.lock")).unwrap();
+    assert!(lock.contains("git+"));
+    assert!(!lock.contains("checksum = \"\""));
+}
+
+#[test]
+fn git_prebuilt_dependency_without_manifest_links() {
+    let Some(compiler) = available_compiler() else {
+        eprintln!("no compiler found; skipping prebuilt git dependency test");
+        return;
+    };
+    if !is_git_in_path() || !is_ar_in_path() {
+        eprintln!("git or ar unavailable; skipping prebuilt git dependency test");
+        return;
+    }
+
+    let root = unique_sandbox_dir("git_prebuilt_dep");
+    let home = root.join("home");
+    let origin = root.join("origin");
+    let app = root.join("app");
+    write_prebuilt_library(
+        &origin,
+        compiler,
+        "gitprebuilt",
+        "int git_prebuilt_answer(void);\n",
+        "int git_prebuilt_answer(void) { return 9; }\n",
+    );
+    std::fs::create_dir_all(app.join("src")).unwrap();
+    for args in [
+        vec!["init"],
+        vec!["add", "."],
+        vec![
+            "-c",
+            "user.email=dcr@example.test",
+            "-c",
+            "user.name=DCR",
+            "commit",
+            "-m",
+            "init",
+        ],
+        vec!["tag", "v0.1.0"],
+    ] {
+        let status = std::process::Command::new("git")
+            .args(args)
+            .current_dir(&origin)
+            .status()
+            .unwrap();
+        assert!(status.success());
+    }
+    // Keep the Git source TOML-safe on Windows (`C:/...`, not `C:\\...`).
+    let origin_url = origin.to_string_lossy().replace('\\', "/");
+    std::fs::write(
+        app.join("dcr.toml"),
+        format!("[package]\nname = \"app\"\nversion = \"0.1.0\"\n\n[build]\nlanguage = \"c\"\ncompiler = \"clang\"\nkind = \"bin\"\n\n[dependencies]\ngitprebuilt = {{ git = \"{origin_url}\", tag = \"v0.1.0\", include = [\"include\"], lib = [\"lib\"], libs = [\"gitprebuilt\"] }}\n"),
+    )
+    .unwrap();
+    std::fs::write(
+        app.join("src/main.c"),
+        "#include \"gitprebuilt.h\"\nint main(void) { return git_prebuilt_answer() == 9 ? 0 : 1; }\n",
+    )
+    .unwrap();
+
+    let home_s = home.to_string_lossy().to_string();
+    let out = run_dcr_env(
+        &["build"],
+        &app,
+        &[("DCR_COMPILER", compiler), ("HOME", home_s.as_str())],
+    );
+    assert!(
+        out.status.success(),
+        "prebuilt git dependency build failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let lock = std::fs::read_to_string(app.join("dcr.lock")).unwrap();
+    assert!(lock.contains("git+"));
+    assert!(!lock.contains("checksum = \"\""));
+}
+
+fn write_prebuilt_library(
+    root: &std::path::Path,
+    compiler: &str,
+    name: &str,
+    header: &str,
+    source: &str,
+) {
+    let include_dir = root.join("include");
+    let lib_dir = root.join("lib");
+    let src_dir = root.join("src");
+    std::fs::create_dir_all(&include_dir).unwrap();
+    std::fs::create_dir_all(&lib_dir).unwrap();
+    std::fs::create_dir_all(&src_dir).unwrap();
+    std::fs::write(include_dir.join(format!("{name}.h")), header).unwrap();
+    let source_path = src_dir.join(format!("{name}.c"));
+    let object_path = lib_dir.join(format!("{name}.o"));
+    let archive_path = lib_dir.join(format!("lib{name}.a"));
+    std::fs::write(&source_path, source).unwrap();
+    let status = std::process::Command::new(compiler)
+        .args(["-c"])
+        .arg(&source_path)
+        .args(["-o"])
+        .arg(&object_path)
+        .status()
+        .unwrap();
+    assert!(status.success(), "failed to compile prebuilt library");
+    let status = std::process::Command::new("ar")
+        .args(["rcs"])
+        .arg(&archive_path)
+        .arg(&object_path)
+        .status()
+        .unwrap();
+    assert!(status.success(), "failed to archive prebuilt library");
+}
+
+fn is_ar_in_path() -> bool {
+    std::process::Command::new("ar")
+        .arg("--version")
+        .output()
+        .map(|out| out.status.success())
+        .unwrap_or(false)
 }
 
 #[test]
