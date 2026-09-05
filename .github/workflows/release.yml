@@ -1191,6 +1191,7 @@ jobs:
       - name: Update Formula/dcr.rb
         run: |
           VERSION="${{ needs.setup.outputs.version }}"
+
           cat > Formula/dcr.rb <<FORMULA
           class Dcr < Formula
             desc "Cargo-like utility to manage C/C++ projects"
@@ -1199,37 +1200,36 @@ jobs:
 
             on_macos do
               on_intel do
-                url "https://github.com/dexoron/dcr/releases/download/v#{version}/dcr-x86_64-apple-darwin-#{version}"
+                url "https://github.com/dexoron/dcr/releases/download/v${VERSION}/dcr-x86_64-apple-darwin-${VERSION}"
                 sha256 "${{ steps.sha.outputs.macos_x86 }}"
               end
+
               on_arm do
-                url "https://github.com/dexoron/dcr/releases/download/v#{version}/dcr-aarch64-apple-darwin-#{version}"
+                url "https://github.com/dexoron/dcr/releases/download/v${VERSION}/dcr-aarch64-apple-darwin-${VERSION}"
                 sha256 "${{ steps.sha.outputs.macos_arm }}"
               end
             end
 
             on_linux do
               on_intel do
-                url "https://github.com/dexoron/dcr/releases/download/v#{version}/dcr-x86_64-unknown-linux-gnu-#{version}"
+                url "https://github.com/dexoron/dcr/releases/download/v${VERSION}/dcr-x86_64-unknown-linux-gnu-${VERSION}"
                 sha256 "${{ steps.sha.outputs.linux_x86 }}"
               end
+
               on_arm do
-                url "https://github.com/dexoron/dcr/releases/download/v#{version}/dcr-aarch64-unknown-linux-gnu-#{version}"
+                url "https://github.com/dexoron/dcr/releases/download/v${VERSION}/dcr-aarch64-unknown-linux-gnu-${VERSION}"
                 sha256 "${{ steps.sha.outputs.linux_arm }}"
               end
             end
 
-            def install
-              bin.install Dir["dcr*"].first => "dcr"
-            end
-
             resource "man-pages" do
-              url "https://github.com/dexoron/dcr/releases/download/v#{version}/dcr-man-pages-#{version}.tar.gz"
+              url "https://github.com/dexoron/dcr/releases/download/v${VERSION}/dcr-man-pages-${VERSION}.tar.gz"
               sha256 "${{ steps.sha.outputs.man_pages }}"
             end
 
             def install
               bin.install Dir["dcr*"].first => "dcr"
+
               resource("man-pages").stage do
                 man1.install Dir["usr/share/man/man1/*.1"]
               end
