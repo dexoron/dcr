@@ -4,6 +4,13 @@ sidebar_label: Changelog
 
 # Changelog
 
+## 0.9.1 (2026-09-13)
+
+* **`pkg-config` dependencies** — declare `fmt = { pkg-config = "fmt" }` or multiple package names in `[dependencies]`; DCR applies `.pc` compiler/linker flags and records the resolved package in `dcr.lock`.
+* **`dcr add` support for `pkg-config`** — easily add system package dependencies with `dcr add fmt pkg-config:fmt` or `dcr add openssl pkg:openssl,libcrypto`.
+* **`dcr tree` & IDE integration** — `pkg-config` packages are marked in `dcr tree` and resolved into compiler flags in `dcr gen` (`compile_commands.json`).
+* **Fixed `dcr new` in non-ASCII / spaced paths** — initializing projects from folders with non-ASCII characters or spaces no longer fails validation.
+
 ## 0.9.0 (2026-08-31)
 
 * **Download mirrors in `dcrup`** — `--mirror auto|cf|gh|sf|ya` and `DCRUP_MIRROR`.
