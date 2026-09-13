@@ -6,7 +6,7 @@ sidebar_label: Dependencies
 
 ## Formats
 
-The `[dependencies]` section supports three formats:
+The `[dependencies]` section supports registry, path, Git, and `pkg-config` dependencies:
 
 ### String (registry)
 
@@ -43,6 +43,23 @@ names (`libs`):
 [dependencies]
 dcr-math = { path = "../deps/dcr-math", include = ["include"], lib = ["lib"], libs = ["dcr-math"] }
 ```
+
+### Table (`pkg-config`)
+
+Use an installed `.pc` package when the library is provided by the operating system
+or another system package manager. DCR invokes `pkg-config --cflags` and
+`pkg-config --libs`, preserving include, library, linker, and other flags:
+
+```toml
+[dependencies]
+fmt = { pkg-config = "fmt" }
+openssl = { pkg-config = ["openssl", "libcrypto"] }
+```
+
+The `pkg-config` executable must be available in `PATH`. The named `.pc` files must
+be available through pkg-config's standard search paths or via `PKG_CONFIG_PATH`.
+These dependencies are not downloaded or built by DCR; they are recorded in
+`dcr.lock` with a `pkg-config+...` source.
 
 ## Registry
 
