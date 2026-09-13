@@ -1,0 +1,61 @@
+---
+sidebar_label: Команды зависимостей (add, tree)
+---
+
+# Команды зависимостей
+
+## `dcr add \<name> [source]`
+
+Добавляет зависимость в `dcr.toml`.
+
+```bash
+dcr add fmt                    # registry lookup
+dcr add mylib ../path/to/lib   # path as source
+dcr add mylib path:./lib       # explicit path prefix
+dcr add mylib git:https://github.com/user/repo  # explicit git prefix
+dcr add mylib github:user/repo # GitHub shorthand
+dcr add mylib gitlab:user/repo # GitLab shorthand
+dcr add fmt pkg-config:fmt     # system package via pkg-config
+dcr add openssl pkg:openssl,libcrypto # multiple pkg-config packages
+```
+
+Префиксы источника:
+
+* `path:` — локальный путь
+* `git:` — URL адрес git-репозитория
+* `github:` — расширение `https://github.com/\<user>/\<repo>`
+* `gitlab:` — расширение `https://gitlab.com/\<user>/\<repo>`
+* `pkg-config:` / `pkg:` — one or more packages resolved by `pkg-config`
+* `http://` / `https://` / `git@` — полный URL
+
+Флаги:
+
+* `--branch \<name>` — git ветка
+* `--tag \<name>` — git tag
+* `--rev \<hash>` — git commit
+
+Если источник не указан — DCR выполняет поиск в подключенных реестрах. A bare relative or absolute path is accepted as a path dependency.
+
+For `pkg-config` dependencies, the referenced packages must already be installed
+and provide `.pc` files. DCR invokes `pkg-config` during the build (using
+`PATH` and `PKG_CONFIG_PATH`) and forwards the returned compiler and linker
+flags; it does not download or build these packages.
+
+## `dcr tree`
+
+Показывает дерево зависимостей проекта.
+
+```bash
+dcr tree
+```
+
+Пример вывода:
+
+```
+my-app v0.1.0
+├── fmt (registry)
+│   └── spdlog (registry)
+└── catch2 (registry)
+```
+
+В случае path зависимостей, рекурсивно отображает их собственные зависимости (из файла `dcr.toml`).

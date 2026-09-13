@@ -1,0 +1,88 @@
+---
+sidebar_label: Workspaces
+---
+
+# Workspaces
+
+Workspaces allow managing multiple packages in a single repository.
+
+## Configuration
+
+```toml
+[workspace.lib-core]
+path = "lib-core"
+
+[workspace.lib-utils]
+path = "lib-utils"
+deps = ["lib-core"]
+
+[workspace.app]
+path = "app"
+deps = ["lib-core", "lib-utils"]
+main = true
+```
+
+### Member fields
+
+| Field  | Description                                      |
+| ------ | ------------------------------------------------ |
+| `path` | Path to the package (relative to workspace root) |
+| `deps` | Dependencies on other members                    |
+| `main` | Mark as the main package                         |
+
+## Topological sort
+
+DCR automatically sorts packages by dependencies: package A is built before B if B depends on A.
+
+Cyclic dependencies are detected and cause an error.
+
+## Build
+
+```bash
+dcr build                    # build all packages in dependency order
+dcr build --workspace app    # build only app (dependencies built automatically)
+```
+
+When building a workspace, DCR automatically injects include and library paths of dependent workspace members:
+
+* **Include Paths**: Automatically resolves and injects header directories of dependencies, including the member's `src/` directory, local `include/` directory, and the packaged `target/include` directory.
+* **Library Paths**: Injects compiled library search paths (`target/lib` as well as target-specific build folders) to allow automatic linking with member libraries.
+
+## Clean
+
+```bash
+dcr clean                    # clean only root target/
+dcr clean --all              # clean target/ of all packages
+```
+
+## Inheritance
+
+If a member has `inherit = true` in its `[build]` section, fields from the root `[build]` are merged into the member:
+
+```toml
+# root dcr.toml
+[build]
+inherit = true
+language = "c"
+standard = "c17"
+
+# member inherits language and standard
+```
+
+## Workspace-only root (no build of its own)
+
+A workspace root can set `workspace_only = true` — it won't be built itself, and doesn't need `language` or `compiler`:
+
+```toml
+[package]
+name = "my-workspace"
+version = "0.1.0"
+
+[build]
+workspace_only = true
+kind = "bin"
+
+[workspace]
+lib-core = { path = "lib-core" }
+app = { path = "app", deps = ["lib-core"] }
+```

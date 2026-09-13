@@ -1,0 +1,47 @@
+---
+sidebar_label: Кросс-компиляция для Windows
+---
+
+# Кросс-компиляция для Windows на Linux
+
+Сборка Windows-бинаря на Linux с использованием mingw-w64.
+
+## Установка toolchain
+
+```bash
+# Ubuntu/Debian
+sudo apt install mingw-w64
+
+# Fedora
+sudo dnf install mingw64-gcc mingw64-binutils
+```
+
+## Конфигурация
+
+```toml
+[package]
+name = "my-app"
+version = "0.1.0"
+type = "app"
+
+[build]
+language = "c"
+standard = "c17"
+target = "windows"
+```
+
+## Сборка
+
+```bash
+dcr build --target windows --release
+```
+
+Артефакт: `target/x86_64-pc-windows-gnu/release/my-app.exe`.
+
+## Кастомный toolchain (опционально)
+
+```toml
+[toolchain]
+cc = "x86_64-w64-mingw32-gcc"
+cxx = "x86_64-w64-mingw32-g++"
+```
