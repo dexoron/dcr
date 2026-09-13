@@ -112,7 +112,12 @@ Never fails the command — warnings only. Pre-release suffixes (`1.0.0-dev`) ar
 
 Settings from raw config (not in typed struct):
 
-* `pkg_config` — list of pkg-config packages
+* `pkg_config` — list of packages queried for build-wide compiler/linker flags
+
+Dependencies can also declare a system package directly, for example
+`fmt = { pkg-config = "fmt" }`. This records the package in `dcr.lock` and applies
+the flags returned by `pkg-config --cflags` and `pkg-config --libs`.
+
 * `ldscript` — linker script path
 * `build.steps` / `build.post_steps` — codegen steps
 
