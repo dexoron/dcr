@@ -15,6 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::prelude::*;
+
 use crate::core::build::builder::BuildContext;
 use crate::core::build::builder::artifact::{absolute_artifact_path, resolve_artifact_path};
 use crate::core::build::builder::collect_sources;
@@ -29,7 +31,6 @@ use crate::utils::build::{
 use crate::utils::fs::{
     absolute_join, atomic_write, canonicalize_path, ensure_dcr_dir, find_project_root,
 };
-use crate::utils::log::error;
 use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, printc};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -290,7 +291,7 @@ pub fn r#gen(args: &[String]) -> i32 {
         "vscode" => gen_vscode(rest),
         "clion" => gen_clion(rest),
         _ => {
-            error(&format!("Unknown gen subcommand: {subcommand}"));
+            error!("Unknown gen subcommand: {subcommand}");
             1
         }
     }
@@ -853,7 +854,7 @@ fn gen_project_info(args: &[String]) -> i32 {
     let all = match collect_all(&root, &profile) {
         Ok(v) => v,
         Err(e) => {
-            error(&e);
+            error!("{e}");
             return 1;
         }
     };
@@ -975,7 +976,7 @@ fn gen_compile_commands(args: &[String]) -> i32 {
     let all = match collect_all(&root, &profile) {
         Ok(v) => v,
         Err(e) => {
-            error(&e);
+            error!("{e}");
             return 1;
         }
     };
@@ -988,7 +989,7 @@ fn gen_compile_commands(args: &[String]) -> i32 {
 /// Used by `compile-commands`, `vscode`, and `clion`.
 fn gen_compile_commands_inner(root: &Path, profile: &str, all: &[ProjectInfo], quiet: bool) -> i32 {
     if let Err(e) = ensure_dcr_dir(root) {
-        error(&format!("Failed to create .dcr/: {e}"));
+        error!("Failed to create .dcr/: {e}");
         return 1;
     }
 
@@ -1009,7 +1010,7 @@ fn gen_compile_commands_inner(root: &Path, profile: &str, all: &[ProjectInfo], q
             0
         }
         Err(e) => {
-            error(&format!("Failed to write compile_commands.json: {e}"));
+            error!("Failed to write compile_commands.json: {e}");
             1
         }
     }
@@ -1163,7 +1164,7 @@ fn gen_vscode(args: &[String]) -> i32 {
     let all = match collect_all(&root, &profile) {
         Ok(v) => v,
         Err(e) => {
-            error(&e);
+            error!("{e}");
             return 1;
         }
     };
@@ -1176,13 +1177,13 @@ fn gen_vscode(args: &[String]) -> i32 {
 
     let vscode_dir = root.join(".vscode");
     if let Err(e) = std::fs::create_dir_all(&vscode_dir) {
-        error(&format!("Failed to create .vscode/: {e}"));
+        error!("Failed to create .vscode/: {e}");
         return 1;
     }
 
     // tasks.json
     if let Err(e) = std::fs::write(vscode_dir.join("tasks.json"), gen_tasks_json()) {
-        error(&format!("Failed to write tasks.json: {e}"));
+        error!("Failed to write tasks.json: {e}");
         return 1;
     }
     println!("Generated {}", vscode_dir.join("tasks.json").display());
@@ -1190,7 +1191,7 @@ fn gen_vscode(args: &[String]) -> i32 {
     // launch.json — one entry per binary target
     let launch = gen_launch_json(&all, &root);
     if let Err(e) = std::fs::write(vscode_dir.join("launch.json"), launch) {
-        error(&format!("Failed to write launch.json: {e}"));
+        error!("Failed to write launch.json: {e}");
         return 1;
     }
     println!("Generated {}", vscode_dir.join("launch.json").display());
@@ -1198,14 +1199,14 @@ fn gen_vscode(args: &[String]) -> i32 {
     // settings.json (clangd compile-commands-dir)
     let settings = gen_settings_json(&root);
     if let Err(e) = std::fs::write(vscode_dir.join("settings.json"), settings) {
-        error(&format!("Failed to write settings.json: {e}"));
+        error!("Failed to write settings.json: {e}");
         return 1;
     }
     println!("Generated {}", vscode_dir.join("settings.json").display());
 
     // extensions.json — disable cpptools, recommend clangd
     if let Err(e) = std::fs::write(vscode_dir.join("extensions.json"), gen_extensions_json()) {
-        error(&format!("Failed to write extensions.json: {e}"));
+        error!("Failed to write extensions.json: {e}");
         return 1;
     }
     println!("Generated {}", vscode_dir.join("extensions.json").display());
@@ -1453,7 +1454,7 @@ fn gen_clion(args: &[String]) -> i32 {
     let all = match collect_all(&root, &profile) {
         Ok(v) => v,
         Err(e) => {
-            error(&e);
+            error!("{e}");
             return 1;
         }
     };
@@ -1466,19 +1467,19 @@ fn gen_clion(args: &[String]) -> i32 {
 
     let idea_dir = root.join(".idea");
     if let Err(e) = std::fs::create_dir_all(&idea_dir) {
-        error(&format!("Failed to create .idea/: {e}"));
+        error!("Failed to create .idea/: {e}");
         return 1;
     }
     let run_configs_dir = idea_dir.join("runConfigurations");
     if let Err(e) = std::fs::create_dir_all(&run_configs_dir) {
-        error(&format!("Failed to create .idea/runConfigurations/: {e}"));
+        error!("Failed to create .idea/runConfigurations/: {e}");
         return 1;
     }
 
     // externalTools.xml
     let ext_tools = gen_clion_external_tools();
     if let Err(e) = std::fs::write(idea_dir.join("externalTools.xml"), ext_tools) {
-        error(&format!("Failed to write externalTools.xml: {e}"));
+        error!("Failed to write externalTools.xml: {e}");
         return 1;
     }
     println!("Generated {}", idea_dir.join("externalTools.xml").display());
@@ -1486,7 +1487,7 @@ fn gen_clion(args: &[String]) -> i32 {
     // customTargets.xml
     let targets = gen_clion_custom_targets();
     if let Err(e) = std::fs::write(idea_dir.join("customTargets.xml"), targets) {
-        error(&format!("Failed to write customTargets.xml: {e}"));
+        error!("Failed to write customTargets.xml: {e}");
         return 1;
     }
     println!("Generated {}", idea_dir.join("customTargets.xml").display());
@@ -1494,7 +1495,7 @@ fn gen_clion(args: &[String]) -> i32 {
     // misc.xml — point CLion at compile_commands.json
     let misc = gen_clion_misc_xml(&root);
     if let Err(e) = std::fs::write(idea_dir.join("misc.xml"), misc) {
-        error(&format!("Failed to write misc.xml: {e}"));
+        error!("Failed to write misc.xml: {e}");
         return 1;
     }
     println!("Generated {}", idea_dir.join("misc.xml").display());
@@ -1502,7 +1503,7 @@ fn gen_clion(args: &[String]) -> i32 {
     // .idea/.gitignore
     let gitignore = "# CLion generated files\nworkspace.xml\n*.iml\n";
     if let Err(e) = std::fs::write(idea_dir.join(".gitignore"), gitignore) {
-        error(&format!("Failed to write .idea/.gitignore: {e}"));
+        error!("Failed to write .idea/.gitignore: {e}");
         return 1;
     }
     println!("Generated {}", idea_dir.join(".gitignore").display());
@@ -1516,7 +1517,7 @@ fn gen_clion(args: &[String]) -> i32 {
         let fname = format!("{}.xml", sanitize_filename(&info.name));
         let path = run_configs_dir.join(&fname);
         if let Err(e) = std::fs::write(&path, xml) {
-            error(&format!("Failed to write runConfigurations/{fname}: {e}"));
+            error!("Failed to write runConfigurations/{fname}: {e}");
             return 1;
         }
         println!("Generated {}", path.display());
@@ -1720,18 +1721,18 @@ fn parse_gen_args(args: &[String]) -> Result<(PathBuf, String, bool), i32> {
     }
 
     let start = std::env::current_dir().map_err(|_| {
-        error("Failed to determine current directory");
+        error!("Failed to determine current directory");
         1i32
     })?;
 
     let root = match find_project_root(&start) {
         Ok(Some(r)) => canonicalize_path(&r),
         Ok(None) => {
-            error("dcr.toml not found");
+            error!("dcr.toml not found");
             return Err(1);
         }
         Err(_) => {
-            error("Failed to find project root");
+            error!("Failed to find project root");
             return Err(1);
         }
     };

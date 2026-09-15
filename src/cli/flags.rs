@@ -15,8 +15,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::prelude::*;
+
 use crate::config::{PROFILE, flags};
-use crate::utils::log::warn;
 
 /// Flags shared by the `build` and `run` CLI commands.
 pub struct BuildRunFlags {
@@ -82,7 +83,7 @@ pub fn parse_build_run_flags(args: &[String]) -> Result<BuildRunFlags, i32> {
     while let Some(arg) = iter.next() {
         // DCR build/run options are long flags only (`--name`).
         if !arg.starts_with("--") {
-            warn("Unknown argument");
+            warn!("Unknown argument");
             return Err(1);
         }
         let candidate = arg.trim_start_matches("--");
@@ -106,7 +107,7 @@ pub fn parse_build_run_flags(args: &[String]) -> Result<BuildRunFlags, i32> {
             if let Some(w) = iter.next() {
                 workspace = Some(w.clone());
             } else {
-                warn("--workspace requires a value");
+                warn!("--workspace requires a value");
                 return Err(1);
             }
             continue;
@@ -115,7 +116,7 @@ pub fn parse_build_run_flags(args: &[String]) -> Result<BuildRunFlags, i32> {
             if let Some(t) = iter.next() {
                 target = Some(t.clone());
             } else {
-                warn("--target requires a value");
+                warn!("--target requires a value");
                 return Err(1);
             }
             continue;
@@ -123,13 +124,13 @@ pub fn parse_build_run_flags(args: &[String]) -> Result<BuildRunFlags, i32> {
         // Profile names come from config::flags; only one profile may be set.
         if flags(candidate).is_some() {
             if profile != PROFILE {
-                warn("Duplicate profile flag");
+                warn!("Duplicate profile flag");
                 return Err(1);
             }
             profile = candidate.to_string();
             continue;
         }
-        warn("Unknown build flag");
+        warn!("Unknown build flag");
         return Err(1);
     }
 

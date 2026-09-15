@@ -15,17 +15,30 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::utils::text::{BOLD_RED, BOLD_YELLOW, colored};
+use env_logger::{Builder, WriteStyle};
+use log::{Level, LevelFilter};
+use owo_colors::OwoColorize;
+use std::io::Write;
 
-/// Logs an error message to the standard error stream.
-///
-/// The message is prefixed with a red "error" label for visibility.
-#[allow(dead_code)]
-pub fn error(msg: &str) {
-    eprintln!("{}: {msg}", colored("error", BOLD_RED));
-}
+// A function for initializing the logging lib with basic settings.
+pub fn init() {
+    Builder::new()
+        .filter_level(LevelFilter::Warn)
+        .write_style(WriteStyle::Auto)
+        .format(|buf, record| {
+            let colored_lv = match record.level() {
+                Level::Error => record.level().red().to_string(),
+                Level::Warn => record.level().yellow().to_string(),
+                Level::Info => record.level().default_color().to_string(),
+                _ => record.level().purple().italic().to_string(),
+            };
 
-#[allow(dead_code)]
-pub fn warn(msg: &str) {
-    eprintln!("{}: {msg}", colored("warn", BOLD_YELLOW));
+            writeln!(
+                buf,
+                "{}: {}",
+                colored_lv.to_lowercase().bold(),
+                record.args(),
+            )
+        })
+        .init();
 }

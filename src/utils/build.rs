@@ -15,8 +15,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::prelude::*;
+
 use crate::core::build_config::Config;
-use crate::utils::log::warn;
 use std::path::{Path, PathBuf};
 
 /// Version information parsed from a version string.
@@ -251,10 +252,9 @@ pub fn normalize_target_os(target: &str) -> &str {
         "windows" => "x86_64-pc-windows-msvc",
         _ if target.contains('-') => target,
         _ => {
-            warn(&format!(
-                "Unknown target '{}', using as-is. Supported short names: linux, macos, windows",
-                target
-            ));
+            warn!(
+                "Unknown target '{target}', using as-is. Supported short names: linux, macos, windows"
+            );
             target
         }
     }

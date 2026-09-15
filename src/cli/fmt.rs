@@ -15,7 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::utils::log::error;
+use crate::prelude::*;
+
 use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
 use glob::glob;
 use std::process::Command;
@@ -88,11 +89,11 @@ pub fn fmt(args: &[String]) -> i32 {
             0
         }
         Ok(s) => {
-            error(&format!("clang-format failed with status: {}", s));
+            error!("clang-format failed with status: {s}");
             1
         }
         Err(e) => {
-            error(&format!("Failed to execute clang-format: {}", e));
+            error!("Failed to execute clang-format: {e}");
             1
         }
     }

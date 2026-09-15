@@ -15,6 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::prelude::*;
+
 use crate::cli::build;
 use crate::config::{FILE_DCR_TEST_H, FILE_TEST_C, flags};
 use crate::core::build_config::Config;
@@ -23,7 +25,6 @@ use crate::utils::build::{
     get_string_with_profile, resolve_compiler, resolve_pkg_config_flags,
 };
 use crate::utils::fs::{find_project_root, with_dir};
-use crate::utils::log::error;
 use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, BOLD_RED, RESET, colored, printc};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -60,25 +61,25 @@ pub fn test(args: &[String]) -> i32 {
             profile = arg.trim_start_matches("--");
             continue;
         }
-        error("Unknown argument");
+        error!("Unknown argument");
         return 1;
     }
 
     let start_dir = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(_) => {
-            error("Failed to determine current directory");
+            error!("Failed to determine current directory");
             return 1;
         }
     };
     let root = match find_project_root(&start_dir) {
         Ok(Some(dir)) => dir,
         Ok(None) => {
-            error("dcr.toml file not found");
+            error!("dcr.toml file not found");
             return 1;
         }
         Err(_) => {
-            error("Failed to find project root");
+            error!("Failed to find project root");
             return 1;
         }
     };
@@ -87,7 +88,8 @@ pub fn test(args: &[String]) -> i32 {
         match with_dir(&root, ensure_test_header) {
             Ok(()) => {}
             Err(msg) => {
-                error(&msg);
+                error!("{msg}");
+
                 return 1;
             }
         }
@@ -96,7 +98,7 @@ pub fn test(args: &[String]) -> i32 {
     match with_dir(&root, || run_testsuite(profile)) {
         Ok(code) => code,
         Err(msg) => {
-            error(&msg);
+            error!("{msg}");
             1
         }
     }

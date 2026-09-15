@@ -15,11 +15,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::prelude::*;
+
 use crate::config::FILE_MAIN_C;
 use crate::core::build_config::{Config, validate_package_name};
 use crate::core::vcs::VcsKind;
 use crate::utils::fs::check_dir;
-use crate::utils::log::{error, warn};
 use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
 use std::fs;
 use std::io::Write;
@@ -48,7 +49,7 @@ pub fn init(args: &[String]) -> i32 {
             if let Some(val) = iter.next() {
                 vcs_str = Some(val.clone());
             } else {
-                error("--vcs requires a value");
+                error!("--vcs requires a value");
                 return 1;
             }
         } else if let Some(stripped) = arg.strip_prefix("--vcs=") {
@@ -59,7 +60,7 @@ pub fn init(args: &[String]) -> i32 {
     }
 
     if !clean_args.is_empty() {
-        warn("Command does not support additional arguments");
+        warn!("Command does not support additional arguments");
         return 1;
     }
 
@@ -71,16 +72,15 @@ pub fn init(args: &[String]) -> i32 {
         .unwrap_or_else(|| "project".to_string());
 
     if !items.is_empty() {
-        error("Directory not empty");
+        error!("Directory not empty");
         return 1;
     }
 
     if let Err(e) = validate_package_name(&project_name) {
-        error(&format!(
-            "Invalid project name `{}`: {}",
+        error!(
+            "Invalid project name `{}`: {e}",
             colored(&project_name, BOLD_CYAN),
-            e
-        ));
+        );
         return 1;
     }
 
@@ -91,7 +91,7 @@ pub fn init(args: &[String]) -> i32 {
 
     // Create and initialize default manifest (dcr.toml).
     if Config::create("./dcr.toml", Some(&project_name)).is_err() {
-        error("Failed to create dcr.toml");
+        error!("Failed to create dcr.toml");
         return 1;
     }
     println!(
@@ -102,18 +102,18 @@ pub fn init(args: &[String]) -> i32 {
 
     // Create src directory and write template main.c file.
     if fs::create_dir("src").is_err() {
-        error("Failed to create src/");
+        error!("Failed to create src/");
         return 1;
     }
     let mut main_c = match fs::File::create("./src/main.c") {
         Ok(file) => file,
         Err(_) => {
-            error("Failed to create src/main.c");
+            error!("Failed to create src/main.c");
             return 1;
         }
     };
     if main_c.write_all(FILE_MAIN_C.as_bytes()).is_err() {
-        error("Failed to write src/main.c");
+        error!("Failed to write src/main.c");
         return 1;
     }
     println!(
@@ -128,7 +128,7 @@ pub fn init(args: &[String]) -> i32 {
         match VcsKind::parse(vcs_val) {
             Ok(kind) => vcs_kind = kind,
             Err(e) => {
-                error(&e);
+                error!("{e}");
                 return 1;
             }
         }
@@ -142,7 +142,7 @@ pub fn init(args: &[String]) -> i32 {
         if crate::utils::git::is_git_available() {
             let project_path = std::path::Path::new(".");
             if let Err(e) = crate::core::vcs::init_vcs(vcs_kind, project_path) {
-                warn(&format!("Failed to initialize git repository: {}", e));
+                warn!("Failed to initialize git repository: {e}");
             } else {
                 println!(
                     "    {} Initialized git repository",
@@ -150,14 +150,14 @@ pub fn init(args: &[String]) -> i32 {
                 );
             }
         } else {
-            warn(
+            warn!(
                 "Git is not installed or not found in PATH. Skipping Git repository initialization.",
             );
         }
     }
 
     if let Err(e) = crate::utils::fs::ensure_gitignore_has_dcr(std::path::Path::new(".")) {
-        warn(&format!("Failed to update .gitignore: {e}"));
+        warn!("Failed to update .gitignore: {e}");
     }
 
     println!(

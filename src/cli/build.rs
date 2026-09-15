@@ -15,6 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::prelude::*;
+
 use crate::cli::clean::clean;
 use crate::cli::flags::parse_build_run_flags;
 use crate::cli::r#gen::{ProjectInfo, write_dcr_metadata};
@@ -27,7 +29,6 @@ use crate::utils::build::{
     normalize_kind, resolve_artifact_target_dir, resolve_compiler,
 };
 use crate::utils::fs::{canonicalize_path, find_project_root};
-use crate::utils::log::error;
 use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, BOLD_YELLOW, colored, printc};
 use std::io::IsTerminal;
 use std::path::Path;
@@ -173,18 +174,18 @@ pub fn build(args: &[String]) -> i32 {
     let start_dir = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(_) => {
-            error("Failed to determine current directory");
+            error!("Failed to determine current directory");
             return 1;
         }
     };
     let root = match find_project_root(&start_dir) {
         Ok(Some(dir)) => canonicalize_path(&dir),
         Ok(None) => {
-            error("dcr.toml file not found");
+            error!("dcr.toml file not found");
             return 1;
         }
         Err(_) => {
-            error("Failed to find project root");
+            error!("Failed to find project root");
             return 1;
         }
     };
@@ -242,7 +243,7 @@ pub fn build(args: &[String]) -> i32 {
         }
         Err(err) => {
             common::finish_progress_line();
-            error(&err.message);
+            error!("{}", err.message);
             1
         }
     }

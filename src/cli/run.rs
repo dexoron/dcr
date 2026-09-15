@@ -15,6 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::prelude::*;
+
 use crate::cli::build::build;
 use crate::cli::flags::parse_build_run_flags;
 use crate::core::build_config::Config;
@@ -22,7 +24,6 @@ use crate::core::runner::run_binary;
 use crate::utils::build::{normalize_target_os, parse_version_info, substitute_vars};
 use crate::utils::fs::find_project_root;
 use crate::utils::fs::with_dir;
-use crate::utils::log::error;
 use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
 use std::path::Path;
 use std::process::Command;
@@ -91,18 +92,18 @@ pub fn run(args: &[String]) -> i32 {
     let start_dir = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(_) => {
-            error("Failed to determine current directory");
+            error!("Failed to determine current directory");
             return 1;
         }
     };
     let root = match find_project_root(&start_dir) {
         Ok(Some(dir)) => dir,
         Ok(None) => {
-            error("dcr.toml file not found");
+            error!("dcr.toml file not found");
             return 1;
         }
         Err(_) => {
-            error("Failed to find project root");
+            error!("Failed to find project root");
             return 1;
         }
     };
@@ -111,7 +112,8 @@ pub fn run(args: &[String]) -> i32 {
     }) {
         Ok(cfg) => cfg,
         Err(err) => {
-            error(&err);
+            error!("{err}");
+
             return 1;
         }
     };
@@ -143,11 +145,12 @@ pub fn run(args: &[String]) -> i32 {
         ) {
             Ok(Some(ws)) => ws,
             Ok(None) => {
-                error("Workspace root has no members defined");
+                error!("Workspace root has no members defined");
                 return 1;
             }
             Err(e) => {
-                error(&e);
+                error!("{e}");
+
                 return 1;
             }
         };
@@ -159,9 +162,9 @@ pub fn run(args: &[String]) -> i32 {
             Some(m) => m,
             None => {
                 if let Some(name) = &flags.workspace {
-                    error(&format!("Workspace member '{name}' not found"));
+                    error!("Workspace member '{name}' not found");
                 } else {
-                    error("No workspace member to run (set `main = true` on one member)");
+                    error!("No workspace member to run (set `main = true` on one member)");
                 }
                 return 1;
             }
@@ -172,7 +175,8 @@ pub fn run(args: &[String]) -> i32 {
         }) {
             Ok(code) => code,
             Err(e) => {
-                error(&e);
+                error!("{e}");
+
                 1
             }
         };
@@ -181,7 +185,7 @@ pub fn run(args: &[String]) -> i32 {
     match run_project(&root, &flags, None) {
         Ok(code) => code,
         Err(e) => {
-            error(&e);
+            error!("{e}");
             1
         }
     }

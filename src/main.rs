@@ -14,12 +14,14 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
-use crate::utils::log::error;
 mod cli;
 mod config;
 mod core;
 mod platform;
+mod prelude;
 mod utils;
+
+use prelude::*;
 
 /// Main entry point for DCR, a Cargo-like C/C++ project manager.
 ///
@@ -27,6 +29,8 @@ mod utils;
 /// appropriate subcommand handler. With fewer than two arguments, shows help and
 /// exits with code 0; otherwise exits with the handler's exit code.
 fn main() {
+    utils::log::init();
+
     let args: Vec<String> = std::env::args().collect();
 
     if args.len() < 2 {
@@ -61,7 +65,7 @@ fn main() {
         "--help" => cli::help::help(),
         "--update" => cli::flag_update::flag_update(rest),
         _ => {
-            error("Unknown command or argument");
+            error!("Unknown command or argument");
             1
         }
     };

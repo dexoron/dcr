@@ -15,7 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::utils::log::{error, warn};
+use crate::prelude::*;
+
 use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, printc};
 use serde::Deserialize;
 use std::fs;
@@ -64,21 +65,21 @@ pub fn flag_update(args: &[String]) -> i32 {
     }
 
     if !args.is_empty() {
-        warn("Command does not support additional arguments");
+        warn!("Command does not support additional arguments");
         return 1;
     }
 
     let current_exe = match std::env::current_exe() {
         Ok(path) => path,
         Err(_) => {
-            error("Failed to resolve current binary path");
+            error!("Failed to resolve current binary path");
             return 1;
         }
     };
 
     // Refuse self-update when the binary is owned by pacman/AUR.
     if let Some(package_name) = pacman_owned_package(&current_exe) {
-        warn("This dcr binary is managed by pacman/AUR");
+        warn!("This dcr binary is managed by pacman/AUR");
         println!(
             "Update via package manager: yay/paru -Syu {package_name} or sudo pacman -Syu {package_name}"
         );
@@ -91,7 +92,7 @@ pub fn flag_update(args: &[String]) -> i32 {
     let release = match fetch_latest_release() {
         Ok(release) => release,
         Err(err) => {
-            error(&format!("Failed to check for updates: {err}"));
+            error!("Failed to check for updates: {err}");
             return 1;
         }
     };
@@ -109,14 +110,14 @@ pub fn flag_update(args: &[String]) -> i32 {
         .iter()
         .find(|asset| candidate_names.iter().any(|name| name == &asset.name))
     else {
-        error(&format!("Binary for target {target} not found"));
+        error!("Binary for target {target} not found");
         return 1;
     };
 
     let bytes = match download_asset(&asset.browser_download_url) {
         Ok(bytes) => bytes,
         Err(err) => {
-            error(&format!("Failed to download update: {err}"));
+            error!("Failed to download update: {err}");
             return 1;
         }
     };
@@ -124,7 +125,7 @@ pub fn flag_update(args: &[String]) -> i32 {
     let temp_path = temp_binary_path(&current_exe);
 
     if fs::write(&temp_path, &bytes).is_err() {
-        error("Failed to write temporary binary");
+        error!("Failed to write temporary binary");
         return 1;
     }
     set_executable_permissions(&temp_path);
@@ -132,7 +133,7 @@ pub fn flag_update(args: &[String]) -> i32 {
     // Replace the running executable in place, then clean up the temp file.
     if self_replace::self_replace(&temp_path).is_err() {
         let _ = fs::remove_file(&temp_path);
-        error("Failed to replace current binary");
+        error!("Failed to replace current binary");
         return 1;
     }
 

@@ -15,8 +15,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::prelude::*;
+
 use crate::core::build_config::Config;
-use crate::utils::log::error;
 use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, printc};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -40,7 +41,7 @@ pub fn tree(args: &[String]) -> i32 {
     let config = match Config::open("dcr.toml") {
         Ok(c) => c,
         Err(_) => {
-            error("dcr.toml not found in current directory");
+            error!("dcr.toml not found in current directory");
             return 1;
         }
     };

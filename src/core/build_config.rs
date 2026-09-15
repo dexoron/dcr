@@ -15,6 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::prelude::*;
+
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::fs;
@@ -334,35 +336,35 @@ impl Config {
             .map(str::trim)
             .filter(|s| !s.is_empty());
         let Some(required) = required else {
-            crate::utils::log::warn(&format!(
+            warn!(
                 "package.dcr-version is missing in {}. Add e.g. dcr-version = \"{tool}\" \
-                 so collaborators know which dcr this project targets \
-                 (written automatically by `dcr new` / `dcr init`).",
-                self.path.display()
-            ));
+             so collaborators know which dcr this project targets \
+             (written automatically by `dcr new` / `dcr init`).",
+                self.path.display(),
+            );
             return;
         };
 
         match crate::utils::build::compare_semver(tool, required) {
             Some(std::cmp::Ordering::Less) => {
-                crate::utils::log::warn(&format!(
+                warn!(
                     "this project requires dcr {required} (package.dcr-version), \
                      but you are running dcr {tool}. Some features may be missing or misbehave. \
                      Upgrade dcr (e.g. `dcr --update`) or lower package.dcr-version if intentional."
-                ));
+                );
             }
             Some(std::cmp::Ordering::Greater) => {
-                crate::utils::log::warn(&format!(
+                warn!(
                     "this project pins dcr {required} (package.dcr-version), \
-                     but you are running newer dcr {tool}. Config/defaults may be outdated. \
-                     Review the changelog and bump package.dcr-version when the project is verified."
-                ));
+                 but you are running newer dcr {tool}. Config/defaults may be outdated. \
+                 Review the changelog and bump package.dcr-version when the project is verified.",
+                );
             }
             Some(std::cmp::Ordering::Equal) => {}
             None => {
-                crate::utils::log::warn(&format!(
-                    "package.dcr-version = \"{required}\" is not a valid semver (expected X.Y.Z); ignoring"
-                ));
+                warn!(
+                    "package.dcr-version = \"{required}\" is not a valid semver (expected X.Y.Z); ignoring",
+                );
             }
         }
     }

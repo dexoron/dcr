@@ -15,11 +15,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::prelude::*;
+
 use crate::core::build::common;
 use crate::core::build_config::Config;
 use crate::utils::build::{get_bool_with_profile, get_list_with_profile};
 use crate::utils::fs::find_project_root;
-use crate::utils::log::error;
 use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, BOLD_YELLOW, colored, printc};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -46,7 +47,7 @@ pub fn lint(args: &[String]) -> i32 {
     let start_dir = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(_) => {
-            error("Failed to determine current directory");
+            error!("Failed to determine current directory");
             return 1;
         }
     };
@@ -54,11 +55,11 @@ pub fn lint(args: &[String]) -> i32 {
     let root = match find_project_root(&start_dir) {
         Ok(Some(r)) => r,
         Ok(None) => {
-            error("dcr.toml not found");
+            error!("dcr.toml not found");
             return 1;
         }
         Err(_) => {
-            error("Failed to find project root");
+            error!("Failed to find project root");
             return 1;
         }
     };
@@ -66,7 +67,7 @@ pub fn lint(args: &[String]) -> i32 {
     let config = match Config::open(&root.join("dcr.toml").to_string_lossy()) {
         Ok(c) => c,
         Err(e) => {
-            error(&format!("Failed to load dcr.toml: {e}"));
+            error!("Failed to load dcr.toml: {e}");
             return 1;
         }
     };
@@ -98,7 +99,7 @@ pub fn lint(args: &[String]) -> i32 {
         match common::collect_sources(&roots, &cxx_extensions, &exclude_dirs, &include_paths) {
             Ok(f) => f,
             Err(e) => {
-                error(&format!("Failed to collect source files: {e}"));
+                error!("Failed to collect source files: {e}");
                 return 1;
             }
         };
@@ -142,7 +143,7 @@ pub fn lint(args: &[String]) -> i32 {
         let output = match cmd.output() {
             Ok(o) => o,
             Err(e) => {
-                error(&format!("Failed to execute clang-tidy: {}", e));
+                error!("Failed to execute clang-tidy: {e}");
                 return 1;
             }
         };
