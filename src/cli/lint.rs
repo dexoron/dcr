@@ -20,8 +20,11 @@ use crate::prelude::*;
 use crate::core::build::common;
 use crate::core::build_config::Config;
 use crate::utils::build::{get_bool_with_profile, get_list_with_profile};
+use crate::utils::cli_styles::{
+    ALERT_ST, BOLD_GREEN, Colorize, HELP_EXAMPLES_ST, HELP_SECTION_TITLE_ST, SUCCESS_ST,
+};
 use crate::utils::fs::find_project_root;
-use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, BOLD_YELLOW, colored, printc};
+use crate::utils::log::sprintln;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -30,14 +33,14 @@ use std::process::Command;
 /// Scans source roots (configurable via build.roots) and tests/ directory.
 pub fn lint(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
-        printc("USAGE:", BOLD_GREEN);
-        printc("    dcr lint [--fix]", BOLD_CYAN);
+        sprintln!(HELP_SECTION_TITLE_ST, "USAGE:");
+        sprintln!(HELP_EXAMPLES_ST, "    dcr lint [--fix]");
         println!();
-        printc("DESCRIPTION:", BOLD_GREEN);
+        sprintln!(HELP_SECTION_TITLE_ST, "DESCRIPTION:");
         println!("    Runs clang-tidy on all C/C++ source files.");
         println!("    Scans source roots (configurable via build.roots) and tests/ directory.");
         println!();
-        printc("OPTIONS:", BOLD_GREEN);
+        sprintln!(HELP_SECTION_TITLE_ST, "OPTIONS:");
         println!("    --fix    Apply clang-tidy suggestions automatically");
         return 0;
     }
@@ -117,13 +120,13 @@ pub fn lint(args: &[String]) -> i32 {
     files.sort();
 
     if files.is_empty() {
-        println!("    {} No files to lint", colored("Lint", BOLD_GREEN));
+        println!("    {} No files to lint", "Lint".style(BOLD_GREEN));
         return 0;
     }
 
     println!(
         "    {} {} files {}",
-        colored("Linting", BOLD_GREEN),
+        "Linting".style(BOLD_GREEN),
         files.len(),
         if do_fix { "(with --fix)" } else { "" }
     );
@@ -161,13 +164,13 @@ pub fn lint(args: &[String]) -> i32 {
         if issue_count > 0 {
             total_issues += issue_count as u32;
             failed += 1;
-            print!("  {} ", colored("×", BOLD_YELLOW));
+            print!("  {} ", "×".style(ALERT_ST));
             println!("{} ({} issues)", file, issue_count);
             for issue in &issues {
                 println!("    {}", issue);
             }
         } else {
-            print!("  {} ", colored("✓", BOLD_GREEN));
+            print!("  {} ", "✓".style(SUCCESS_ST));
             println!("{}", file);
         }
     }
@@ -178,13 +181,13 @@ pub fn lint(args: &[String]) -> i32 {
     if failed == 0 {
         println!(
             "    {} {} files, no issues",
-            colored("Lint", BOLD_GREEN),
+            "Lint".style(SUCCESS_ST),
             total
         );
     } else {
         println!(
             "    {} {}/{} files passed, {} issues found",
-            colored("Lint", BOLD_YELLOW),
+            "Lint".style(ALERT_ST),
             passed,
             total,
             total_issues

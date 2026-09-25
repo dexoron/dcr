@@ -18,8 +18,9 @@
 use crate::prelude::*;
 
 use crate::core::{build_config::Config, deps::register};
+use crate::utils::cli_styles::{Colorize, HELP_EXAMPLES_ST, HELP_SECTION_TITLE_ST, SUCCESS_ST};
 use crate::utils::fs::find_project_root;
-use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
+use crate::utils::log::sprintln;
 use toml::{Value, map::Map};
 
 /// Parsed arguments for the `dcr add` command.
@@ -58,16 +59,16 @@ pub struct AddArgs {
 /// Process exit code: `0` on success, non-zero on usage or I/O errors.
 pub fn add(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
-        printc("USAGE:", BOLD_GREEN);
-        printc(
-            "    dcr add <name> <source> [--branch <b>] [--tag <t>] [--rev <r>]",
-            BOLD_CYAN,
+        sprintln!(HELP_SECTION_TITLE_ST, "USAGE:");
+        sprintln!(
+            HELP_EXAMPLES_ST,
+            "    dcr add <name> <source> [--branch <b>] [--tag <t>] [--rev <r>]"
         );
         println!();
-        printc("DESCRIPTION:", BOLD_GREEN);
+        sprintln!(HELP_SECTION_TITLE_ST, "DESCRIPTION:");
         println!("    Adds a dependency to the project.");
         println!();
-        printc("SOURCES:", BOLD_GREEN);
+        sprintln!(HELP_SECTION_TITLE_ST, "SOURCES:");
         println!("    github:user/repo          GitHub repository");
         println!("    gitlab:user/repo          GitLab repository");
         println!("    git:host.com/user/repo    Generic git repository");
@@ -75,7 +76,7 @@ pub fn add(args: &[String]) -> i32 {
         println!("    pkg-config:fmt            System pkg-config dependency");
         println!("    <version>                 Version from registry");
         println!();
-        printc("OPTIONS:", BOLD_GREEN);
+        sprintln!(HELP_SECTION_TITLE_ST, "OPTIONS:");
         println!("    --branch <b>    Use a specific branch");
         println!("    --tag <t>       Use a specific tag");
         println!("    --rev <r>       Use a specific commit hash");
@@ -165,7 +166,7 @@ pub fn add(args: &[String]) -> i32 {
 
     println!(
         "    {} dependency `{}` to dcr.toml",
-        colored("Added", BOLD_GREEN),
+        "Added".style(SUCCESS_ST),
         add_args.name
     );
     0

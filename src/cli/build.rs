@@ -28,8 +28,11 @@ use crate::utils::build::{
     get_config_opt, get_config_str, get_language_with_profile_or_default, get_string_with_profile,
     normalize_kind, resolve_artifact_target_dir, resolve_compiler,
 };
+use crate::utils::cli_styles::{
+    BOLD_CYAN, BOLD_YELLOW, Colorize, HELP_EXAMPLES_ST, HELP_SECTION_TITLE_ST, SUCCESS_ST, Style,
+};
 use crate::utils::fs::{canonicalize_path, find_project_root};
-use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, BOLD_YELLOW, colored, printc};
+use crate::utils::log::sprintln;
 use std::io::IsTerminal;
 use std::path::Path;
 use std::sync::{Arc, atomic::AtomicBool};
@@ -37,8 +40,8 @@ use std::sync::{Arc, atomic::AtomicBool};
 pub use crate::core::build::get_build_string_with_profile;
 
 /// Formats a left-aligned status verb with the given style for CLI output.
-fn status(verb: &str, style: &str) -> String {
-    colored(&format!("{verb:<9}"), style)
+fn status(verb: &str, style: Style) -> String {
+    format!("{verb:<9}").style(style).to_string()
 }
 
 /// CLI build reporter that prints human-readable progress to stderr/stdout.
@@ -51,7 +54,7 @@ impl CliReporter {
     /// - `verb`: Short status label (e.g. `"target"`, `"dep"`).
     /// - `style`: Color/style constant for the verb.
     /// - `rest`: Remaining message text after the verb.
-    fn line(&self, verb: &str, style: &str, rest: &str) {
+    fn line(&self, verb: &str, style: Style, rest: &str) {
         eprintln!("  {} {}", status(verb, style), rest);
     }
 }
@@ -95,12 +98,12 @@ impl BuildReporter for CliReporter {
                 common::finish_progress_line();
                 // Only announce deps that were actually rebuilt this run.
                 if rebuilt {
-                    self.line("ready", BOLD_GREEN, &format!("{name} v{version}"));
+                    self.line("ready", SUCCESS_ST, &format!("{name} v{version}"));
                 }
             }
             BuildEvent::Compiling { name, version } => {
                 common::finish_progress_line();
-                let label = format!("  {} {} v{}", status("compile", BOLD_GREEN), name, version);
+                let label = format!("  {} {} v{}", status("compile", SUCCESS_ST), name, version);
                 // Terminals use an in-place progress line; non-TTY gets a plain log line.
                 common::set_progress_label(Some(label.clone()));
                 if !std::io::stderr().is_terminal() {
@@ -113,7 +116,7 @@ impl BuildReporter for CliReporter {
             }
             BuildEvent::Finished { secs } => {
                 common::finish_progress_line();
-                self.line("done", BOLD_GREEN, &format!("in {secs}s"));
+                self.line("done", SUCCESS_ST, &format!("in {secs}s"));
             }
             BuildEvent::CompilerOutput { stream, text } => {
                 // Pause the progress spinner so compiler text is not overwritten.
@@ -141,16 +144,16 @@ impl BuildReporter for CliReporter {
 /// Process exit code: `0` on success or help, non-zero on failure.
 pub fn build(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
-        printc("USAGE:", BOLD_GREEN);
-        printc(
-            "    dcr build [--debug | --release] [--target <triple>] [--force] [--clean] [--verbose] [--print-artifact-path]",
-            BOLD_CYAN,
+        sprintln!(HELP_SECTION_TITLE_ST, "USAGE:");
+        sprintln!(
+            HELP_EXAMPLES_ST,
+            "    dcr build [--debug | --release] [--target <triple>] [--force] [--clean] [--verbose] [--print-artifact-path]"
         );
         println!();
-        printc("DESCRIPTION:", BOLD_GREEN);
+        sprintln!(HELP_SECTION_TITLE_ST, "DESCRIPTION:");
         println!("    Compiles the project. Default profile is --debug.");
         println!();
-        printc("OPTIONS:", BOLD_GREEN);
+        sprintln!(HELP_SECTION_TITLE_ST, "OPTIONS:");
         println!("    --debug              Build with debug profile (default)");
         println!("    --release            Build with release profile");
         println!("    --target <triple>    Cross-compile for the given target");

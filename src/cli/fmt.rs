@@ -17,7 +17,10 @@
 
 use crate::prelude::*;
 
-use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
+use crate::utils::cli_styles::{
+    BOLD_GREEN, Colorize, HELP_EXAMPLES_ST, HELP_SECTION_TITLE_ST, SUCCESS_ST,
+};
+use crate::utils::log::sprintln;
 use glob::glob;
 use std::process::Command;
 
@@ -29,10 +32,10 @@ use std::process::Command;
 /// If the first argument is `--help`, prints usage information and returns 0.
 pub fn fmt(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
-        printc("USAGE:", BOLD_GREEN);
-        printc("    dcr fmt", BOLD_CYAN);
+        sprintln!(HELP_SECTION_TITLE_ST, "USAGE:");
+        sprintln!(HELP_EXAMPLES_ST, "    dcr fmt");
         println!();
-        printc("DESCRIPTION:", BOLD_GREEN);
+        sprintln!(HELP_SECTION_TITLE_ST, "DESCRIPTION:");
         println!("    Formats all C/C++ source files using clang-format.");
         println!("    Scans src/ and tests/ directories recursively.");
         return 0;
@@ -70,14 +73,14 @@ pub fn fmt(args: &[String]) -> i32 {
     }
 
     if files.is_empty() {
-        println!("    {} No files to format", colored("Format", BOLD_GREEN));
+        println!("    {} No files to format", "Format".style(BOLD_GREEN));
         return 0;
     }
 
     // Format the collected files
     println!(
         "    {} {} files",
-        colored("Formatting", BOLD_GREEN),
+        "Formatting".style(BOLD_GREEN),
         files.len()
     );
 
@@ -85,7 +88,7 @@ pub fn fmt(args: &[String]) -> i32 {
 
     match status {
         Ok(s) if s.success() => {
-            println!("    {} successful", colored("Format", BOLD_GREEN));
+            println!("    {} successful", "Format".style(SUCCESS_ST));
             0
         }
         Ok(s) => {

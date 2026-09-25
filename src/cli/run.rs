@@ -22,8 +22,9 @@ use crate::cli::flags::parse_build_run_flags;
 use crate::core::build_config::Config;
 use crate::core::runner::run_binary;
 use crate::utils::build::{normalize_target_os, parse_version_info, substitute_vars};
+use crate::utils::cli_styles::{BOLD_GREEN, Colorize, HELP_EXAMPLES_ST, HELP_SECTION_TITLE_ST};
 use crate::utils::fs::{find_project_root, with_dir};
-use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
+use crate::utils::log::sprintln;
 use std::{path::Path, process::Command};
 
 /// Retrieves the run command from the config, preferring target-specific,
@@ -66,17 +67,17 @@ fn get_run_cmd(
 /// Process exit code from the built binary / `run.cmd`, or non-zero on build/setup failure.
 pub fn run(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
-        printc("USAGE:", BOLD_GREEN);
-        printc(
-            "    dcr run [--debug | --release] [--target <triple>] [--force] [--clean] [--verbose] [-- <args>...]",
-            BOLD_CYAN,
+        sprintln!(HELP_SECTION_TITLE_ST, "USAGE:");
+        sprintln!(
+            HELP_EXAMPLES_ST,
+            "    dcr run [--debug | --release] [--target <triple>] [--force] [--clean] [--verbose] [-- <args>...]"
         );
         println!();
-        printc("DESCRIPTION:", BOLD_GREEN);
+        sprintln!(HELP_SECTION_TITLE_ST, "DESCRIPTION:");
         println!("    Builds and runs the project. Only available for kind = \"bin\".");
         println!("    Arguments after `--` are passed to the built binary (cargo-style).");
         println!();
-        printc("OPTIONS:", BOLD_GREEN);
+        sprintln!(HELP_SECTION_TITLE_ST, "OPTIONS:");
         println!("    --debug              Run with debug profile (default)");
         println!("    --release            Run with release profile");
         println!("    --target <triple>    Cross-compile for the given target");
@@ -127,7 +128,7 @@ pub fn run(args: &[String]) -> i32 {
                 let display = display_run_cmd(&cmd, &flags.bin_args);
                 println!(
                     "  {} {}",
-                    colored(&format!("{:<9}", "run"), BOLD_GREEN),
+                    format!("{:<9}", "run").style(BOLD_GREEN),
                     display
                 );
                 return run_shell_with_args(&cmd, &flags.bin_args);
@@ -267,7 +268,7 @@ fn run_project(
             let display = display_run_cmd(&cmd, &flags.bin_args);
             println!(
                 "  {} {}",
-                colored(&format!("{:<9}", "run"), BOLD_GREEN),
+                format!("{:<9}", "run").style(BOLD_GREEN),
                 display
             );
             return Ok(run_shell_with_args(&cmd, &flags.bin_args));
@@ -275,7 +276,7 @@ fn run_project(
         let display = display_bin_run(&bin_path, &flags.bin_args);
         println!(
             "  {} {}",
-            colored(&format!("{:<9}", "run"), BOLD_GREEN),
+            format!("{:<9}", "run").style(BOLD_GREEN),
             display
         );
         return Ok(run_binary(

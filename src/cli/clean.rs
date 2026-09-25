@@ -20,8 +20,11 @@ use crate::prelude::*;
 use crate::core::build_config::Config;
 use crate::core::workspace::parse_workspace;
 use crate::utils::build::{default_profile_flags, default_target_triple, parse_version_info};
+use crate::utils::cli_styles::{
+    BOLD_GREEN, Colorize, HELP_EXAMPLES_ST, HELP_SECTION_TITLE_ST, SUCCESS_ST,
+};
 use crate::utils::fs::{check_dir, find_project_root, with_dir};
-use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
+use crate::utils::log::sprintln;
 use glob::glob;
 use std::{fs, path::Path};
 
@@ -36,16 +39,16 @@ use std::{fs, path::Path};
 /// Process exit code: `0` on success, `1` on failure.
 pub fn clean(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
-        printc("USAGE:", BOLD_GREEN);
-        printc(
-            "    dcr clean [--debug | --release] [--target <triple>] [--all]",
-            BOLD_CYAN,
+        sprintln!(HELP_SECTION_TITLE_ST, "USAGE:");
+        sprintln!(
+            HELP_EXAMPLES_ST,
+            "    dcr clean [--debug | --release] [--target <triple>] [--all]"
         );
         println!();
-        printc("DESCRIPTION:", BOLD_GREEN);
+        sprintln!(HELP_SECTION_TITLE_ST, "DESCRIPTION:");
         println!("    Removes build artifacts from the target directory.");
         println!();
-        printc("OPTIONS:", BOLD_GREEN);
+        sprintln!(HELP_SECTION_TITLE_ST, "OPTIONS:");
         println!("    --debug              Clean debug artifacts (default)");
         println!("    --release            Clean release artifacts");
         println!("    --target <triple>    Clean artifacts for a specific target");
@@ -210,10 +213,7 @@ fn clean_project_at(
         if !items.contains(&"dcr.toml".to_string()) {
             return Err("dcr.toml file not found".to_string());
         }
-        println!(
-            "    Cleaning project `{}`",
-            colored(&project_name, BOLD_GREEN)
-        );
+        println!("    Cleaning project `{}`", project_name.style(BOLD_GREEN));
         if let Some(profile) = profile {
             let target_dir = if let Some(t) = target {
                 format!("target/{t}/{profile}")
@@ -231,14 +231,14 @@ fn clean_project_at(
             if !dir_exists {
                 warn!("Directory target/{target_dir} not found");
             } else {
-                println!("    Profile: {}", colored(profile, BOLD_GREEN));
+                println!("    Profile: {}", profile.style(BOLD_GREEN));
                 if let Some(t) = target {
-                    println!("    Target: {}", colored(t, BOLD_GREEN));
+                    println!("    Target: {}", t.style(BOLD_GREEN));
                 }
                 let _ = fs::remove_dir_all(&target_dir);
                 println!(
                     "{} Removed directory {}",
-                    colored("\n    ✔", BOLD_GREEN),
+                    "\n    ✔".style(SUCCESS_ST),
                     target_dir
                 );
             }
@@ -248,10 +248,7 @@ fn clean_project_at(
 
         if items.contains(&"target".to_string()) {
             let _ = fs::remove_dir_all("target");
-            println!(
-                "{} Removed directory target",
-                colored("\n    ✔", BOLD_GREEN)
-            );
+            println!("{} Removed directory target", "\n    ✔".style(SUCCESS_ST));
         } else {
             warn!("Directory target not found");
         }

@@ -29,4 +29,4 @@ pub mod git;
 pub mod log;
 
 /// Text processing and manipulation helpers.
-pub mod text;
+pub mod cli_styles;

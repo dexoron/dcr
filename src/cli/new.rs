@@ -20,8 +20,11 @@ use crate::prelude::*;
 use crate::config::FILE_MAIN_C;
 use crate::core::build_config::{Config, validate_package_name};
 use crate::core::vcs::VcsKind;
+use crate::utils::cli_styles::{
+    BOLD_CYAN, BOLD_GREEN, Colorize, HELP_EXAMPLES_ST, HELP_SECTION_TITLE_ST, SUCCESS_ST,
+};
 use crate::utils::fs::check_dir;
-use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
+use crate::utils::log::sprintln;
 use std::{fs, io::Write};
 
 /// Executes the `dcr new` command to scaffold a new C/C++ project directory structure.
@@ -30,10 +33,10 @@ use std::{fs, io::Write};
 /// template source file generation (`src/main.c`), and initial VCS setup.
 pub fn new(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
-        printc("USAGE:", BOLD_GREEN);
-        printc("    dcr new <name> [--vcs <git|none>]", BOLD_CYAN);
+        sprintln!(HELP_SECTION_TITLE_ST, "USAGE:");
+        sprintln!(HELP_EXAMPLES_ST, "    dcr new <name> [--vcs <git|none>]");
         println!();
-        printc("DESCRIPTION:", BOLD_GREEN);
+        sprintln!(HELP_SECTION_TITLE_ST, "DESCRIPTION:");
         println!("    Creates a new C/C++ project with the given name.");
         println!("    The name may only contain ASCII letters, digits, '_' and '-'.");
         return 0;
@@ -70,15 +73,12 @@ pub fn new(args: &[String]) -> i32 {
     }
 
     let project_name = &clean_args[0];
-    println!(
-        "Creating a Project `{}`...",
-        colored(project_name, BOLD_CYAN)
-    );
+    println!("Creating a Project `{}`...", project_name.style(BOLD_CYAN));
 
     if let Err(e) = validate_package_name(project_name) {
         error!(
             "Invalid project name `{}`: {e}",
-            colored(project_name, BOLD_CYAN),
+            project_name.style(BOLD_CYAN),
         );
         return 1;
     }
@@ -86,12 +86,12 @@ pub fn new(args: &[String]) -> i32 {
     if items.contains(project_name) {
         error!(
             "Directory `{}` already exists\n",
-            colored(project_name, BOLD_CYAN)
+            project_name.style(BOLD_CYAN)
         );
-        printc("Hint:", BOLD_CYAN);
+        sprintln!(BOLD_CYAN, "Hint:");
         println!(
             "    Use `{}` to initialize an existing project\n    or specify a different project name",
-            colored("dcr init", BOLD_CYAN)
+            "dcr init".style(BOLD_CYAN)
         );
         return 1;
     }
@@ -102,7 +102,7 @@ pub fn new(args: &[String]) -> i32 {
     }
     println!(
         "    {} Directory created {}",
-        colored("✔", BOLD_GREEN),
+        "✔".style(SUCCESS_ST),
         project_name
     );
 
@@ -114,8 +114,8 @@ pub fn new(args: &[String]) -> i32 {
     }
     println!(
         "    {} Created file {}",
-        colored("✔", BOLD_GREEN),
-        colored("dcr.toml", BOLD_CYAN)
+        "✔".style(SUCCESS_ST),
+        "dcr.toml".style(BOLD_CYAN)
     );
 
     // Generate src directory and populate initial main.c file.
@@ -137,8 +137,8 @@ pub fn new(args: &[String]) -> i32 {
     }
     println!(
         "    {} Created file {}",
-        colored("✔", BOLD_GREEN),
-        colored("src/main.c", BOLD_CYAN)
+        "✔".style(SUCCESS_ST),
+        "src/main.c".style(BOLD_CYAN)
     );
 
     // Resolve target VCS mode based on CLI flags or parent directory state.
@@ -164,10 +164,7 @@ pub fn new(args: &[String]) -> i32 {
             if let Err(e) = crate::core::vcs::init_vcs(vcs_kind, project_path) {
                 warn!("Failed to initialize git repository: {e}");
             } else {
-                println!(
-                    "    {} Initialized git repository",
-                    colored("✔", BOLD_GREEN)
-                );
+                println!("    {} Initialized git repository", "✔".style(SUCCESS_ST));
             }
         } else {
             warn!(
@@ -183,9 +180,9 @@ pub fn new(args: &[String]) -> i32 {
 
     println!(
         "Project `{}` successfully created\n",
-        colored(project_name, BOLD_GREEN)
+        project_name.style(SUCCESS_ST)
     );
-    printc("Next step:", BOLD_GREEN);
-    printc(&format!("    cd {}\n    dcr run", project_name), BOLD_CYAN);
+    sprintln!(BOLD_GREEN, "Next step:");
+    sprintln!(BOLD_CYAN, "    cd {}\n    dcr run", project_name);
     0
 }

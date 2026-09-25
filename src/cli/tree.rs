@@ -18,7 +18,8 @@
 use crate::prelude::*;
 
 use crate::core::build_config::Config;
-use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, printc};
+use crate::utils::cli_styles::{BOLD_CYAN, HELP_EXAMPLES_ST, HELP_SECTION_TITLE_ST};
+use crate::utils::log::sprintln;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use toml::Value;
@@ -29,10 +30,10 @@ use toml::Value;
 /// Otherwise, it parses the dcr.toml configuration and prints the dependency tree.
 pub fn tree(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
-        printc("USAGE:", BOLD_GREEN);
-        printc("    dcr tree", BOLD_CYAN);
+        sprintln!(HELP_SECTION_TITLE_ST, "USAGE:");
+        sprintln!(HELP_EXAMPLES_ST, "    dcr tree");
         println!();
-        printc("DESCRIPTION:", BOLD_GREEN);
+        sprintln!(HELP_SECTION_TITLE_ST, "DESCRIPTION:");
         println!("    Displays the dependency tree of the current project.");
         return 0;
     }
@@ -55,7 +56,7 @@ pub fn tree(args: &[String]) -> i32 {
         .and_then(|v| v.as_str())
         .unwrap_or("0.0.0");
 
-    printc(&format!("{} v{}", name, version), BOLD_CYAN);
+    sprintln!(BOLD_CYAN, "{} v{}", name, version);
 
     let mut seen = HashSet::new();
     seen.insert(name.to_string());
