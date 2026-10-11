@@ -19,7 +19,7 @@ function Die($m)  { Write-Host "[error] $m" -ForegroundColor Red; exit 1 }
 
 function Show-Usage {
     @'
-dcrup - install and switch DCR versions (Windows)
+dcrup — install and switch DCR versions (Windows)
 
 Usage:
   dcrup install <spec> [--build|--release] [--force] [--mirror auto|cf|gh|sf|ya]
@@ -34,10 +34,10 @@ Usage:
 
 Spec:
   stable | dev | night
-  VERSION              в†’ VERSION@stable  (e.g. 0.8.2)
+  VERSION              → VERSION@stable  (e.g. 0.8.2)
   VERSION@stable
   VERSION@dev
-  night                в†’ always build from branch "dev" HEAD
+  night                → always build from branch "dev" HEAD
 
 Modes:
   --release   download prebuilt binary (default for stable/dev)
@@ -45,7 +45,7 @@ Modes:
   night       always --build (prebuilt not available)
 
 Mirrors (prebuilt download only):
-  --mirror auto   try cf в†’ gh в†’ sf в†’ ya, first successful download wins (default)
+  --mirror auto   try cf → gh → sf → ya, first successful download wins (default)
   --mirror cf     download from cdn-global.dcr-tool.ru
   --mirror gh     download from github.com/dexoron/dcr
   --mirror sf     download from sourceforge.net/projects/dcr-tool
@@ -131,7 +131,7 @@ function Link-Default([string]$id) {
     $dst = Join-Path $DcrupBin 'dcr.exe'
     Copy-Item $src $dst -Force
     Write-Active $id
-    Ok "default в†’ $id ($dst)"
+    Ok "default → $id ($dst)"
 }
 
 function Resolve-InstalledId([string]$spec) {
@@ -175,7 +175,7 @@ function Download-FromMirrors([string]$tag, [string]$asset, [string]$destFile) {
     $tmp = "$destFile.download"
     foreach ($m in (Get-MirrorsToTry)) {
         $url = Get-MirrorUrl $m $tag $asset
-        Info "trying mirror $m вЂ¦"
+        Info "trying mirror $m …"
         Remove-Item $tmp -ErrorAction SilentlyContinue
         try {
             Invoke-WebRequest -Uri $url -OutFile $tmp -UserAgent 'dcrup'
@@ -223,10 +223,10 @@ function Install-Prebuilt([switch]$Force) {
     }
     Ensure-Dirs
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
-    Info "downloading $assetName (mirror=$($script:DcrupMirror)) вЂ¦"
+    Info "downloading $assetName (mirror=$($script:DcrupMirror)) …"
     $mirror = Download-FromMirrors $tag $assetName $bin
     if (-not $mirror) { Die "no mirror reachable for $assetName (try: --mirror cf|gh|sf|ya)" }
-    Info "mirror в†’ $mirror"
+    Info "mirror → $mirror"
     @"
 channel=$($script:SpecChannel)
 version=$ver
@@ -248,7 +248,7 @@ function Install-Build([switch]$Force) {
     try {
         $src = Join-Path $tmp 'src'
         if ($script:SpecChannel -eq 'night') {
-            Info "cloning dev for night вЂ¦"
+            Info "cloning dev for night …"
             git clone --depth 1 --branch dev $RepoUrl $src 2>$null
             if ($LASTEXITCODE -ne 0) { git clone --depth 1 $RepoUrl $src | Out-Null }
             $sha = (git -C $src rev-parse --short HEAD).Trim()
@@ -259,7 +259,7 @@ function Install-Build([switch]$Force) {
             $tag = $rel.tag_name
             $ver = Normalize-Version $tag
             $id = Toolchain-Id $ver
-            Info "cloning $tag вЂ¦"
+            Info "cloning $tag …"
             git clone --depth 1 --branch $tag $RepoUrl $src 2>$null
             if ($LASTEXITCODE -ne 0) {
                 git clone --depth 1 $RepoUrl $src | Out-Null
@@ -271,7 +271,7 @@ function Install-Build([switch]$Force) {
             $tag = "v$($script:SpecVersion)"
             $ver = $script:SpecVersion
             $id = Toolchain-Id
-            Info "cloning $tag вЂ¦"
+            Info "cloning $tag …"
             git clone --depth 1 --branch $tag $RepoUrl $src 2>$null
             if ($LASTEXITCODE -ne 0) {
                 git clone --depth 1 $RepoUrl $src | Out-Null
@@ -290,7 +290,7 @@ function Install-Build([switch]$Force) {
         }
 
         $triple = Get-Target
-        Info "building release (features: $Features) вЂ¦"
+        Info "building release (features: $Features) …"
         Push-Location $src
         cargo build --release --features $Features --target $triple
         if ($LASTEXITCODE -ne 0) { Die 'cargo build failed' }
@@ -407,7 +407,7 @@ function Cmd-SelfInstall {
     }
     Install-CmdShim
     Ensure-UserPath
-    Ok "dcrup installed to $DcrupBin (use: dcrup вЂ¦)"
+    Ok "dcrup installed to $DcrupBin (use: dcrup …)"
 }
 
 $cmd = if ($args.Count -ge 1) { $args[0] } else { 'help' }
