@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 $ErrorActionPreference = 'Stop'
 
 $DcrupHome = if ($env:DCRUP_HOME) { $env:DCRUP_HOME } else { Join-Path $env:USERPROFILE '.dcr' }
@@ -6,6 +6,7 @@ $DcrupBin  = if ($env:DCRUP_BIN)  { $env:DCRUP_BIN  } else { Join-Path $DcrupHom
 $DcrupTc   = Join-Path $DcrupHome 'toolchains'
 $DcrupMeta = Join-Path $DcrupHome 'meta'
 $RepoUrl   = if ($env:DCRUP_REPO) { $env:DCRUP_REPO } else { 'https://github.com/dexoron/dcr' }
+$InstallUrl = if ($env:DCRUP_INSTALL_URL) { $env:DCRUP_INSTALL_URL } else { 'https://ps1.dcr-tool.ru' }
 $DcrupMirror = if ($env:DCRUP_MIRROR) { $env:DCRUP_MIRROR } else { 'auto' }
 $ApiLatest = 'https://api.github.com/repos/dexoron/dcr/releases/latest'
 $ApiAll    = 'https://api.github.com/repos/dexoron/dcr/releases'
@@ -18,7 +19,7 @@ function Die($m)  { Write-Host "[error] $m" -ForegroundColor Red; exit 1 }
 
 function Show-Usage {
     @'
-dcrup — install and switch DCR versions (Windows)
+dcrup - install and switch DCR versions (Windows)
 
 Usage:
   dcrup install <spec> [--build|--release] [--force] [--mirror auto|cf|gh|sf|ya]
@@ -33,10 +34,10 @@ Usage:
 
 Spec:
   stable | dev | night
-  VERSION              → VERSION@stable  (e.g. 0.8.2)
+  VERSION              в†’ VERSION@stable  (e.g. 0.8.2)
   VERSION@stable
   VERSION@dev
-  night                → always build from branch "dev" HEAD
+  night                в†’ always build from branch "dev" HEAD
 
 Modes:
   --release   download prebuilt binary (default for stable/dev)
@@ -44,7 +45,7 @@ Modes:
   night       always --build (prebuilt not available)
 
 Mirrors (prebuilt download only):
-  --mirror auto   try cf → gh → sf → ya, first successful download wins (default)
+  --mirror auto   try cf в†’ gh в†’ sf в†’ ya, first successful download wins (default)
   --mirror cf     download from cdn-global.dcr-tool.ru
   --mirror gh     download from github.com/dexoron/dcr
   --mirror sf     download from sourceforge.net/projects/dcr-tool
@@ -130,7 +131,19 @@ function Link-Default([string]$id) {
     $dst = Join-Path $DcrupBin 'dcr.exe'
     Copy-Item $src $dst -Force
     Write-Active $id
-    Ok "default → $id ($dst)"
+    Ok "default в†’ $id ($dst)"
+}
+
+function Resolve-InstalledId([string]$spec) {
+    Parse-Spec $spec
+    if ($script:SpecChannel -eq 'night' -or $script:SpecFloating) {
+        $item = Get-ChildItem $DcrupTc -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -like "$($script:SpecChannel)-*" } |
+            Sort-Object Name | Select-Object -Last 1
+        if ($item) { return $item.Name }
+        return $null
+    }
+    return (Toolchain-Id)
 }
 
 function Set-Mirror([string]$value) {
@@ -162,7 +175,7 @@ function Download-FromMirrors([string]$tag, [string]$asset, [string]$destFile) {
     $tmp = "$destFile.download"
     foreach ($m in (Get-MirrorsToTry)) {
         $url = Get-MirrorUrl $m $tag $asset
-        Info "trying mirror $m …"
+        Info "trying mirror $m вЂ¦"
         Remove-Item $tmp -ErrorAction SilentlyContinue
         try {
             Invoke-WebRequest -Uri $url -OutFile $tmp -UserAgent 'dcrup'
@@ -210,10 +223,10 @@ function Install-Prebuilt([switch]$Force) {
     }
     Ensure-Dirs
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
-    Info "downloading $assetName (mirror=$($script:DcrupMirror)) …"
+    Info "downloading $assetName (mirror=$($script:DcrupMirror)) вЂ¦"
     $mirror = Download-FromMirrors $tag $assetName $bin
     if (-not $mirror) { Die "no mirror reachable for $assetName (try: --mirror cf|gh|sf|ya)" }
-    Info "mirror → $mirror"
+    Info "mirror в†’ $mirror"
     @"
 channel=$($script:SpecChannel)
 version=$ver
@@ -235,7 +248,7 @@ function Install-Build([switch]$Force) {
     try {
         $src = Join-Path $tmp 'src'
         if ($script:SpecChannel -eq 'night') {
-            Info "cloning dev for night …"
+            Info "cloning dev for night вЂ¦"
             git clone --depth 1 --branch dev $RepoUrl $src 2>$null
             if ($LASTEXITCODE -ne 0) { git clone --depth 1 $RepoUrl $src | Out-Null }
             $sha = (git -C $src rev-parse --short HEAD).Trim()
@@ -246,7 +259,7 @@ function Install-Build([switch]$Force) {
             $tag = $rel.tag_name
             $ver = Normalize-Version $tag
             $id = Toolchain-Id $ver
-            Info "cloning $tag …"
+            Info "cloning $tag вЂ¦"
             git clone --depth 1 --branch $tag $RepoUrl $src 2>$null
             if ($LASTEXITCODE -ne 0) {
                 git clone --depth 1 $RepoUrl $src | Out-Null
@@ -258,7 +271,7 @@ function Install-Build([switch]$Force) {
             $tag = "v$($script:SpecVersion)"
             $ver = $script:SpecVersion
             $id = Toolchain-Id
-            Info "cloning $tag …"
+            Info "cloning $tag вЂ¦"
             git clone --depth 1 --branch $tag $RepoUrl $src 2>$null
             if ($LASTEXITCODE -ne 0) {
                 git clone --depth 1 $RepoUrl $src | Out-Null
@@ -277,7 +290,7 @@ function Install-Build([switch]$Force) {
         }
 
         $triple = Get-Target
-        Info "building release (features: $Features) …"
+        Info "building release (features: $Features) вЂ¦"
         Push-Location $src
         cargo build --release --features $Features --target $triple
         if ($LASTEXITCODE -ne 0) { Die 'cargo build failed' }
@@ -379,10 +392,22 @@ function Cmd-Show {
 
 function Cmd-SelfInstall {
     Ensure-Dirs
-    Copy-Item $PSCommandPath (Join-Path $DcrupBin 'dcrup.ps1') -Force
+    if ([string]::IsNullOrWhiteSpace($PSCommandPath) -or -not (Test-Path $PSCommandPath)) {
+        # With `irm URL | iex`, PowerShell evaluates text and there is no
+        # source path. Download the canonical installer for self-install.
+        $tmp = Join-Path $env:TEMP ("dcrup-" + [guid]::NewGuid().ToString('N') + '.ps1')
+        try {
+            Invoke-WebRequest -Uri $InstallUrl -OutFile $tmp -UseBasicParsing -UserAgent 'dcrup'
+            Copy-Item $tmp (Join-Path $DcrupBin 'dcrup.ps1') -Force
+        } finally {
+            Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+        }
+    } else {
+        Copy-Item $PSCommandPath (Join-Path $DcrupBin 'dcrup.ps1') -Force
+    }
     Install-CmdShim
     Ensure-UserPath
-    Ok "dcrup installed to $DcrupBin (use: dcrup …)"
+    Ok "dcrup installed to $DcrupBin (use: dcrup вЂ¦)"
 }
 
 $cmd = if ($args.Count -ge 1) { $args[0] } else { 'help' }
@@ -417,7 +442,7 @@ switch ($cmd) {
         if ($a -like 'night-*') { Cmd-Install @('night', '--build', '--force') }
         elseif ($a -like 'stable-*') { Cmd-Install @('stable', '--force') }
         elseif ($a -like 'dev-*') { Cmd-Install @('dev', '--force') }
-        else { Ok "pinned $a — install a newer version explicitly" }
+        else { Ok "pinned $a - install a newer version explicitly" }
     }
     'uninstall' {
         if ($rest -contains '--all') {
@@ -426,9 +451,21 @@ switch ($cmd) {
             Remove-Item (Active-Path) -ErrorAction SilentlyContinue
             Ok 'removed all'
         } else {
-            Die 'use: dcrup uninstall --all  (or install a replacement first)'
+            if ($rest.Count -ne 1) { Die 'usage: dcrup uninstall <spec>|--all' }
+            $id = Resolve-InstalledId $rest[0]
+            if (-not $id) { Die "not installed: $($rest[0])" }
+            $dir = Join-Path $DcrupTc $id
+            if (-not (Test-Path $dir)) { Die "not installed: $($rest[0])" }
+            Remove-Item -Recurse -Force $dir
+            if ((Read-Active) -eq $id) {
+                Remove-Item (Join-Path $DcrupBin 'dcr.exe') -ErrorAction SilentlyContinue
+                Remove-Item (Active-Path) -ErrorAction SilentlyContinue
+                Warn 'removed active toolchain; install or select another default'
+            }
+            Ok "removed $id"
         }
     }
     'self-install' { Cmd-SelfInstall }
     default { Die "unknown command: $cmd" }
 }
+
