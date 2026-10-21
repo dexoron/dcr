@@ -1,0 +1,34 @@
+---
+sidebar_label: CLI output
+---
+
+# CLI output (experimental)
+
+The structured output implementation is being developed incrementally.
+Currently these global options apply to diagnostics emitted through the logger:
+
+```sh
+dcr --output plain build
+dcr --output json build
+dcr --color never build
+dcr --quiet build
+dcr --verbose build
+```
+
+`--output` accepts `human` (default), `plain`, or `json`.
+Diagnostics are written to stderr. JSON diagnostics are newline-delimited objects
+with `schema_version: 1`, `event`, and `message` fields. Command statuses use the
+shared output helpers, build reporting emits structured lifecycle events, and
+compiler output is represented as JSON events with its original stream and text.
+The protocol is still experimental: some raw command data and subprocess stdout
+remain unstructured.
+
+`--color` accepts `auto`, `always`, or `never`. Automatic coloring requires a
+terminal and respects `NO_COLOR`. Plain and JSON diagnostics never add colors.
+Quiet mode preserves warnings, errors, and compiler diagnostics; verbose mode
+enables debug and trace logging. Arguments following `--` are passed through
+unchanged.
+
+Remaining work includes migrating the remaining raw command data and subprocess
+stdout, improving progress rendering and contextual errors, and expanding
+integration coverage for stdout/stderr and closed pipes.
