@@ -4,6 +4,13 @@ sidebar_label: Список изменений
 
 # Список изменений
 
+## 0.9.5 (2026-10-21)
+
+* **Structured CLI output** — shared helpers now provide Cargo-like human, plain, and JSON output modes.
+* **Color and diagnostics policy** — `--color`, `NO_COLOR`, `--quiet`, and `--verbose` are applied consistently across commands.
+* **Build reporting** — lifecycle events and compiler diagnostics are available as structured JSON events.
+* **Output lab** — sandbox scenarios cover help, lifecycle commands, compiler warnings/errors, stream capture, and broken pipes.
+
 ## 0.9.1 (2026-09-13)
 
 * **`pkg-config` dependencies** — declare `fmt = { pkg-config = "fmt" }` or multiple package names in `[dependencies]`; DCR applies `.pc` compiler/linker flags and records the resolved package in `dcr.lock`.
