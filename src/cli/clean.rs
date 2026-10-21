@@ -15,15 +15,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::prelude::*;
+
 use crate::core::build_config::Config;
 use crate::core::workspace::parse_workspace;
 use crate::utils::build::{default_profile_flags, default_target_triple, parse_version_info};
 use crate::utils::fs::{check_dir, find_project_root, with_dir};
-use crate::utils::log::{error, warn};
-use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
 use glob::glob;
-use std::fs;
-use std::path::Path;
+use std::{fs, path::Path};
 
 /// Entry point for the `dcr clean` command.
 ///
@@ -36,45 +35,41 @@ use std::path::Path;
 /// Process exit code: `0` on success, `1` on failure.
 pub fn clean(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
-        printc("USAGE:", BOLD_GREEN);
-        printc(
-            "    dcr clean [--debug | --release] [--target <triple>] [--all]",
-            BOLD_CYAN,
-        );
-        println!();
-        printc("DESCRIPTION:", BOLD_GREEN);
-        println!("    Removes build artifacts from the target directory.");
-        println!();
-        printc("OPTIONS:", BOLD_GREEN);
-        println!("    --debug              Clean debug artifacts (default)");
-        println!("    --release            Clean release artifacts");
-        println!("    --target <triple>    Clean artifacts for a specific target");
-        println!("    --all                Clean all workspace members");
+        let mut help = crate::utils::help::HelpBuilder::new("dcr clean");
+        help.section("USAGE")
+            .example("dcr clean [--debug | --release] [--target <triple>] [--all]");
+        help.description("Removes build artifacts from the target directory.");
+        help.section("OPTIONS")
+            .item("--debug", "Clean debug artifacts (default)")
+            .item("--release", "Clean release artifacts")
+            .item("--target <triple>", "Clean artifacts for a specific target")
+            .item("--all", "Clean all workspace members");
+        help.render();
         return 0;
     }
 
     let start_dir = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(_) => {
-            error("Failed to determine current directory");
+            error!("Failed to determine current directory");
             return 1;
         }
     };
     let root = match find_project_root(&start_dir) {
         Ok(Some(dir)) => dir,
         Ok(None) => {
-            error("dcr.toml file not found");
+            error!("dcr.toml file not found");
             return 1;
         }
         Err(_) => {
-            error("Failed to find project root");
+            error!("Failed to find project root");
             return 1;
         }
     };
     let flags = match parse_clean_flags(args) {
         Ok(v) => v,
         Err(msg) => {
-            error(&msg);
+            error!("{msg}");
             return 1;
         }
     };
@@ -83,7 +78,7 @@ pub fn clean(args: &[String]) -> i32 {
     match with_dir(&root, || clean_from_root(&root, &flags)) {
         Ok(()) => 0,
         Err(msg) => {
-            error(&msg);
+            error!("{msg}");
             1
         }
     }
@@ -210,10 +205,7 @@ fn clean_project_at(
         if !items.contains(&"dcr.toml".to_string()) {
             return Err("dcr.toml file not found".to_string());
         }
-        println!(
-            "    Cleaning project `{}`",
-            colored(&project_name, BOLD_GREEN)
-        );
+        crate::utils::output::status("Cleaning", format!("project `{project_name}`"));
         if let Some(profile) = profile {
             let target_dir = if let Some(t) = target {
                 format!("target/{t}/{profile}")
@@ -229,18 +221,14 @@ fn clean_project_at(
                 target_items.contains(&profile.to_string())
             };
             if !dir_exists {
-                warn(&format!("Directory target/{} not found", target_dir));
+                warn!("Directory target/{target_dir} not found");
             } else {
-                println!("    Profile: {}", colored(profile, BOLD_GREEN));
+                crate::utils::output::status("Profile", profile);
                 if let Some(t) = target {
-                    println!("    Target: {}", colored(t, BOLD_GREEN));
+                    crate::utils::output::status("Target", t);
                 }
                 let _ = fs::remove_dir_all(&target_dir);
-                println!(
-                    "{} Removed directory {}",
-                    colored("\n    ✔", BOLD_GREEN),
-                    target_dir
-                );
+                crate::utils::output::removed(format!("directory {target_dir}"));
             }
             clean_custom_paths(&config, profile)?;
             return Ok(());
@@ -248,12 +236,9 @@ fn clean_project_at(
 
         if items.contains(&"target".to_string()) {
             let _ = fs::remove_dir_all("target");
-            println!(
-                "{} Removed directory target",
-                colored("\n    ✔", BOLD_GREEN)
-            );
+            crate::utils::output::removed("directory target");
         } else {
-            warn("Directory target not found");
+            warn!("Directory target not found");
         }
         clean_custom_paths(&config, "debug")?;
         clean_custom_paths(&config, "release")?;

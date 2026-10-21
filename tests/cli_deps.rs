@@ -52,6 +52,24 @@ fn dcr_add_dependencies() {
         "git short dep not found in toml"
     );
 
+    // Test pkg-config prefix.
+    let out = run_dcr(&["add", "fmt", "pkg-config:fmt"], &dir);
+    assert!(out.status.success(), "dcr add pkg-config should succeed");
+    let toml = std::fs::read_to_string(dir.join("dcr.toml")).unwrap();
+    assert!(
+        toml.contains("fmt = { pkg-config = \"fmt\" }"),
+        "pkg-config dep not found in toml"
+    );
+
+    // Test multiple pkg-config packages via pkg: prefix.
+    let out = run_dcr(&["add", "openssl", "pkg:openssl,libcrypto"], &dir);
+    assert!(out.status.success(), "dcr add multiple pkg should succeed");
+    let toml = std::fs::read_to_string(dir.join("dcr.toml")).unwrap();
+    assert!(
+        toml.contains("openssl = { pkg-config = [\"openssl\", \"libcrypto\"] }"),
+        "multi pkg-config dep not found in toml"
+    );
+
     // Test flags (branch)
     let out = run_dcr(
         &["add", "branch_lib", "github:user/repo", "--branch", "dev"],
@@ -143,6 +161,56 @@ fn path_prebuilt_dependency_without_manifest_links() {
         out.status.success(),
         "prebuilt path dependency build failed: {}",
         String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+#[test]
+fn pkg_config_dependency_resolves_system_library() {
+    let Some(compiler) = available_compiler() else {
+        eprintln!("no compiler found; skipping pkg-config dependency test");
+        return;
+    };
+    if !std::process::Command::new("pkg-config")
+        .args(["--exists", "zlib"])
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+    {
+        eprintln!("pkg-config zlib unavailable; skipping pkg-config dependency test");
+        return;
+    }
+
+    let root = unique_sandbox_dir("pkg_config_dep");
+    let app = root.join("app");
+    std::fs::create_dir_all(app.join("src")).unwrap();
+    std::fs::write(
+        app.join("dcr.toml"),
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\n\n[build]\nlanguage = \"c\"\ncompiler = \"clang\"\nkind = \"bin\"\n\n[dependencies]\nzlib = { pkg-config = \"zlib\" }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        app.join("src/main.c"),
+        "#include <zlib.h>\nint main(void) { return zlibVersion() == 0 ? 1 : 0; }\n",
+    )
+    .unwrap();
+
+    let out = run_dcr_env(&["build"], &app, &[("DCR_COMPILER", compiler)]);
+    assert!(
+        out.status.success(),
+        "pkg-config dependency build failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let lock = std::fs::read_to_string(app.join("dcr.lock")).unwrap();
+    assert!(lock.contains("source = \"pkg-config+zlib\""));
+
+    // Check dcr tree displays pkg-config info
+    let tree_out = run_dcr(&["tree"], &app);
+    assert!(tree_out.status.success(), "dcr tree should succeed");
+    let tree_str = String::from_utf8_lossy(&tree_out.stdout);
+    assert!(
+        tree_str.contains("zlib (pkg-config: zlib)"),
+        "dcr tree should format pkg-config dependency, got: {}",
+        tree_str
     );
 }
 

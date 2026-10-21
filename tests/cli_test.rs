@@ -20,10 +20,15 @@ fn dcr_test_runs_without_sandbox_dependency() {
     assert!(out.status.success(), "dcr test should succeed");
     let stdout = String::from_utf8_lossy(&out.stdout);
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(stdout.contains("TOTAL: 1"), "TOTAL summary line missing");
     assert!(
-        stdout.contains("PASS:  1"),
-        "PASS summary line missing\nstdout:\n{}\nstderr:\n{}",
+        stderr.contains("test result: 1 passed; 0 failed; 0 skipped; 1 total"),
+        "test result summary line missing\nstdout:\n{}\nstderr:\n{}",
+        stdout,
+        stderr
+    );
+    assert!(
+        stdout.contains("PASS") || stderr.contains("Passed"),
+        "test pass output missing\nstdout:\n{}\nstderr:\n{}",
         stdout,
         stderr
     );

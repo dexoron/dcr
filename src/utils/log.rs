@@ -15,17 +15,37 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::utils::text::{BOLD_RED, BOLD_YELLOW, colored};
+use log::{LevelFilter, Log, Metadata, Record};
 
-/// Logs an error message to the standard error stream.
-///
-/// The message is prefixed with a red "error" label for visibility.
-#[allow(dead_code)]
-pub fn error(msg: &str) {
-    eprintln!("{}: {msg}", colored("error", BOLD_RED));
+struct CliLogger;
+
+impl Log for CliLogger {
+    fn enabled(&self, metadata: &Metadata<'_>) -> bool {
+        metadata.level().to_level_filter() <= log::max_level()
+    }
+    fn log(&self, record: &Record<'_>) {
+        if !self.enabled(record.metadata()) {
+            return;
+        }
+        let kind = match record.level() {
+            log::Level::Warn => "warning",
+            log::Level::Error => "error",
+            log::Level::Info => "info",
+            log::Level::Debug => "debug",
+            log::Level::Trace => "trace",
+        };
+        crate::utils::output::emit(kind, &record.args().to_string());
+    }
+    fn flush(&self) {}
 }
 
-#[allow(dead_code)]
-pub fn warn(msg: &str) {
-    eprintln!("{}: {msg}", colored("warn", BOLD_YELLOW));
+// A function for initializing the logging lib with basic settings.
+pub fn init() {
+    static LOGGER: CliLogger = CliLogger;
+    log::set_logger(&LOGGER).expect("logger already initialized");
+    log::set_max_level(if crate::utils::output::verbose() {
+        LevelFilter::Debug
+    } else {
+        LevelFilter::Info
+    });
 }

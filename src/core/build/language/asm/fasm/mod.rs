@@ -1,9 +1,6 @@
-use crate::core::build::builder::BuildContext;
-use crate::core::build::common;
 use crate::core::build::language::asm::common as asm;
-use std::fs;
-use std::path::Path;
-use std::process::Command;
+use crate::core::build::{builder::BuildContext, common};
+use std::{fs, path::Path, process::Command};
 
 /// Builds an assembly file using the FASM assembler.
 ///

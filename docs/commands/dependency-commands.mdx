@@ -15,6 +15,8 @@ dcr add mylib path:./lib       # explicit path prefix
 dcr add mylib git:https://github.com/user/repo  # explicit git prefix
 dcr add mylib github:user/repo # GitHub shorthand
 dcr add mylib gitlab:user/repo # GitLab shorthand
+dcr add fmt pkg-config:fmt     # system package via pkg-config
+dcr add openssl pkg:openssl,libcrypto # multiple pkg-config packages
 ```
 
 Source prefixes:
@@ -22,6 +24,7 @@ Source prefixes:
 - `git:` — generic git URL
 - `github:` — expands to `https://github.com/<user>/<repo>`
 - `gitlab:` — expands to `https://gitlab.com/<user>/<repo>`
+- `pkg-config:` / `pkg:` — one or more packages resolved by `pkg-config`
 - `http://` / `https://` / `git@` — full URL
 
 Flags:
@@ -30,6 +33,11 @@ Flags:
 - `--rev <hash>` — git commit
 
 If source is omitted — DCR searches connected registries. A bare relative or absolute path is accepted as a path dependency.
+
+For `pkg-config` dependencies, the referenced packages must already be installed
+and provide `.pc` files. DCR invokes `pkg-config` during the build (using
+`PATH` and `PKG_CONFIG_PATH`) and forwards the returned compiler and linker
+flags; it does not download or build these packages.
 
 ## `dcr tree`
 

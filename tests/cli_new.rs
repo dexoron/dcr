@@ -79,3 +79,24 @@ fn init_vcs_options_work() {
         assert!(gitignore.contains(".dcr/"));
     }
 }
+
+#[test]
+fn new_in_non_ascii_parent_directory() {
+    let parent_dir = unique_sandbox_dir("Проекты с пробелами");
+    let out = run_dcr(&["new", "my_app"], &parent_dir);
+    assert!(
+        out.status.success(),
+        "dcr new should succeed inside non-ascii parent dir: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let project_dir = parent_dir.join("my_app");
+    assert!(project_dir.is_dir(), "project dir should exist");
+    assert!(project_dir.join("dcr.toml").is_file(), "dcr.toml missing");
+
+    let toml_content = std::fs::read_to_string(project_dir.join("dcr.toml")).unwrap();
+    assert!(
+        toml_content.contains("name = \"my_app\""),
+        "package name should be my_app in dcr.toml"
+    );
+}

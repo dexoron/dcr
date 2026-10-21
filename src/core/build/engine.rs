@@ -769,8 +769,10 @@ fn build_project_at_inner(
         )?;
     }
 
-    let (resolved_cflags, resolved_ldflags) =
+    let (mut resolved_cflags, mut resolved_ldflags) =
         resolve_pkg_config_flags(&pkg_configs, &build_cflags, &build_ldflags)?;
+    resolved_cflags.extend(resolved.cflags.clone());
+    resolved_ldflags.extend(resolved.ldflags.clone());
     let mut combined_excludes = Vec::new();
     for dir in exclude_dirs {
         combined_excludes.push(dir.clone());
@@ -1011,6 +1013,8 @@ fn extend_transitive_link_deps(
     consumer_deps.include_dirs.extend(deps.include_dirs);
     consumer_deps.lib_dirs.extend(deps.lib_dirs);
     consumer_deps.libs.extend(deps.libs);
+    consumer_deps.cflags.extend(deps.cflags);
+    consumer_deps.ldflags.extend(deps.ldflags);
     for child_root in deps.package_roots {
         extend_transitive_link_deps(
             Path::new(&child_root),

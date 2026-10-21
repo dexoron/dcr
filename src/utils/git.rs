@@ -1,5 +1,4 @@
-use std::path::Path;
-use std::process::Command;
+use std::{path::Path, process::Command};
 
 /// Checks if the `git` executable is available in the system's PATH.
 ///

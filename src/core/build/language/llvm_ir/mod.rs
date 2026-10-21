@@ -1,10 +1,6 @@
-use crate::core::build::builder::BuildContext;
-use crate::core::build::common;
-use crate::core::build::language::Language;
 use crate::core::build::language::asm::common as asm;
-use std::fs;
-use std::path::Path;
-use std::process::Command;
+use crate::core::build::{builder::BuildContext, common, language::Language};
+use std::{fs, path::Path, process::Command};
 
 /// Represents the LLVM IR language implementation for the build system.
 pub struct LlvmIr;

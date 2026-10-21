@@ -15,39 +15,33 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#[allow(dead_code)]
-pub const RESET: &str = "\x1b[0m";
+pub use owo_colors::{OwoColorize as Colorize, Style};
 
+// Сli theme styles
+// Main
 #[allow(dead_code)]
-pub const BOLD: &str = "\x1b[1m";
+pub const BOLD_RED: Style = Style::new().bright_red().bold();
+#[allow(dead_code)]
+pub const BOLD_GREEN: Style = Style::new().bright_green().bold();
+#[allow(dead_code)]
+pub const BOLD_YELLOW: Style = Style::new().bright_yellow().bold();
+#[allow(dead_code)]
+pub const BOLD_CYAN: Style = Style::new().bright_cyan().bold();
+#[allow(dead_code)]
+pub const BOLD_BLUE: Style = Style::new().bright_blue().bold();
 
+// Help
 #[allow(dead_code)]
-pub const BRIGHT_RED: &str = "\x1b[91m";
+pub const HELP_SECTION_TITLE_ST: Style = BOLD_GREEN;
 #[allow(dead_code)]
-pub const BRIGHT_GREEN: &str = "\x1b[92m";
-#[allow(dead_code)]
-pub const BRIGHT_YELLOW: &str = "\x1b[93m";
-#[allow(dead_code)]
-pub const BRIGHT_CYAN: &str = "\x1b[96m";
-#[allow(dead_code)]
-pub const BOLD_RED: &str = "\x1b[1m\x1b[91m";
-#[allow(dead_code)]
-pub const BOLD_GREEN: &str = "\x1b[1m\x1b[92m";
-#[allow(dead_code)]
-pub const BOLD_YELLOW: &str = "\x1b[1m\x1b[93m";
-#[allow(dead_code)]
-pub const BOLD_CYAN: &str = "\x1b[1m\x1b[96m";
+pub const HELP_EXAMPLES_ST: Style = BOLD_CYAN;
 
-/// Applies ANSI escape codes to format the message with the given style.
-///
-/// This is a utility for colored output in terminal applications.
+// Other
 #[allow(dead_code)]
-pub fn colored(msg: &str, style: &str) -> String {
-    format!("{style}{msg}{RESET}")
-}
-
-/// Prints `msg` to stdout with the given ANSI `style`.
+pub const ERROR_ST: Style = BOLD_RED;
 #[allow(dead_code)]
-pub fn printc(msg: &str, style: &str) {
-    println!("{style}{msg}{RESET}");
-}
+pub const SUCCESS_ST: Style = BOLD_GREEN;
+#[allow(dead_code)]
+pub const ALERT_ST: Style = BOLD_YELLOW;
+#[allow(dead_code)]
+pub const SKIP_ST: Style = BOLD_BLUE;

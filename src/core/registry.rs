@@ -17,9 +17,7 @@
 
 /// Registry configuration management for DCR.
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fs;
-use std::path::PathBuf;
+use std::{collections::HashMap, fs, path::PathBuf};
 
 /// Represents a registry configuration entry with its URL and priority.
 #[derive(Debug, Serialize, Deserialize)]

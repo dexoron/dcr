@@ -15,6 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::prelude::*;
+
 use crate::cli::build;
 use crate::config::{FILE_DCR_TEST_H, FILE_TEST_C, flags};
 use crate::core::build_config::Config;
@@ -23,13 +25,9 @@ use crate::utils::build::{
     get_string_with_profile, resolve_compiler, resolve_pkg_config_flags,
 };
 use crate::utils::fs::{find_project_root, with_dir};
-use crate::utils::log::error;
-use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, BOLD_RED, RESET, colored, printc};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-
-const BOLD_BLUE: &str = "\x1b[1m\x1b[94m";
 
 /// Runs project tests and prints a unified testsuite report.
 pub fn test(args: &[String]) -> i32 {
@@ -37,19 +35,19 @@ pub fn test(args: &[String]) -> i32 {
     let mut profile = "debug";
     for arg in args {
         if arg == "--help" {
-            printc("USAGE:", BOLD_GREEN);
-            printc("    dcr test [--init] [--debug | --release]", BOLD_CYAN);
-            println!();
-            printc("ALIASES:", BOLD_GREEN);
-            println!("    dcr tests");
-            println!();
-            printc("DESCRIPTION:", BOLD_GREEN);
-            println!("    Runs project tests and prints a unified testsuite report.");
-            println!();
-            printc("OPTIONS:", BOLD_GREEN);
-            println!("    --init            Create tests/dcr_test.h in current project");
-            println!("    --debug           Build and run tests with debug profile (default)");
-            println!("    --release         Build and run tests with release profile");
+            let mut help = crate::utils::help::HelpBuilder::new("dcr test");
+            help.section("USAGE")
+                .example("dcr test [--init] [--debug | --release]");
+            help.section("ALIASES").example("dcr tests");
+            help.description("Runs project tests and prints a unified testsuite report.");
+            help.section("OPTIONS")
+                .item("--init", "Create tests/dcr_test.h in current project")
+                .item(
+                    "--debug",
+                    "Build and run tests with debug profile (default)",
+                )
+                .item("--release", "Build and run tests with release profile");
+            help.render();
             return 0;
         }
         if arg == "--init" {
@@ -60,25 +58,25 @@ pub fn test(args: &[String]) -> i32 {
             profile = arg.trim_start_matches("--");
             continue;
         }
-        error("Unknown argument");
+        error!("Unknown argument");
         return 1;
     }
 
     let start_dir = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(_) => {
-            error("Failed to determine current directory");
+            error!("Failed to determine current directory");
             return 1;
         }
     };
     let root = match find_project_root(&start_dir) {
         Ok(Some(dir)) => dir,
         Ok(None) => {
-            error("dcr.toml file not found");
+            error!("dcr.toml file not found");
             return 1;
         }
         Err(_) => {
-            error("Failed to find project root");
+            error!("Failed to find project root");
             return 1;
         }
     };
@@ -87,7 +85,8 @@ pub fn test(args: &[String]) -> i32 {
         match with_dir(&root, ensure_test_header) {
             Ok(()) => {}
             Err(msg) => {
-                error(&msg);
+                error!("{msg}");
+
                 return 1;
             }
         }
@@ -96,7 +95,7 @@ pub fn test(args: &[String]) -> i32 {
     match with_dir(&root, || run_testsuite(profile)) {
         Ok(code) => code,
         Err(msg) => {
-            error(&msg);
+            error!("{msg}");
             1
         }
     }
@@ -134,8 +133,12 @@ fn run_testsuite(profile: &str) -> Result<i32, String> {
     cflags.extend(get_list_with_profile(&config, "cflags", profile));
     let ldflags = get_list_with_profile(&config, "ldflags", profile);
     let pkg_configs = get_list_with_profile(&config, "pkg_config", profile);
-    let (cflags, ldflags) = resolve_pkg_config_flags(&pkg_configs, &cflags, &ldflags)?;
-    let includes = test_include_dirs(&config, profile);
+    let (mut cflags, mut ldflags) = resolve_pkg_config_flags(&pkg_configs, &cflags, &ldflags)?;
+    let deps = crate::core::deps::resolve_deps(&config, profile, None, Path::new("."))?;
+    cflags.extend(deps.cflags);
+    ldflags.extend(deps.ldflags);
+    let mut includes = test_include_dirs(&config, profile);
+    includes.extend(deps.include_dirs);
     let test_sources = collect_test_sources()?;
     if test_sources.is_empty() {
         return Err("tests/test.c not found; run 'dcr test --init' first".to_string());
@@ -174,7 +177,7 @@ fn run_testsuite(profile: &str) -> Result<i32, String> {
         stdout.push_str(&String::from_utf8_lossy(&out.stdout));
         let stderr = String::from_utf8_lossy(&out.stderr);
         if !stderr.trim().is_empty() {
-            eprint!("{}", stderr);
+            crate::utils::output::compiler_output("stderr", &stderr);
         }
         if !out.status.success() {
             suite_success = false;
@@ -189,19 +192,19 @@ fn run_testsuite(profile: &str) -> Result<i32, String> {
     for line in stdout.lines() {
         let line = line.trim();
         if let Some(name) = line.strip_prefix("[PASS] ") {
-            println!("{} {}", colored("[PASS]", BOLD_GREEN), name);
+            crate::utils::output::success(format!("Passed {name}"));
             pass += 1;
             parsed_any = true;
             continue;
         }
         if let Some(name) = line.strip_prefix("[SKIP] ") {
-            println!("{} {}", colored("[SKIP]", BOLD_BLUE), name);
+            crate::utils::output::status("Skipped", name);
             skip += 1;
             parsed_any = true;
             continue;
         }
         if let Some(name) = line.strip_prefix("[FAIL] ") {
-            println!("{} {}", colored("[FAIL]", BOLD_RED), name);
+            crate::utils::output::error(format!("Failed {name}"));
             fail += 1;
             parsed_any = true;
             continue;
@@ -209,17 +212,17 @@ fn run_testsuite(profile: &str) -> Result<i32, String> {
         if let Some((status, name)) = line.split_once('\t') {
             match status {
                 "PASS" => {
-                    println!("{} {}", colored("[PASS]", BOLD_GREEN), name);
+                    crate::utils::output::success(format!("Passed {name}"));
                     pass += 1;
                     parsed_any = true;
                 }
                 "SKIP" => {
-                    println!("{} {}", colored("[SKIP]", BOLD_BLUE), name);
+                    crate::utils::output::status("Skipped", name);
                     skip += 1;
                     parsed_any = true;
                 }
                 "FAIL" => {
-                    println!("{} {}", colored("[FAIL]", BOLD_RED), name);
+                    crate::utils::output::error(format!("Failed {name}"));
                     fail += 1;
                     parsed_any = true;
                 }
@@ -231,11 +234,11 @@ fn run_testsuite(profile: &str) -> Result<i32, String> {
     if !parsed_any {
         if suite_success {
             for name in &declared {
-                println!("{} {}", colored("[PASS]", BOLD_GREEN), name);
+                crate::utils::output::success(format!("Passed {name}"));
             }
             pass = declared.len() as i32;
         } else {
-            println!("{} testsuite", colored("[FAIL]", BOLD_RED));
+            crate::utils::output::error("testsuite failed");
             fail = 1;
         }
     }
@@ -246,15 +249,10 @@ fn run_testsuite(profile: &str) -> Result<i32, String> {
         declared.len() as i32
     };
 
-    println!();
-    println!("{}", colored("=====================", BOLD_GREEN));
-    println!("{}", colored("  Testsuite summary  ", BOLD_GREEN));
-    println!("{}", colored("=====================", BOLD_GREEN));
-    println!("TOTAL: {}", total);
-    print_field("PASS", pass, BOLD_GREEN);
-    print_field("SKIP", skip, BOLD_BLUE);
-    print_field("FAIL", fail, BOLD_RED);
-    println!("{}", colored("=====================", BOLD_GREEN));
+    crate::utils::output::status(
+        "test result:",
+        format!("{pass} passed; {fail} failed; {skip} skipped; {total} total"),
+    );
 
     if fail > 0 || !suite_success {
         return Ok(1);
@@ -352,10 +350,10 @@ fn link_test_binary(
 /// Prints the stdout and stderr from a command execution.
 fn print_command_output(output: &std::process::Output) {
     if !output.stdout.is_empty() {
-        print!("{}", String::from_utf8_lossy(&output.stdout));
+        crate::utils::output::write_stdout(&format!("{}", String::from_utf8_lossy(&output.stdout)));
     }
     if !output.stderr.is_empty() {
-        eprint!("{}", String::from_utf8_lossy(&output.stderr));
+        crate::utils::output::compiler_output("stderr", &String::from_utf8_lossy(&output.stderr));
     }
 }
 
@@ -364,10 +362,10 @@ fn ensure_test_header() -> Result<(), String> {
     fs::create_dir_all("./tests").map_err(|_| "Failed to create tests/".to_string())?;
     fs::write("./tests/dcr_test.h", FILE_DCR_TEST_H)
         .map_err(|_| "Failed to write tests/dcr_test.h".to_string())?;
-    println!("Created tests/dcr_test.h");
+    crate::utils::output::created("tests/dcr_test.h");
     fs::write("./tests/test.c", FILE_TEST_C)
         .map_err(|_| "Failed to write tests/test.c".to_string())?;
-    println!("Created tests/test.c");
+    crate::utils::output::created("tests/test.c");
     Ok(())
 }
 
@@ -386,13 +384,4 @@ fn extract_test_names_path(path: &Path) -> Vec<String> {
         }
     }
     names
-}
-
-/// Prints a test result field with color coding.
-fn print_field(label: &str, value: i32, color: &str) {
-    if value == 0 {
-        println!("{}:  {}", label, value);
-    } else {
-        println!("{}{}:  {}{}", color, label, value, RESET);
-    }
 }

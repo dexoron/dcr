@@ -20,15 +20,10 @@
 /// This module provides the MSVC-specific build implementation for C and C++
 /// projects, including object compilation and linking for executables, static
 /// libraries, shared libraries, and flat binaries.
-use crate::core::build::builder::BuildContext;
-use crate::core::build::builder::artifact;
-use crate::core::build::common;
+use crate::core::build::{builder::BuildContext, builder::artifact, common};
 use crate::platform;
 use crate::utils::build::{is_compile_only, is_flat_bin};
-use std::fs;
-use std::path::Path;
-use std::process::Command;
-use std::time::Instant;
+use std::{fs, path::Path, process::Command, time::Instant};
 
 /// Builds the project target using the MSVC compiler.
 pub fn build(ctx: &BuildContext) -> Result<f64, String> {

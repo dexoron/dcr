@@ -16,12 +16,9 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 /// Support for NASM assembly language in the DCR build system.
-use crate::core::build::builder::BuildContext;
-use crate::core::build::common;
 use crate::core::build::language::asm::common as asm;
-use std::fs;
-use std::path::Path;
-use std::process::Command;
+use crate::core::build::{builder::BuildContext, common};
+use std::{fs, path::Path, process::Command};
 
 /// Builds assembly sources using the NASM assembler.
 ///

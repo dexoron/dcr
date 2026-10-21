@@ -15,12 +15,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::core::build::builder::BuildContext;
-use crate::core::build::common;
 use crate::core::build::language::asm::common as asm;
-use std::fs;
-use std::path::Path;
-use std::process::Command;
+use crate::core::build::{builder::BuildContext, common};
+use std::{fs, path::Path, process::Command};
 
 /// Builds GAS (`.s`) sources via the GNU Assembler.
 ///

@@ -16,8 +16,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::platform;
-use std::path::Path;
-use std::process::Command;
+use std::{path::Path, process::Command};
 
 /// Runs the built binary for a project, forwarding `bin_args`.
 ///

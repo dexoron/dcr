@@ -11,7 +11,7 @@ Install and switch DCR versions (stable / dev / night, pin `0.8.2`, optional bui
 ### Linux / macOS / BSD / Windows (bash)
 
 ```sh
-curl -fsSL https://sh.dcr-tool.ru | sh -s -- self-install
+curl --proto '=https' --tlsv1.2 -sSf https://sh.dcr-tool.ru | sh -s -- self-install
 export PATH="$HOME/.dcr/bin:$PATH"
 dcrup install stable
 ```
@@ -19,28 +19,19 @@ dcrup install stable
 Non-interactive install of DCR in one shot:
 
 ```sh
-curl -fsSL https://sh.dcr-tool.ru | sh -s -- install stable
+curl --proto '=https' --tlsv1.2 -sSf https://sh.dcr-tool.ru | sh -s -- install stable
 export PATH="$HOME/.dcr/bin:$PATH"
 ```
 
 ### Windows (PowerShell)
 
 ```powershell
-irm https://ps1.dcr-tool.ru | iex
-# or download then run:
-# irm https://ps1.dcr-tool.ru -OutFile dcrup.ps1
-# powershell -File .\dcrup.ps1 self-install
+& ([scriptblock]::Create((irm https://ps1.dcr-tool.ru))) self-install
 # $env:Path += ";$env:USERPROFILE\.dcr\bin"
 dcrup install stable
 ```
 
-Optional cmd bootstrap (if you prefer `curl` of the cmd shim):
-
-```bat
-curl -fsSL -o dcrup.cmd https://cmd.dcr-tool.ru
-```
-
-After `self-install`, the command is **`dcrup`** (no `.sh` / `.ps1`): shims live in `~/.dcr/bin` (Unix) or `%USERPROFILE%\.dcr\bin` (Windows `dcrup.cmd`).
+After `self-install`, the command is **`dcrup`** (no `.sh` / `.ps1`) and is installed in `~/.dcr/bin` (Unix) or `%USERPROFILE%\.dcr\bin` (Windows).
 
 ### Common dcrup commands
 
@@ -58,6 +49,8 @@ dcrup update
 dcrup list
 dcrup show
 dcrup which
+dcrup uninstall 0.8.2    # remove one installed version
+dcrup uninstall --all    # remove all installed versions
 ```
 
 Layout: `~/.dcr/toolchains/<id>/dcr` and `~/.dcr/bin/dcr` → active version.

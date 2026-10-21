@@ -15,8 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use std::fs;
-use std::path::Path;
+use std::{fs, path::Path};
 
 /// Represents a locked dependency entry containing its name, version, source, and checksum.
 #[derive(Debug, Clone)]

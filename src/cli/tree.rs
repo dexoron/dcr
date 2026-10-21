@@ -15,9 +15,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::prelude::*;
+
 use crate::core::build_config::Config;
-use crate::utils::log::error;
-use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, printc};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use toml::Value;
@@ -28,11 +28,10 @@ use toml::Value;
 /// Otherwise, it parses the dcr.toml configuration and prints the dependency tree.
 pub fn tree(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
-        printc("USAGE:", BOLD_GREEN);
-        printc("    dcr tree", BOLD_CYAN);
-        println!();
-        printc("DESCRIPTION:", BOLD_GREEN);
-        println!("    Displays the dependency tree of the current project.");
+        let mut help = crate::utils::help::HelpBuilder::new("dcr tree");
+        help.section("USAGE").example("dcr tree");
+        help.description("Displays the dependency tree of the current project.");
+        help.render();
         return 0;
     }
 
@@ -40,7 +39,7 @@ pub fn tree(args: &[String]) -> i32 {
     let config = match Config::open("dcr.toml") {
         Ok(c) => c,
         Err(_) => {
-            error("dcr.toml not found in current directory");
+            error!("dcr.toml not found in current directory");
             return 1;
         }
     };
@@ -54,7 +53,7 @@ pub fn tree(args: &[String]) -> i32 {
         .and_then(|v| v.as_str())
         .unwrap_or("0.0.0");
 
-    printc(&format!("{} v{}", name, version), BOLD_CYAN);
+    crate::utils::output::write_stdout_raw(&format!("{} v{}\n", name, version));
 
     let mut seen = HashSet::new();
     seen.insert(name.to_string());
@@ -115,6 +114,19 @@ fn print_deps(
                         format!(" v{}", v)
                     } else if let Some(git) = t.get("git").and_then(|v| v.as_str()) {
                         format!(" ({})", git)
+                    } else if let Some(pkg) = t.get("pkg-config").or_else(|| t.get("pkg_config")) {
+                        if let Some(s) = pkg.as_str() {
+                            format!(" (pkg-config: {})", s)
+                        } else if let Some(arr) = pkg.as_array() {
+                            let names = arr
+                                .iter()
+                                .filter_map(|v| v.as_str())
+                                .collect::<Vec<_>>()
+                                .join(", ");
+                            format!(" (pkg-config: {})", names)
+                        } else {
+                            "".to_string()
+                        }
                     } else {
                         "".to_string()
                     }
@@ -123,7 +135,10 @@ fn print_deps(
             };
         }
 
-        println!("{}{}{}{}", prefix, connector, name, version);
+        crate::utils::output::write_stdout_raw(&format!(
+            "{}{}{}{}\n",
+            prefix, connector, name, version
+        ));
 
         // Recurse only if sub-dependencies exist and this dep hasn't been seen
         if let Some(s_deps) = sub_deps

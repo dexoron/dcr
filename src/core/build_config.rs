@@ -15,12 +15,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::prelude::*;
+
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use toml::Value;
-use toml::map::Map;
+use toml::{Value, map::Map};
 use toml_edit::{DocumentMut, Item, Table};
 
 const DEFAULT_VERSION: &str = "0.1.0";
@@ -244,13 +245,19 @@ pub struct WorkspaceMemberConfig {
 }
 
 impl Config {
+    #[allow(dead_code)]
     /// Creates a new Config instance from a TOML file path. If the file does not exist, it creates a default one.
     pub fn new(path: &str) -> Result<Self, ConfigError> {
+        Self::create(path, None)
+    }
+
+    /// Creates a new Config instance with an explicit package name for the default template when creating a new file.
+    pub fn create(path: &str, package_name: Option<&str>) -> Result<Self, ConfigError> {
         let path = PathBuf::from(path);
         let (data, doc) = if path.exists() {
             load_parts(&path)?
         } else {
-            let content = default_toml_text();
+            let content = default_toml_text(package_name)?;
             let doc: DocumentMut = content.parse().map_err(ConfigError::TomlEdit)?;
             fs::write(&path, doc.to_string())?;
             let data: Value = toml::from_str(&content)?;
@@ -328,35 +335,35 @@ impl Config {
             .map(str::trim)
             .filter(|s| !s.is_empty());
         let Some(required) = required else {
-            crate::utils::log::warn(&format!(
+            warn!(
                 "package.dcr-version is missing in {}. Add e.g. dcr-version = \"{tool}\" \
-                 so collaborators know which dcr this project targets \
-                 (written automatically by `dcr new` / `dcr init`).",
-                self.path.display()
-            ));
+             so collaborators know which dcr this project targets \
+             (written automatically by `dcr new` / `dcr init`).",
+                self.path.display(),
+            );
             return;
         };
 
         match crate::utils::build::compare_semver(tool, required) {
             Some(std::cmp::Ordering::Less) => {
-                crate::utils::log::warn(&format!(
+                warn!(
                     "this project requires dcr {required} (package.dcr-version), \
                      but you are running dcr {tool}. Some features may be missing or misbehave. \
                      Upgrade dcr (e.g. `dcr --update`) or lower package.dcr-version if intentional."
-                ));
+                );
             }
             Some(std::cmp::Ordering::Greater) => {
-                crate::utils::log::warn(&format!(
+                warn!(
                     "this project pins dcr {required} (package.dcr-version), \
-                     but you are running newer dcr {tool}. Config/defaults may be outdated. \
-                     Review the changelog and bump package.dcr-version when the project is verified."
-                ));
+                 but you are running newer dcr {tool}. Config/defaults may be outdated. \
+                 Review the changelog and bump package.dcr-version when the project is verified.",
+                );
             }
             Some(std::cmp::Ordering::Equal) => {}
             None => {
-                crate::utils::log::warn(&format!(
-                    "package.dcr-version = \"{required}\" is not a valid semver (expected X.Y.Z); ignoring"
-                ));
+                warn!(
+                    "package.dcr-version = \"{required}\" is not a valid semver (expected X.Y.Z); ignoring",
+                );
             }
         }
     }
@@ -830,14 +837,20 @@ fn load_parts(path: &Path) -> Result<(Value, DocumentMut), ConfigError> {
     Ok((data, doc))
 }
 
-fn default_toml_text() -> String {
-    let name = std::env::current_dir()
-        .ok()
-        .and_then(|p| p.file_name().map(|v| v.to_string_lossy().to_string()))
+fn default_toml_text(package_name: Option<&str>) -> Result<String, ConfigError> {
+    let name = package_name
+        .map(|s| s.to_string())
+        .or_else(|| {
+            std::env::current_dir()
+                .ok()
+                .and_then(|p| p.file_name().map(|v| v.to_string_lossy().to_string()))
+        })
         .unwrap_or_else(|| "project".to_string());
+    validate_non_empty_string(&name, "package.name")?;
+    validate_package_name(&name)?;
     let dcr_version = env!("CARGO_PKG_VERSION");
 
-    format!(
+    Ok(format!(
         "[package]\n\
          name = \"{name}\"\n\
          version = \"{DEFAULT_VERSION}\"\n\
@@ -854,7 +867,7 @@ fn default_toml_text() -> String {
          kind = \"{DEFAULT_KIND}\"\n\
          \n\
          [dependencies]\n"
-    )
+    ))
 }
 
 fn dcr_version_warn_once(path_key: &str) -> bool {
@@ -1282,6 +1295,22 @@ mod tests {
         assert!(
             saved.contains("# top comment"),
             "leading comment must be preserved, got:\n{saved}"
+        );
+    }
+
+    #[test]
+    fn create_rejects_invalid_name_without_writing_manifest() {
+        let dir = temp_dir("invalid_create_name");
+        let path = dir.join("dcr.toml");
+        for name in ["", "bad name", "../bad", "bad\"name", " bad", "bad."] {
+            let result = Config::create(&path.to_string_lossy(), Some(name));
+            assert!(matches!(result, Err(ConfigError::Invalid(_))), "{name:?}");
+            assert!(!path.exists(), "invalid name must not create a manifest");
+        }
+        let config = Config::create(&path.to_string_lossy(), Some("valid-name")).unwrap();
+        assert_eq!(
+            config.get("package.name").and_then(Value::as_str),
+            Some("valid-name")
         );
     }
 

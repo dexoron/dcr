@@ -15,15 +15,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::prelude::*;
+
 use crate::config::FILE_MAIN_C;
 use crate::core::build_config::{Config, validate_package_name};
 use crate::core::vcs::VcsKind;
 use crate::utils::fs::check_dir;
-use crate::utils::log::{error, warn};
-use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
-use std::fs;
-use std::io::Write;
-use toml::Value;
+use std::{fs, io::Write};
 
 /// Executes the `dcr new` command to scaffold a new C/C++ project directory structure.
 ///
@@ -31,12 +29,12 @@ use toml::Value;
 /// template source file generation (`src/main.c`), and initial VCS setup.
 pub fn new(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
-        printc("USAGE:", BOLD_GREEN);
-        printc("    dcr new <name> [--vcs <git|none>]", BOLD_CYAN);
-        println!();
-        printc("DESCRIPTION:", BOLD_GREEN);
-        println!("    Creates a new C/C++ project with the given name.");
-        println!("    The name may only contain ASCII letters, digits, '_' and '-'.");
+        let mut help = crate::utils::help::HelpBuilder::new("dcr new");
+        help.section("USAGE")
+            .example("dcr new <name> [--vcs <git|none>]");
+        help.description("Creates a new C/C++ project with the given name.")
+            .note("The name may only contain ASCII letters, digits, '_' and '-'.");
+        help.render();
         return 0;
     }
 
@@ -51,7 +49,7 @@ pub fn new(args: &[String]) -> i32 {
             if let Some(val) = iter.next() {
                 vcs_str = Some(val.clone());
             } else {
-                error("--vcs requires a value");
+                error!("--vcs requires a value");
                 return 1;
             }
         } else if let Some(stripped) = arg.strip_prefix("--vcs=") {
@@ -62,96 +60,63 @@ pub fn new(args: &[String]) -> i32 {
     }
 
     if clean_args.is_empty() {
-        error("Project name not specified");
+        error!("Project name not specified");
         return 1;
     }
     if clean_args.len() > 1 {
-        warn("Command does not support additional arguments");
+        warn!("Command does not support additional arguments");
         return 1;
     }
 
     let project_name = &clean_args[0];
-    println!(
-        "Creating a Project `{}`...",
-        colored(project_name, BOLD_CYAN)
-    );
-
     if let Err(e) = validate_package_name(project_name) {
-        error(&format!(
-            "Invalid project name `{}`: {}",
-            colored(project_name, BOLD_CYAN),
-            e
-        ));
+        error!("Invalid project name `{}`: {e}", project_name,);
         return 1;
     }
 
     if items.contains(project_name) {
-        error(&format!(
-            "Directory `{}` already exists\n",
-            colored(project_name, BOLD_CYAN)
-        ));
-        printc("Hint:", BOLD_CYAN);
-        println!(
+        error!("Directory `{}` already exists", project_name);
+        crate::utils::output::info(format!(
             "    Use `{}` to initialize an existing project\n    or specify a different project name",
-            colored("dcr init", BOLD_CYAN)
-        );
+            "dcr init"
+        ));
         return 1;
     }
 
+    crate::utils::output::status("Creating", format!("project `{project_name}`"));
+
     if fs::create_dir(project_name).is_err() {
-        error("Failed to create directory");
+        error!("Failed to create directory");
         return 1;
     }
-    println!(
-        "    {} Directory created {}",
-        colored("✔", BOLD_GREEN),
-        project_name
-    );
+    crate::utils::output::created(format!("directory `{project_name}`"));
 
     // Initialize and write project configuration manifest (dcr.toml).
     let toml_path = format!("./{project_name}/dcr.toml");
-    let mut config = match Config::new(&toml_path) {
-        Ok(cfg) => cfg,
-        Err(_) => {
-            error("Failed to create dcr.toml");
-            return 1;
-        }
-    };
-    if config
-        .edit("package.name", Value::String(project_name.to_string()))
-        .is_err()
-    {
-        error("Failed to write dcr.toml");
+    if Config::create(&toml_path, Some(project_name)).is_err() {
+        error!("Failed to create dcr.toml");
         return 1;
     }
-    println!(
-        "    {} Created file {}",
-        colored("✔", BOLD_GREEN),
-        colored("dcr.toml", BOLD_CYAN)
-    );
+    crate::utils::output::created("dcr.toml");
 
     // Generate src directory and populate initial main.c file.
     if fs::create_dir_all(format!("./{project_name}/src")).is_err() {
-        error("Failed to create src/");
+        error!("Failed to create src/");
         return 1;
     }
     let main_c_path = format!("./{project_name}/src/main.c");
     let mut main_c = match fs::File::create(&main_c_path) {
         Ok(file) => file,
         Err(_) => {
-            error("Failed to create src/main.c");
+            error!("Failed to create src/main.c");
             return 1;
         }
     };
     if main_c.write_all(FILE_MAIN_C.as_bytes()).is_err() {
-        error("Failed to write src/main.c");
+        error!("Failed to write src/main.c");
         return 1;
     }
-    println!(
-        "    {} Created file {}",
-        colored("✔", BOLD_GREEN),
-        colored("src/main.c", BOLD_CYAN)
-    );
+    crate::utils::output::created("src/main.c");
 
     // Resolve target VCS mode based on CLI flags or parent directory state.
     let mut vcs_kind = VcsKind::Git;
@@ -159,7 +124,8 @@ pub fn new(args: &[String]) -> i32 {
         match VcsKind::parse(vcs_val) {
             Ok(kind) => vcs_kind = kind,
             Err(e) => {
-                error(&e);
+                error!("{e}");
+
                 return 1;
             }
         }
@@ -173,15 +139,12 @@ pub fn new(args: &[String]) -> i32 {
         if crate::utils::git::is_git_available() {
             let project_path = std::path::Path::new(project_name);
             if let Err(e) = crate::core::vcs::init_vcs(vcs_kind, project_path) {
-                warn(&format!("Failed to initialize git repository: {}", e));
+                warn!("Failed to initialize git repository: {e}");
             } else {
-                println!(
-                    "    {} Initialized git repository",
-                    colored("✔", BOLD_GREEN)
-                );
+                crate::utils::output::success("Initialized git repository");
             }
         } else {
-            warn(
+            warn!(
                 "Git is not installed or not found in PATH. Skipping Git repository initialization.",
             );
         }
@@ -189,14 +152,10 @@ pub fn new(args: &[String]) -> i32 {
 
     let project_path = std::path::Path::new(project_name);
     if let Err(e) = crate::utils::fs::ensure_gitignore_has_dcr(project_path) {
-        warn(&format!("Failed to update .gitignore: {e}"));
+        warn!("Failed to update .gitignore: {e}");
     }
 
-    println!(
-        "Project `{}` successfully created\n",
-        colored(project_name, BOLD_GREEN)
-    );
-    printc("Next step:", BOLD_GREEN);
-    printc(&format!("    cd {}\n    dcr run", project_name), BOLD_CYAN);
+    crate::utils::output::success(format!("Created project `{project_name}`"));
+    crate::utils::output::info(format!("Next steps:\n  cd {project_name}\n  dcr run"));
     0
 }

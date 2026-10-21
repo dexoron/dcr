@@ -15,8 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::core::build::engine::ToolchainExecs;
-use crate::core::build_config::Config;
+use crate::core::{build::engine::ToolchainExecs, build_config::Config};
 use crate::utils::build::{VersionInfo, profile_table, substitute_vars};
 use glob::glob;
 use std::fs;

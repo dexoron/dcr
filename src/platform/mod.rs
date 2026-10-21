@@ -58,11 +58,11 @@ pub fn bin_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     }
     #[cfg(target_os = "macos")]
     {
-        return macos::bin_path(profile, name, target_dir);
+        macos::bin_path(profile, name, target_dir)
     }
     #[cfg(target_os = "windows")]
     {
-        return windows::bin_path(profile, name, target_dir);
+        windows::bin_path(profile, name, target_dir)
     }
     #[cfg(any(
         target_os = "freebsd",
@@ -71,7 +71,7 @@ pub fn bin_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
         target_os = "dragonfly"
     ))]
     {
-        return bsd::bin_path(profile, name, target_dir);
+        bsd::bin_path(profile, name, target_dir)
     }
     #[cfg(not(any(
         target_os = "linux",
@@ -83,7 +83,7 @@ pub fn bin_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
         target_os = "dragonfly"
     )))]
     {
-        return posix::bin_path(profile, name, target_dir);
+        posix::bin_path(profile, name, target_dir)
     }
 }
 
@@ -97,11 +97,11 @@ pub fn elf_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     }
     #[cfg(target_os = "macos")]
     {
-        return macos::elf_path(profile, name, target_dir);
+        macos::elf_path(profile, name, target_dir)
     }
     #[cfg(target_os = "windows")]
     {
-        return windows::elf_path(profile, name, target_dir);
+        windows::elf_path(profile, name, target_dir)
     }
     #[cfg(any(
         target_os = "freebsd",
@@ -110,7 +110,7 @@ pub fn elf_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
         target_os = "dragonfly"
     ))]
     {
-        return bsd::elf_path(profile, name, target_dir);
+        bsd::elf_path(profile, name, target_dir)
     }
     #[cfg(not(any(
         target_os = "linux",
@@ -122,7 +122,7 @@ pub fn elf_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
         target_os = "dragonfly"
     )))]
     {
-        return posix::elf_path(profile, name, target_dir);
+        posix::elf_path(profile, name, target_dir)
     }
 }
 
@@ -136,11 +136,11 @@ pub fn efi_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     }
     #[cfg(target_os = "macos")]
     {
-        return macos::efi_path(profile, name, target_dir);
+        macos::efi_path(profile, name, target_dir)
     }
     #[cfg(target_os = "windows")]
     {
-        return windows::efi_path(profile, name, target_dir);
+        windows::efi_path(profile, name, target_dir)
     }
     #[cfg(any(
         target_os = "freebsd",
@@ -149,7 +149,7 @@ pub fn efi_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
         target_os = "dragonfly"
     ))]
     {
-        return bsd::efi_path(profile, name, target_dir);
+        bsd::efi_path(profile, name, target_dir)
     }
     #[cfg(not(any(
         target_os = "linux",
@@ -161,7 +161,7 @@ pub fn efi_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
         target_os = "dragonfly"
     )))]
     {
-        return posix::efi_path(profile, name, target_dir);
+        posix::efi_path(profile, name, target_dir)
     }
 }
 
@@ -175,11 +175,11 @@ pub fn lib_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     }
     #[cfg(target_os = "macos")]
     {
-        return macos::lib_path(profile, name, target_dir);
+        macos::lib_path(profile, name, target_dir)
     }
     #[cfg(target_os = "windows")]
     {
-        return windows::lib_path(profile, name, target_dir);
+        windows::lib_path(profile, name, target_dir)
     }
     #[cfg(any(
         target_os = "freebsd",
@@ -188,7 +188,7 @@ pub fn lib_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
         target_os = "dragonfly"
     ))]
     {
-        return bsd::lib_path(profile, name, target_dir);
+        bsd::lib_path(profile, name, target_dir)
     }
     #[cfg(not(any(
         target_os = "linux",
@@ -200,7 +200,7 @@ pub fn lib_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
         target_os = "dragonfly"
     )))]
     {
-        return posix::lib_path(profile, name, target_dir);
+        posix::lib_path(profile, name, target_dir)
     }
 }
 
@@ -214,11 +214,11 @@ pub fn shared_lib_path(profile: &str, name: &str, target_dir: Option<&str>) -> S
     }
     #[cfg(target_os = "macos")]
     {
-        return macos::shared_lib_path(profile, name, target_dir);
+        macos::shared_lib_path(profile, name, target_dir)
     }
     #[cfg(target_os = "windows")]
     {
-        return windows::shared_lib_path(profile, name, target_dir);
+        windows::shared_lib_path(profile, name, target_dir)
     }
     #[cfg(any(
         target_os = "freebsd",
@@ -227,7 +227,7 @@ pub fn shared_lib_path(profile: &str, name: &str, target_dir: Option<&str>) -> S
         target_os = "dragonfly"
     ))]
     {
-        return bsd::shared_lib_path(profile, name, target_dir);
+        bsd::shared_lib_path(profile, name, target_dir)
     }
     #[cfg(not(any(
         target_os = "linux",
@@ -239,6 +239,6 @@ pub fn shared_lib_path(profile: &str, name: &str, target_dir: Option<&str>) -> S
         target_os = "dragonfly"
     )))]
     {
-        return posix::shared_lib_path(profile, name, target_dir);
+        posix::shared_lib_path(profile, name, target_dir)
     }
 }

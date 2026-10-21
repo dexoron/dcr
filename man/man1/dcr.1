@@ -1,4 +1,4 @@
-.TH DCR 1 "2026-06-02" "dcr 0.7.0" "DCR Manual"
+.TH DCR 1 "2026-10-21" "dcr 0.9.5" "DCR Manual"
 .SH NAME
 dcr \- Cargo\-like build tool and package manager for C/C++ projects
 .SH SYNOPSIS
@@ -119,6 +119,9 @@ Generic git repository.
 .TP
 .B path:./path/to/lib
 Local path dependency.
+.TP
+.B pkg-config:name
+System pkg-config dependency (also accepts \fBpkg:name1,name2\fR).
 .TP
 .B \fI<version>\fR
 Version from registry (e.g. \fB1.2.3\fR).

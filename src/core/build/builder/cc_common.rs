@@ -15,9 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::core::build::builder::BuildContext;
-use crate::core::build::builder::artifact;
-use crate::core::build::common;
+use crate::core::build::{builder::BuildContext, builder::artifact, common};
 use crate::utils::build::{is_bare_metal_target, is_compile_only, is_flat_bin};
 use std::fs;
 use std::path::{Path, PathBuf};

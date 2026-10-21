@@ -15,12 +15,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::prelude::*;
+
 use crate::core::build::common;
 use crate::core::build_config::Config;
 use crate::utils::build::{get_bool_with_profile, get_list_with_profile};
 use crate::utils::fs::find_project_root;
-use crate::utils::log::error;
-use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, BOLD_YELLOW, colored, printc};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -29,15 +29,13 @@ use std::process::Command;
 /// Scans source roots (configurable via build.roots) and tests/ directory.
 pub fn lint(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
-        printc("USAGE:", BOLD_GREEN);
-        printc("    dcr lint [--fix]", BOLD_CYAN);
-        println!();
-        printc("DESCRIPTION:", BOLD_GREEN);
-        println!("    Runs clang-tidy on all C/C++ source files.");
-        println!("    Scans source roots (configurable via build.roots) and tests/ directory.");
-        println!();
-        printc("OPTIONS:", BOLD_GREEN);
-        println!("    --fix    Apply clang-tidy suggestions automatically");
+        let mut help = crate::utils::help::HelpBuilder::new("dcr lint");
+        help.section("USAGE").example("dcr lint [--fix]");
+        help.description("Runs clang-tidy on all C/C++ source files.")
+            .note("Scans source roots (configurable via build.roots) and tests/ directory.");
+        help.section("OPTIONS")
+            .item("--fix", "Apply clang-tidy suggestions automatically");
+        help.render();
         return 0;
     }
 
@@ -46,7 +44,7 @@ pub fn lint(args: &[String]) -> i32 {
     let start_dir = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(_) => {
-            error("Failed to determine current directory");
+            error!("Failed to determine current directory");
             return 1;
         }
     };
@@ -54,11 +52,11 @@ pub fn lint(args: &[String]) -> i32 {
     let root = match find_project_root(&start_dir) {
         Ok(Some(r)) => r,
         Ok(None) => {
-            error("dcr.toml not found");
+            error!("dcr.toml not found");
             return 1;
         }
         Err(_) => {
-            error("Failed to find project root");
+            error!("Failed to find project root");
             return 1;
         }
     };
@@ -66,7 +64,7 @@ pub fn lint(args: &[String]) -> i32 {
     let config = match Config::open(&root.join("dcr.toml").to_string_lossy()) {
         Ok(c) => c,
         Err(e) => {
-            error(&format!("Failed to load dcr.toml: {e}"));
+            error!("Failed to load dcr.toml: {e}");
             return 1;
         }
     };
@@ -98,7 +96,7 @@ pub fn lint(args: &[String]) -> i32 {
         match common::collect_sources(&roots, &cxx_extensions, &exclude_dirs, &include_paths) {
             Ok(f) => f,
             Err(e) => {
-                error(&format!("Failed to collect source files: {e}"));
+                error!("Failed to collect source files: {e}");
                 return 1;
             }
         };
@@ -116,15 +114,17 @@ pub fn lint(args: &[String]) -> i32 {
     files.sort();
 
     if files.is_empty() {
-        println!("    {} No files to lint", colored("Lint", BOLD_GREEN));
+        crate::utils::output::status("Lint", "no files to lint");
         return 0;
     }
 
-    println!(
-        "    {} {} files {}",
-        colored("Linting", BOLD_GREEN),
-        files.len(),
-        if do_fix { "(with --fix)" } else { "" }
+    crate::utils::output::status(
+        "Linting",
+        format!(
+            "{} files {}",
+            files.len(),
+            if do_fix { "(with --fix)" } else { "" }
+        ),
     );
 
     let mut total_issues = 0u32;
@@ -142,7 +142,7 @@ pub fn lint(args: &[String]) -> i32 {
         let output = match cmd.output() {
             Ok(o) => o,
             Err(e) => {
-                error(&format!("Failed to execute clang-tidy: {}", e));
+                error!("Failed to execute clang-tidy: {e}");
                 return 1;
             }
         };
@@ -160,14 +160,12 @@ pub fn lint(args: &[String]) -> i32 {
         if issue_count > 0 {
             total_issues += issue_count as u32;
             failed += 1;
-            print!("  {} ", colored("×", BOLD_YELLOW));
-            println!("{} ({} issues)", file, issue_count);
+            crate::utils::output::warning(format!("{file} ({issue_count} issues)"));
             for issue in &issues {
-                println!("    {}", issue);
+                crate::utils::output::compiler_output("stderr", issue);
             }
         } else {
-            print!("  {} ", colored("✓", BOLD_GREEN));
-            println!("{}", file);
+            crate::utils::output::status("Checked", file);
         }
     }
 
@@ -175,19 +173,11 @@ pub fn lint(args: &[String]) -> i32 {
     let passed = total - failed as usize;
 
     if failed == 0 {
-        println!(
-            "    {} {} files, no issues",
-            colored("Lint", BOLD_GREEN),
-            total
-        );
+        crate::utils::output::success(format!("Finished checking {total} files; no issues"));
     } else {
-        println!(
-            "    {} {}/{} files passed, {} issues found",
-            colored("Lint", BOLD_YELLOW),
-            passed,
-            total,
-            total_issues
-        );
+        crate::utils::output::warning(format!(
+            "Finished checking {total} files; {passed} passed, {total_issues} issues found"
+        ));
     }
 
     0

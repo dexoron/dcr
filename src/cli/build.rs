@@ -15,6 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::prelude::*;
+
 use crate::cli::clean::clean;
 use crate::cli::flags::parse_build_run_flags;
 use crate::cli::r#gen::{ProjectInfo, write_dcr_metadata};
@@ -27,33 +29,15 @@ use crate::utils::build::{
     normalize_kind, resolve_artifact_target_dir, resolve_compiler,
 };
 use crate::utils::fs::{canonicalize_path, find_project_root};
-use crate::utils::log::error;
-use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, BOLD_YELLOW, colored, printc};
+use crate::utils::output;
 use std::io::IsTerminal;
 use std::path::Path;
 use std::sync::{Arc, atomic::AtomicBool};
 
 pub use crate::core::build::get_build_string_with_profile;
 
-/// Formats a left-aligned status verb with the given style for CLI output.
-fn status(verb: &str, style: &str) -> String {
-    colored(&format!("{verb:<9}"), style)
-}
-
 /// CLI build reporter that prints human-readable progress to stderr/stdout.
 struct CliReporter;
-
-impl CliReporter {
-    /// Prints a single status line with a styled verb and free-form rest text.
-    ///
-    /// # Parameters
-    /// - `verb`: Short status label (e.g. `"target"`, `"dep"`).
-    /// - `style`: Color/style constant for the verb.
-    /// - `rest`: Remaining message text after the verb.
-    fn line(&self, verb: &str, style: &str, rest: &str) {
-        eprintln!("  {} {}", status(verb, style), rest);
-    }
-}
 
 impl BuildReporter for CliReporter {
     /// Handles build events by printing progress, status lines, and compiler output.
@@ -68,7 +52,13 @@ impl BuildReporter for CliReporter {
                 target,
             } => {
                 common::finish_progress_line();
-                self.line("target", BOLD_CYAN, &format!("{index}/{total}  {target}"));
+                output::emit_event(
+                    "target_started",
+                    serde_json::json!({
+                        "index": index, "total": total, "target": target
+                    }),
+                    &format!("target {index}/{total} {target}"),
+                );
             }
             BuildEvent::ProjectStart {
                 name,
@@ -76,15 +66,23 @@ impl BuildReporter for CliReporter {
                 target,
             } => {
                 common::finish_progress_line();
-                self.line(
-                    "project",
-                    BOLD_CYAN,
-                    &format!("{name}  ({profile}, {target})"),
+                output::emit_event(
+                    "project_started",
+                    serde_json::json!({
+                        "name": name, "profile": profile, "target": target
+                    }),
+                    &format!("project {name} ({profile}, {target})"),
                 );
             }
             BuildEvent::DepBuilding { name, version } => {
                 common::finish_progress_line();
-                self.line("dep", BOLD_YELLOW, &format!("{name} v{version}"));
+                output::emit_event(
+                    "dependency_building",
+                    serde_json::json!({
+                        "name": name, "version": version
+                    }),
+                    &format!("dep {name} v{version}"),
+                );
             }
             BuildEvent::DepReady {
                 name,
@@ -94,34 +92,55 @@ impl BuildReporter for CliReporter {
                 common::finish_progress_line();
                 // Only announce deps that were actually rebuilt this run.
                 if rebuilt {
-                    self.line("ready", BOLD_GREEN, &format!("{name} v{version}"));
+                    output::emit_event(
+                        "dependency_ready",
+                        serde_json::json!({
+                            "name": name, "version": version, "rebuilt": rebuilt
+                        }),
+                        &format!("ready {name} v{version}"),
+                    );
                 }
             }
             BuildEvent::Compiling { name, version } => {
                 common::finish_progress_line();
-                let label = format!("  {} {} v{}", status("compile", BOLD_GREEN), name, version);
+                let label = format!(
+                    "  {}",
+                    output::progress_label("compile", &format!("{name} v{version}"))
+                );
                 // Terminals use an in-place progress line; non-TTY gets a plain log line.
-                common::set_progress_label(Some(label.clone()));
-                if !std::io::stderr().is_terminal() {
-                    eprintln!("{label}");
+                if output::mode() == output::Mode::Human {
+                    common::set_progress_label(Some(label.clone()));
+                }
+                if output::mode() != output::Mode::Human || !std::io::stderr().is_terminal() {
+                    output::emit_event(
+                        "compiling",
+                        serde_json::json!({
+                            "name": name, "version": version
+                        }),
+                        &format!("compile {name} v{version}"),
+                    );
                 }
             }
             BuildEvent::Packing { path } => {
                 common::finish_progress_line();
-                self.line("pack", BOLD_CYAN, path);
+                output::emit_event(
+                    "packing",
+                    serde_json::json!({ "path": path }),
+                    &format!("pack {path}"),
+                );
             }
             BuildEvent::Finished { secs } => {
                 common::finish_progress_line();
-                self.line("done", BOLD_GREEN, &format!("in {secs}s"));
+                output::emit_event(
+                    "finished",
+                    serde_json::json!({ "seconds": secs }),
+                    &format!("done in {secs}s"),
+                );
             }
             BuildEvent::CompilerOutput { stream, text } => {
                 // Pause the progress spinner so compiler text is not overwritten.
                 common::interrupt_progress_for_output();
-                if stream == "stderr" {
-                    eprint!("{text}");
-                } else {
-                    print!("{text}");
-                }
+                output::compiler_output(stream, text);
             }
         }
     }
@@ -140,26 +159,22 @@ impl BuildReporter for CliReporter {
 /// Process exit code: `0` on success or help, non-zero on failure.
 pub fn build(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
-        printc("USAGE:", BOLD_GREEN);
-        printc(
-            "    dcr build [--debug | --release] [--target <triple>] [--force] [--clean] [--verbose] [--print-artifact-path]",
-            BOLD_CYAN,
-        );
-        println!();
-        printc("DESCRIPTION:", BOLD_GREEN);
-        println!("    Compiles the project. Default profile is --debug.");
-        println!();
-        printc("OPTIONS:", BOLD_GREEN);
-        println!("    --debug              Build with debug profile (default)");
-        println!("    --release            Build with release profile");
-        println!("    --target <triple>    Cross-compile for the given target");
-        println!("    --force              Force a full rebuild");
-        println!("    --clean              Clean before building");
-        println!("    --verbose            Print detailed build output");
-        println!("    --workspace <name>   Build a specific workspace member");
-        println!(
-            "    --print-artifact-path  Print absolute main artifact path on stdout after success"
-        );
+        let mut help = crate::utils::help::HelpBuilder::new("dcr build");
+        help.description("Compiles the project. Default profile is --debug.");
+        help.section("USAGE").example("dcr build [options]");
+        help.section("OPTIONS")
+            .item("--debug", "Build with debug profile (default)")
+            .item("--release", "Build with release profile")
+            .item("--target <triple>", "Cross-compile for the given target")
+            .item("--force", "Force a full rebuild")
+            .item("--clean", "Clean before building")
+            .item("--verbose", "Print detailed build output")
+            .item("--workspace <name>", "Build a specific workspace member")
+            .item(
+                "--print-artifact-path",
+                "Print the absolute main artifact path",
+            );
+        help.render();
         return 0;
     }
 
@@ -173,18 +188,18 @@ pub fn build(args: &[String]) -> i32 {
     let start_dir = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(_) => {
-            error("Failed to determine current directory");
+            error!("Failed to determine current directory");
             return 1;
         }
     };
     let root = match find_project_root(&start_dir) {
         Ok(Some(dir)) => canonicalize_path(&dir),
         Ok(None) => {
-            error("dcr.toml file not found");
+            error!("dcr.toml file not found");
             return 1;
         }
         Err(_) => {
-            error("Failed to find project root");
+            error!("Failed to find project root");
             return 1;
         }
     };
@@ -230,19 +245,27 @@ pub fn build(args: &[String]) -> i32 {
                 if flags.print_artifact_path
                     && let Some(ref path) = info.artifact_path
                 {
-                    println!("{path}");
+                    if crate::utils::output::mode() == crate::utils::output::Mode::Json {
+                        crate::utils::output::write_stdout_raw(&format!("{path}\n"));
+                    } else {
+                        crate::say!("{path}");
+                    }
                 }
             } else if flags.print_artifact_path
                 && let Some(path) =
                     fallback_artifact_path(&root, &flags.profile, flags.target.as_deref())
             {
-                println!("{path}");
+                if crate::utils::output::mode() == crate::utils::output::Mode::Json {
+                    crate::utils::output::write_stdout_raw(&format!("{path}\n"));
+                } else {
+                    crate::say!("{path}");
+                }
             }
             0
         }
         Err(err) => {
             common::finish_progress_line();
-            error(&err.message);
+            error!("{}", err.message);
             1
         }
     }

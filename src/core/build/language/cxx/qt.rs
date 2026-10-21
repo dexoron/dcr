@@ -15,8 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::core::build::builder::BuildContext;
-use crate::core::build::common;
+use crate::core::{build::builder::BuildContext, build::common};
 use crate::utils::build::run_pkg_config;
 use std::fs;
 use std::path::{Path, PathBuf};

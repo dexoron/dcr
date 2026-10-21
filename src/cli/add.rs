@@ -15,17 +15,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::core::build_config::Config;
-use crate::core::deps::register;
+use crate::prelude::*;
+
+use crate::core::{build_config::Config, deps::register};
 use crate::utils::fs::find_project_root;
-use crate::utils::log::error;
-use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
-use toml::Value;
-use toml::map::Map;
+use toml::{Value, map::Map};
 
 /// Parsed arguments for the `dcr add` command.
 ///
-/// Exactly one of `path`, `git`, or `version_from_registry` is expected to be set,
+/// Exactly one of `path`, `git`, `pkg_config`, or `version_from_registry` is expected to be set,
 /// depending on how the dependency source was specified.
 pub struct AddArgs {
     /// Dependency name as it will appear under `[dependencies]` in `dcr.toml`.
@@ -42,6 +40,8 @@ pub struct AddArgs {
     pub rev: Option<String>,
     /// Version string resolved from the package registry when no explicit source is given.
     pub version_from_registry: Option<String>,
+    /// Package names resolved through pkg-config.
+    pub pkg_config: Option<Vec<String>>,
 }
 
 /// Adds a dependency to the current project's `dcr.toml`.
@@ -57,26 +57,22 @@ pub struct AddArgs {
 /// Process exit code: `0` on success, non-zero on usage or I/O errors.
 pub fn add(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
-        printc("USAGE:", BOLD_GREEN);
-        printc(
-            "    dcr add <name> <source> [--branch <b>] [--tag <t>] [--rev <r>]",
-            BOLD_CYAN,
-        );
-        println!();
-        printc("DESCRIPTION:", BOLD_GREEN);
-        println!("    Adds a dependency to the project.");
-        println!();
-        printc("SOURCES:", BOLD_GREEN);
-        println!("    github:user/repo          GitHub repository");
-        println!("    gitlab:user/repo          GitLab repository");
-        println!("    git:host.com/user/repo    Generic git repository");
-        println!("    path:./path/to/lib        Local path dependency");
-        println!("    <version>                 Version from registry");
-        println!();
-        printc("OPTIONS:", BOLD_GREEN);
-        println!("    --branch <b>    Use a specific branch");
-        println!("    --tag <t>       Use a specific tag");
-        println!("    --rev <r>       Use a specific commit hash");
+        let mut help = crate::utils::help::HelpBuilder::new("dcr add");
+        help.section("USAGE")
+            .example("dcr add <name> <source> [--branch <b>] [--tag <t>] [--rev <r>]");
+        help.description("Adds a dependency to the project.");
+        help.section("SOURCES")
+            .item("github:user/repo", "GitHub repository")
+            .item("gitlab:user/repo", "GitLab repository")
+            .item("git:host.com/user/repo", "Generic git repository")
+            .item("path:./path/to/lib", "Local path dependency")
+            .item("pkg-config:fmt", "System pkg-config dependency")
+            .item("<version>", "Version from registry");
+        help.section("OPTIONS")
+            .item("--branch <b>", "Use a specific branch")
+            .item("--tag <t>", "Use a specific tag")
+            .item("--rev <r>", "Use a specific commit hash");
+        help.render();
         return 0;
     }
 
@@ -88,7 +84,7 @@ pub fn add(args: &[String]) -> i32 {
     let start_dir = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(_) => {
-            error("Failed to determine current directory");
+            error!("Failed to determine current directory");
             return 1;
         }
     };
@@ -96,11 +92,11 @@ pub fn add(args: &[String]) -> i32 {
     let root = match find_project_root(&start_dir) {
         Ok(Some(dir)) => dir,
         Ok(None) => {
-            error("dcr.toml file not found");
+            error!("dcr.toml file not found");
             return 1;
         }
         Err(_) => {
-            error("Failed to find project root");
+            error!("Failed to find project root");
             return 1;
         }
     };
@@ -108,7 +104,7 @@ pub fn add(args: &[String]) -> i32 {
     let mut config = match Config::open(&root.join("dcr.toml").to_string_lossy()) {
         Ok(cfg) => cfg,
         Err(err) => {
-            error(&err.to_string());
+            error!("{err}");
             return 1;
         }
     };
@@ -133,6 +129,17 @@ pub fn add(args: &[String]) -> i32 {
             }
             Value::Table(table)
         }
+    } else if let Some(packages) = add_args.pkg_config {
+        let mut table = Map::new();
+        if packages.len() == 1 {
+            table.insert("pkg-config".to_string(), Value::String(packages[0].clone()));
+        } else {
+            table.insert(
+                "pkg-config".to_string(),
+                Value::Array(packages.into_iter().map(Value::String).collect()),
+            );
+        }
+        Value::Table(table)
     } else if let Some(path) = add_args.path {
         let mut table = Map::new();
         table.insert("path".to_string(), Value::String(path));
@@ -140,21 +147,17 @@ pub fn add(args: &[String]) -> i32 {
     } else if let Some(version) = add_args.version_from_registry {
         Value::String(version)
     } else {
-        error("Dependency source (path or git) must be provided");
+        error!("Dependency source (path, git, or pkg-config) must be provided");
         return 1;
     };
 
     let key = format!("dependencies.{}", add_args.name);
     if let Err(err) = config.edit(&key, dep_value) {
-        error(&format!("Failed to update dcr.toml: {}", err));
+        error!("Failed to update dcr.toml: {err}");
         return 1;
     }
 
-    println!(
-        "    {} dependency `{}` to dcr.toml",
-        colored("Added", BOLD_GREEN),
-        add_args.name
-    );
+    crate::utils::output::success(format!("Added dependency `{}` to dcr.toml", add_args.name));
     0
 }
 
@@ -165,12 +168,13 @@ pub fn add(args: &[String]) -> i32 {
 /// `path:`, `github:`, `gitlab:`, or `git:` prefixes, or a full git URL.
 fn parse_add_args(args: &[String]) -> Result<AddArgs, i32> {
     if args.is_empty() {
-        error("Usage: dcr add <name> <source> [--branch <branch> | --tag <tag> | --rev <rev>]");
-        error("Sources:");
-        error("  github:user/repo          -> github.com/user/repo");
-        error("  gitlab:user/repo          -> gitlab.com/user/repo");
-        error("  git:host.com/user/repo    -> host.com/user/repo");
-        error("  path:./path/to/lib        -> local path");
+        error!("Usage: dcr add <name> <source> [--branch <branch> | --tag <tag> | --rev <rev>]");
+        error!("Sources:");
+        error!("  github:user/repo          -> github.com/user/repo");
+        error!("  gitlab:user/repo          -> gitlab.com/user/repo");
+        error!("  git:host.com/user/repo    -> host.com/user/repo");
+        error!("  path:./path/to/lib        -> local path");
+        error!("  pkg-config:fmt            -> system pkg-config package");
         return Err(1);
     }
 
@@ -183,7 +187,7 @@ fn parse_add_args(args: &[String]) -> Result<AddArgs, i32> {
     let mut iter = args.iter();
     if let Some(n) = iter.next() {
         if n.starts_with("--") {
-            error("First argument must be the dependency name");
+            error!("First argument must be the dependency name");
             return Err(1);
         }
         name = n.clone();
@@ -191,7 +195,7 @@ fn parse_add_args(args: &[String]) -> Result<AddArgs, i32> {
 
     if let Some(s) = iter.next() {
         if s.starts_with("--") {
-            error("Second argument must be the dependency source");
+            error!("Second argument must be the dependency source");
             return Err(1);
         }
         source_spec = s.clone();
@@ -210,7 +214,7 @@ fn parse_add_args(args: &[String]) -> Result<AddArgs, i32> {
                         )
                     })
                     .map_err(|(msg, code)| {
-                        error(&msg);
+                        error!("{msg}");
                         code
                     })?;
                 return Ok(AddArgs {
@@ -221,10 +225,11 @@ fn parse_add_args(args: &[String]) -> Result<AddArgs, i32> {
                     tag: None,
                     rev: None,
                     version_from_registry: Some(version.to_string()),
+                    pkg_config: None,
                 });
             }
             Err(e) => {
-                error(&format!("Cannot add `{}` without source: {}", name, e));
+                error!("Cannot add `{}` without source: {}", name, e);
                 return Err(1);
             }
         }
@@ -235,26 +240,26 @@ fn parse_add_args(args: &[String]) -> Result<AddArgs, i32> {
             "--branch" => {
                 branch = iter.next().cloned();
                 if branch.is_none() {
-                    error("--branch requires a value");
+                    error!("--branch requires a value");
                     return Err(1);
                 }
             }
             "--tag" => {
                 tag = iter.next().cloned();
                 if tag.is_none() {
-                    error("--tag requires a value");
+                    error!("--tag requires a value");
                     return Err(1);
                 }
             }
             "--rev" => {
                 rev = iter.next().cloned();
                 if rev.is_none() {
-                    error("--rev requires a value");
+                    error!("--rev requires a value");
                     return Err(1);
                 }
             }
             _ => {
-                error(&format!("Unknown argument: {}", arg));
+                error!("Unknown argument: {arg}");
                 return Err(1);
             }
         }
@@ -262,9 +267,25 @@ fn parse_add_args(args: &[String]) -> Result<AddArgs, i32> {
 
     let mut path = None;
     let mut git = None;
+    let mut pkg_config = None;
 
     // Map source prefixes / bare URLs to path or git fields
-    if let Some(p) = source_spec.strip_prefix("path:") {
+    if let Some(p) = source_spec
+        .strip_prefix("pkg-config:")
+        .or_else(|| source_spec.strip_prefix("pkg:"))
+    {
+        let packages = p
+            .split(',')
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        if packages.is_empty() {
+            error!("pkg-config source must name at least one package");
+            return Err(1);
+        }
+        pkg_config = Some(packages);
+    } else if let Some(p) = source_spec.strip_prefix("path:") {
         path = Some(p.to_string());
     } else if let Some(g) = source_spec.strip_prefix("github:") {
         git = Some(format!("https://github.com/{}", g));
@@ -294,8 +315,8 @@ fn parse_add_args(args: &[String]) -> Result<AddArgs, i32> {
     {
         path = Some(source_spec);
     } else {
-        error(
-            "Source must be a path, a prefixed source (path:, git:, github:, gitlab:), or a full URL",
+        error!(
+            "Source must be a path, pkg-config:, a prefixed source (path:, git:, github:, gitlab:), or a full URL",
         );
         return Err(1);
     }
@@ -308,5 +329,6 @@ fn parse_add_args(args: &[String]) -> Result<AddArgs, i32> {
         tag,
         rev,
         version_from_registry: None,
+        pkg_config,
     })
 }

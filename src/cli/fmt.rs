@@ -15,8 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::utils::log::error;
-use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
+use crate::prelude::*;
+
 use glob::glob;
 use std::process::Command;
 
@@ -28,12 +28,11 @@ use std::process::Command;
 /// If the first argument is `--help`, prints usage information and returns 0.
 pub fn fmt(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
-        printc("USAGE:", BOLD_GREEN);
-        printc("    dcr fmt", BOLD_CYAN);
-        println!();
-        printc("DESCRIPTION:", BOLD_GREEN);
-        println!("    Formats all C/C++ source files using clang-format.");
-        println!("    Scans src/ and tests/ directories recursively.");
+        let mut help = crate::utils::help::HelpBuilder::new("dcr fmt");
+        help.section("USAGE").example("dcr fmt");
+        help.description("Formats all C/C++ source files using clang-format.")
+            .note("Scans src/ and tests/ directories recursively.");
+        help.render();
         return 0;
     }
 
@@ -69,30 +68,26 @@ pub fn fmt(args: &[String]) -> i32 {
     }
 
     if files.is_empty() {
-        println!("    {} No files to format", colored("Format", BOLD_GREEN));
+        crate::utils::output::status("Format", "no files to format");
         return 0;
     }
 
     // Format the collected files
-    println!(
-        "    {} {} files",
-        colored("Formatting", BOLD_GREEN),
-        files.len()
-    );
+    crate::utils::output::status("Formatting", format!("{} files", files.len()));
 
     let status = Command::new("clang-format").arg("-i").args(&files).status();
 
     match status {
         Ok(s) if s.success() => {
-            println!("    {} successful", colored("Format", BOLD_GREEN));
+            crate::utils::output::success("Format successful");
             0
         }
         Ok(s) => {
-            error(&format!("clang-format failed with status: {}", s));
+            error!("clang-format failed with status: {s}");
             1
         }
         Err(e) => {
-            error(&format!("Failed to execute clang-format: {}", e));
+            error!("Failed to execute clang-format: {e}");
             1
         }
     }

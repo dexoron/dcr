@@ -1,9 +1,6 @@
-use crate::core::build::builder::BuildContext;
-use crate::core::build::builder::artifact;
-use crate::core::build::common;
+use crate::core::build::{builder::BuildContext, builder::artifact, common};
 use crate::utils::build::{is_compile_only, is_flat_bin};
-use std::path::Path;
-use std::time::Instant;
+use std::{path::Path, time::Instant};
 
 /// Keeps only assembler-relevant flags from a cflags list.
 ///

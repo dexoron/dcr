@@ -15,32 +15,31 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, printc};
-
 /// Sets up DCR registries by loading the registry manager and printing the list of registries.
 pub fn setup(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
-        printc("USAGE:", BOLD_GREEN);
-        printc("    dcr setup", BOLD_CYAN);
-        println!();
-        printc("DESCRIPTION:", BOLD_GREEN);
-        println!("    Sets up DCR registries. Downloads and indexes");
-        println!("    package registries for dependency resolution.");
+        let mut help = crate::utils::help::HelpBuilder::new("dcr setup");
+        help.section("USAGE").example("dcr setup");
+        help.description("Show configured package registries and their priorities.");
+        help.render();
         return 0;
     }
 
-    println!("Setting up DCR registries...");
     // Load and process the registries, returning 0 on success or 1 on error
     match crate::core::registry::RegistryManager::load() {
         Ok(manager) => {
-            println!("Loaded {} registries.", manager.config.registry.len());
+            let mut lines = vec![format!(
+                "Loaded {} registries (configured)",
+                manager.config.registry.len()
+            )];
             for (name, reg) in manager.config.registry {
-                println!("- {}: {} (priority {})", name, reg.url, reg.priority);
+                lines.push(format!("  {name}: {} (priority {})", reg.url, reg.priority));
             }
+            crate::say!("{}", lines.join("\n"));
             0
         }
         Err(e) => {
-            println!("Error: {}", e);
+            crate::utils::output::error!("{e}");
             1
         }
     }

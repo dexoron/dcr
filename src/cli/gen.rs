@@ -15,6 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::prelude::*;
+
 use crate::core::build::builder::BuildContext;
 use crate::core::build::builder::artifact::{absolute_artifact_path, resolve_artifact_path};
 use crate::core::build::builder::collect_sources;
@@ -29,8 +31,6 @@ use crate::utils::build::{
 use crate::utils::fs::{
     absolute_join, atomic_write, canonicalize_path, ensure_dcr_dir, find_project_root,
 };
-use crate::utils::log::error;
-use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, printc};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -42,11 +42,13 @@ struct GenDeps {
     include_dirs: Vec<String>,
     lib_dirs: Vec<String>,
     libs: Vec<String>,
+    cflags: Vec<String>,
+    ldflags: Vec<String>,
 }
 
-/// Collects path-dependency include/lib/libs from `dcr.toml` for code generation.
+/// Collects dependency metadata from `dcr.toml` for code generation.
 ///
-/// Skips `system` deps and non-path entries. Falls back to common include/lib
+/// Resolves path layouts and pkg-config flags while skipping system deps. Falls back to common include/lib
 /// directory names only when those directories exist.
 fn resolve_deps_for_gen(config: &Config, profile: &str, project_root: &Path) -> GenDeps {
     let deps_val = match config.get("dependencies") {
@@ -56,6 +58,8 @@ fn resolve_deps_for_gen(config: &Config, profile: &str, project_root: &Path) -> 
                 include_dirs: vec![],
                 lib_dirs: vec![],
                 libs: vec![],
+                cflags: vec![],
+                ldflags: vec![],
             };
         }
     };
@@ -66,6 +70,8 @@ fn resolve_deps_for_gen(config: &Config, profile: &str, project_root: &Path) -> 
                 include_dirs: vec![],
                 lib_dirs: vec![],
                 libs: vec![],
+                cflags: vec![],
+                ldflags: vec![],
             };
         }
     };
@@ -73,12 +79,37 @@ fn resolve_deps_for_gen(config: &Config, profile: &str, project_root: &Path) -> 
     let mut include_dirs = Vec::new();
     let mut lib_dirs = Vec::new();
     let mut libs = Vec::new();
+    let mut cflags = Vec::new();
+    let mut ldflags = Vec::new();
 
     for (name, value) in deps_table {
         let tbl = match value.as_table() {
             Some(t) => t,
             None => continue,
         };
+        let pkg_names = tbl
+            .get("pkg-config")
+            .or_else(|| tbl.get("pkg_config"))
+            .map(|raw| {
+                raw.as_str()
+                    .map(|s| vec![s.to_string()])
+                    .or_else(|| {
+                        raw.as_array().map(|a| {
+                            a.iter()
+                                .filter_map(|v| v.as_str().map(str::to_string))
+                                .collect()
+                        })
+                    })
+                    .unwrap_or_default()
+            })
+            .unwrap_or_default();
+        if !pkg_names.is_empty() {
+            let (flags, link_flags) =
+                crate::utils::build::resolve_pkg_config_flags_lossy(&pkg_names, &[], &[]);
+            cflags.extend(flags);
+            ldflags.extend(link_flags);
+            continue;
+        }
         // skip system deps
         if tbl.get("system").and_then(|v| v.as_bool()).unwrap_or(false) {
             continue;
@@ -169,6 +200,8 @@ fn resolve_deps_for_gen(config: &Config, profile: &str, project_root: &Path) -> 
         include_dirs,
         lib_dirs,
         libs,
+        cflags,
+        ldflags,
     }
 }
 
@@ -218,33 +251,30 @@ pub struct ProjectInfo {
 pub fn r#gen(args: &[String]) -> i32 {
     let subcommand = match args.first() {
         Some(s) if s == "--help" => {
-            printc("USAGE:", BOLD_GREEN);
-            printc("    dcr gen <subcommand>", BOLD_CYAN);
-            println!();
-            printc("DESCRIPTION:", BOLD_GREEN);
-            println!("    Generates IDE and tooling integration files.");
-            println!();
-            printc("SUBCOMMANDS:", BOLD_GREEN);
-            println!("    project-info      Print project metadata as JSON");
-            println!("    compile-commands  Generate .dcr/compile_commands.json");
-            println!("    vscode            Generate .vscode/ integration files");
-            println!("    clion             Generate .idea/ integration files");
-            println!();
-            printc("OPTIONS:", BOLD_GREEN);
-            println!("    --debug | --release   Profile (default: debug)");
-            println!("    --quiet | -q          Suppress success messages on stdout");
+            let mut help = crate::utils::help::HelpBuilder::new("dcr gen");
+            help.section("USAGE").example("dcr gen <subcommand>");
+            help.description("Generates IDE and tooling integration files.");
+            help.section("SUBCOMMANDS")
+                .item("project-info", "Print project metadata as JSON")
+                .item("compile-commands", "Generate .dcr/compile_commands.json")
+                .item("vscode", "Generate .vscode/ integration files")
+                .item("clion", "Generate .idea/ integration files");
+            help.section("OPTIONS")
+                .item("--debug | --release", "Profile (default: debug)")
+                .item("--quiet | -q", "Suppress success messages on stdout");
+            help.render();
             return 0;
         }
         Some(s) => s.as_str(),
         None => {
-            printc("USAGE:", BOLD_GREEN);
-            printc("    dcr gen <subcommand>", BOLD_CYAN);
-            println!();
-            printc("SUBCOMMANDS:", BOLD_GREEN);
-            println!("    project-info      Print project metadata as JSON");
-            println!("    compile-commands  Generate .dcr/compile_commands.json");
-            println!("    vscode            Generate .vscode/ integration files");
-            println!("    clion             Generate .idea/ integration files");
+            let mut help = crate::utils::help::HelpBuilder::new("dcr gen");
+            help.section("USAGE").example("dcr gen <subcommand>");
+            help.section("SUBCOMMANDS")
+                .item("project-info", "Print project metadata as JSON")
+                .item("compile-commands", "Generate .dcr/compile_commands.json")
+                .item("vscode", "Generate .vscode/ integration files")
+                .item("clion", "Generate .idea/ integration files");
+            help.render();
             return 1;
         }
     };
@@ -257,7 +287,7 @@ pub fn r#gen(args: &[String]) -> i32 {
         "vscode" => gen_vscode(rest),
         "clion" => gen_clion(rest),
         _ => {
-            error(&format!("Unknown gen subcommand: {subcommand}"));
+            error!("Unknown gen subcommand: {subcommand}");
             1
         }
     }
@@ -350,8 +380,10 @@ fn collect_project_info_inner(
     });
 
     let resolved = resolve_deps_for_gen(&config, profile, &root);
-    let (resolved_cflags, resolved_ldflags) =
+    let (mut resolved_cflags, mut resolved_ldflags) =
         resolve_pkg_config_flags_lossy(&pkg_configs, &base_cflags, &base_ldflags);
+    resolved_cflags.extend(resolved.cflags.clone());
+    resolved_ldflags.extend(resolved.ldflags.clone());
 
     // Build exclude/include pattern lists (same logic as cli::build)
     let mut combined_excludes: Vec<PathBuf> = Vec::new();
@@ -741,8 +773,8 @@ fn ensure_clangd(root: &Path, quiet: bool) {
             }
             Ok(_) => {
                 if !quiet {
-                    eprintln!(
-                        "Warning: .clangd already exists and is not managed by dcr; \
+                    crate::utils::output::warning!(
+                        ".clangd already exists and is not managed by dcr; \
                          set CompilationDatabase to .dcr manually if needed"
                     );
                 }
@@ -781,8 +813,8 @@ fn collect_all(root: &Path, profile: &str) -> Result<Vec<ProjectInfo>, String> {
             let member_path = canonicalize_path(&member.path);
             match collect_project_info(&member_path, profile, ws_root) {
                 Ok(info) => all.push(info),
-                Err(e) => eprintln!(
-                    "Warning: skipping workspace member {}: {e}",
+                Err(e) => crate::utils::output::warning!(
+                    "skipping workspace member {}: {e}",
                     member_path.display()
                 ),
             }
@@ -793,7 +825,7 @@ fn collect_all(root: &Path, profile: &str) -> Result<Vec<ProjectInfo>, String> {
         match collect_project_info(&root, profile, ws_root) {
             Ok(info) => all.push(info),
             Err(e) if is_workspace => {
-                eprintln!("Warning: skipping workspace root package: {e}");
+                crate::utils::output::warning!("skipping workspace root package: {e}");
             }
             Err(e) => return Err(e),
         }
@@ -818,7 +850,7 @@ fn gen_project_info(args: &[String]) -> i32 {
     let all = match collect_all(&root, &profile) {
         Ok(v) => v,
         Err(e) => {
-            error(&e);
+            error!("{e}");
             return 1;
         }
     };
@@ -827,20 +859,12 @@ fn gen_project_info(args: &[String]) -> i32 {
         && let Err(e) = write_dcr_metadata(&root, info)
         && !quiet
     {
-        eprintln!("Warning: {e}");
+        crate::utils::output::warning!("{e}");
     }
     ensure_clangd(&root, quiet);
 
-    print!("[");
-    for (i, info) in all.iter().enumerate() {
-        if i > 0 {
-            print!(",");
-        }
-        println!();
-        print!("{}", project_info_to_json(info));
-    }
-    println!();
-    println!("]");
+    let entries = all.iter().map(project_info_to_json).collect::<Vec<_>>();
+    crate::utils::output::write_stdout_raw(&format!("[\n{}\n]\n", entries.join(",\n")));
     0
 }
 
@@ -940,7 +964,7 @@ fn gen_compile_commands(args: &[String]) -> i32 {
     let all = match collect_all(&root, &profile) {
         Ok(v) => v,
         Err(e) => {
-            error(&e);
+            error!("{e}");
             return 1;
         }
     };
@@ -953,7 +977,7 @@ fn gen_compile_commands(args: &[String]) -> i32 {
 /// Used by `compile-commands`, `vscode`, and `clion`.
 fn gen_compile_commands_inner(root: &Path, profile: &str, all: &[ProjectInfo], quiet: bool) -> i32 {
     if let Err(e) = ensure_dcr_dir(root) {
-        error(&format!("Failed to create .dcr/: {e}"));
+        error!("Failed to create .dcr/: {e}");
         return 1;
     }
 
@@ -965,16 +989,16 @@ fn gen_compile_commands_inner(root: &Path, profile: &str, all: &[ProjectInfo], q
                 && let Err(e) = write_dcr_metadata(root, info)
                 && !quiet
             {
-                eprintln!("Warning: {e}");
+                crate::utils::output::warning!("{e}");
             }
             ensure_clangd(root, quiet);
             if !quiet {
-                println!("Generated {}", out_path.display());
+                crate::utils::output::created(format!("{}", out_path.display()));
             }
             0
         }
         Err(e) => {
-            error(&format!("Failed to write compile_commands.json: {e}"));
+            error!("Failed to write compile_commands.json: {e}");
             1
         }
     }
@@ -1128,7 +1152,7 @@ fn gen_vscode(args: &[String]) -> i32 {
     let all = match collect_all(&root, &profile) {
         Ok(v) => v,
         Err(e) => {
-            error(&e);
+            error!("{e}");
             return 1;
         }
     };
@@ -1141,39 +1165,39 @@ fn gen_vscode(args: &[String]) -> i32 {
 
     let vscode_dir = root.join(".vscode");
     if let Err(e) = std::fs::create_dir_all(&vscode_dir) {
-        error(&format!("Failed to create .vscode/: {e}"));
+        error!("Failed to create .vscode/: {e}");
         return 1;
     }
 
     // tasks.json
     if let Err(e) = std::fs::write(vscode_dir.join("tasks.json"), gen_tasks_json()) {
-        error(&format!("Failed to write tasks.json: {e}"));
+        error!("Failed to write tasks.json: {e}");
         return 1;
     }
-    println!("Generated {}", vscode_dir.join("tasks.json").display());
+    crate::utils::output::created(format!("{}", vscode_dir.join("tasks.json").display()));
 
     // launch.json — one entry per binary target
     let launch = gen_launch_json(&all, &root);
     if let Err(e) = std::fs::write(vscode_dir.join("launch.json"), launch) {
-        error(&format!("Failed to write launch.json: {e}"));
+        error!("Failed to write launch.json: {e}");
         return 1;
     }
-    println!("Generated {}", vscode_dir.join("launch.json").display());
+    crate::utils::output::created(format!("{}", vscode_dir.join("launch.json").display()));
 
     // settings.json (clangd compile-commands-dir)
     let settings = gen_settings_json(&root);
     if let Err(e) = std::fs::write(vscode_dir.join("settings.json"), settings) {
-        error(&format!("Failed to write settings.json: {e}"));
+        error!("Failed to write settings.json: {e}");
         return 1;
     }
-    println!("Generated {}", vscode_dir.join("settings.json").display());
+    crate::utils::output::created(format!("{}", vscode_dir.join("settings.json").display()));
 
     // extensions.json — disable cpptools, recommend clangd
     if let Err(e) = std::fs::write(vscode_dir.join("extensions.json"), gen_extensions_json()) {
-        error(&format!("Failed to write extensions.json: {e}"));
+        error!("Failed to write extensions.json: {e}");
         return 1;
     }
-    println!("Generated {}", vscode_dir.join("extensions.json").display());
+    crate::utils::output::created(format!("{}", vscode_dir.join("extensions.json").display()));
 
     0
 }
@@ -1418,7 +1442,7 @@ fn gen_clion(args: &[String]) -> i32 {
     let all = match collect_all(&root, &profile) {
         Ok(v) => v,
         Err(e) => {
-            error(&e);
+            error!("{e}");
             return 1;
         }
     };
@@ -1431,46 +1455,46 @@ fn gen_clion(args: &[String]) -> i32 {
 
     let idea_dir = root.join(".idea");
     if let Err(e) = std::fs::create_dir_all(&idea_dir) {
-        error(&format!("Failed to create .idea/: {e}"));
+        error!("Failed to create .idea/: {e}");
         return 1;
     }
     let run_configs_dir = idea_dir.join("runConfigurations");
     if let Err(e) = std::fs::create_dir_all(&run_configs_dir) {
-        error(&format!("Failed to create .idea/runConfigurations/: {e}"));
+        error!("Failed to create .idea/runConfigurations/: {e}");
         return 1;
     }
 
     // externalTools.xml
     let ext_tools = gen_clion_external_tools();
     if let Err(e) = std::fs::write(idea_dir.join("externalTools.xml"), ext_tools) {
-        error(&format!("Failed to write externalTools.xml: {e}"));
+        error!("Failed to write externalTools.xml: {e}");
         return 1;
     }
-    println!("Generated {}", idea_dir.join("externalTools.xml").display());
+    crate::utils::output::created(format!("{}", idea_dir.join("externalTools.xml").display()));
 
     // customTargets.xml
     let targets = gen_clion_custom_targets();
     if let Err(e) = std::fs::write(idea_dir.join("customTargets.xml"), targets) {
-        error(&format!("Failed to write customTargets.xml: {e}"));
+        error!("Failed to write customTargets.xml: {e}");
         return 1;
     }
-    println!("Generated {}", idea_dir.join("customTargets.xml").display());
+    crate::utils::output::created(format!("{}", idea_dir.join("customTargets.xml").display()));
 
     // misc.xml — point CLion at compile_commands.json
     let misc = gen_clion_misc_xml(&root);
     if let Err(e) = std::fs::write(idea_dir.join("misc.xml"), misc) {
-        error(&format!("Failed to write misc.xml: {e}"));
+        error!("Failed to write misc.xml: {e}");
         return 1;
     }
-    println!("Generated {}", idea_dir.join("misc.xml").display());
+    crate::utils::output::created(format!("{}", idea_dir.join("misc.xml").display()));
 
     // .idea/.gitignore
     let gitignore = "# CLion generated files\nworkspace.xml\n*.iml\n";
     if let Err(e) = std::fs::write(idea_dir.join(".gitignore"), gitignore) {
-        error(&format!("Failed to write .idea/.gitignore: {e}"));
+        error!("Failed to write .idea/.gitignore: {e}");
         return 1;
     }
-    println!("Generated {}", idea_dir.join(".gitignore").display());
+    crate::utils::output::created(format!("{}", idea_dir.join(".gitignore").display()));
 
     // runConfigurations/<name>.xml — one per binary
     for info in &all {
@@ -1481,10 +1505,10 @@ fn gen_clion(args: &[String]) -> i32 {
         let fname = format!("{}.xml", sanitize_filename(&info.name));
         let path = run_configs_dir.join(&fname);
         if let Err(e) = std::fs::write(&path, xml) {
-            error(&format!("Failed to write runConfigurations/{fname}: {e}"));
+            error!("Failed to write runConfigurations/{fname}: {e}");
             return 1;
         }
-        println!("Generated {}", path.display());
+        crate::utils::output::created(format!("{}", path.display()));
     }
 
     0
@@ -1685,18 +1709,18 @@ fn parse_gen_args(args: &[String]) -> Result<(PathBuf, String, bool), i32> {
     }
 
     let start = std::env::current_dir().map_err(|_| {
-        error("Failed to determine current directory");
+        error!("Failed to determine current directory");
         1i32
     })?;
 
     let root = match find_project_root(&start) {
         Ok(Some(r)) => canonicalize_path(&r),
         Ok(None) => {
-            error("dcr.toml not found");
+            error!("dcr.toml not found");
             return Err(1);
         }
         Err(_) => {
-            error("Failed to find project root");
+            error!("Failed to find project root");
             return Err(1);
         }
     };

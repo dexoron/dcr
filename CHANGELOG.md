@@ -1,5 +1,67 @@
 # Changelog
 
+## [v0.9.5] - 2026-10-21 "Структурированный вывод CLI / Structured CLI Output"
+
+### RU
+
+**Добавлено:**
+
+- Человекочитаемый, plain- и JSON-режимы вывода в стиле Cargo с общими хелперами вывода.
+- Явная обработка `--color auto|always|never`, `NO_COLOR`, `--quiet` и `--verbose`.
+- Структурированные события жизненного цикла сборки и JSON-диагностика компилятора.
+- Сценарии CLI output sandbox для help, жизненного цикла, диагностики, ошибок и broken pipe.
+
+**Исправлено:**
+
+- Единообразная маршрутизация stdout/stderr и обработка цветов во всех основных командах.
+- Глобальный парсер опций теперь останавливается на subcommand и сохраняет аргументы после `--`.
+- Перенаправленный вывод подпроцессов теперь захватывается конкурентно в output lab.
+
+### EN
+
+**Added:**
+
+- Cargo-like human, plain, and JSON output modes with shared output helpers.
+- Explicit `--color auto|always|never`, `NO_COLOR`, `--quiet`, and `--verbose` handling.
+- Structured build lifecycle events and JSON compiler diagnostics.
+- CLI output sandbox scenarios for help, lifecycle, diagnostics, errors, and broken pipes.
+
+**Fixed:**
+
+- Consistent stdout/stderr routing and color handling across the main commands.
+- Global option parsing now stops at the subcommand and preserves arguments after `--`.
+- Redirected subprocess output is captured concurrently in the output lab.
+
+## [v0.9.1] - 2026-09-13 "Системные pkg-config-зависимости / System pkg-config Dependencies"
+
+### RU
+
+**Добавлено:**
+
+- **Зависимости через `pkg-config`** — `fmt = { pkg-config = "fmt" }` или массив имён пакетов (`pkg-config = ["openssl", "libcrypto"]`) подключает системные библиотеки через `.pc`-метаданные.
+- **Поддержка префиксов в `dcr add`** — команды `dcr add fmt pkg-config:fmt` и `dcr add openssl pkg:openssl,libcrypto` добавляют зависимости от системных пакетов в `dcr.toml`.
+- **Полный набор флагов** — DCR собирает и пробрасывает compiler/linker flags (`-I`, `-L`, `-l`, `-pthread` и другие), включая транзитивные зависимости и интеграцию с `dcr gen` / `dcr test`.
+- **Фиксация в `dcr.lock`** — записывается источник `pkg-config+...` и обнаруженная версия пакета.
+- **Отображение в `dcr tree`** — `pkg-config` зависимости наглядно помечаются в дереве зависимостей.
+
+**Исправлено:**
+
+- **Ошибка создания проекта в папках со спецсимволами** — `dcr new` больше не завершается ошибкой `Failed to create dcr.toml`, если родительская директория содержит пробелы или не-ASCII символы.
+
+### EN
+
+**Added:**
+
+- **`pkg-config` dependencies** — `fmt = { pkg-config = "fmt" }` or an array of package names (`pkg-config = ["openssl", "libcrypto"]`) connects system libraries through their `.pc` metadata.
+- **Prefix support in `dcr add`** — `dcr add fmt pkg-config:fmt` and `dcr add openssl pkg:openssl,libcrypto` add system package dependencies to `dcr.toml`.
+- **Complete flag propagation** — compiler/linker flags (`-I`, `-L`, `-l`, `-pthread`, and others) are preserved and passed to builds, `dcr test`, and IDE integrations via `dcr gen`.
+- **Lockfile entries** — `dcr.lock` records the `pkg-config+...` source and detected package version.
+- **`dcr tree` representation** — `pkg-config` dependencies are clearly labeled in the dependency tree.
+
+**Fixed:**
+
+- **Project creation failure in special character directories** — `dcr new` no longer fails with `Failed to create dcr.toml` when invoked inside parent folders with spaces or non-ASCII characters.
+
 ## [v0.9.0] - 2026-08-31 "Полные Path/Git-зависимости и готовые библиотеки / Complete Path/Git Dependencies & Prebuilt Libraries"
 
 ### RU

@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 $ErrorActionPreference = 'Stop'
 
 $DcrupHome = if ($env:DCRUP_HOME) { $env:DCRUP_HOME } else { Join-Path $env:USERPROFILE '.dcr' }
@@ -6,6 +6,7 @@ $DcrupBin  = if ($env:DCRUP_BIN)  { $env:DCRUP_BIN  } else { Join-Path $DcrupHom
 $DcrupTc   = Join-Path $DcrupHome 'toolchains'
 $DcrupMeta = Join-Path $DcrupHome 'meta'
 $RepoUrl   = if ($env:DCRUP_REPO) { $env:DCRUP_REPO } else { 'https://github.com/dexoron/dcr' }
+$InstallUrl = if ($env:DCRUP_INSTALL_URL) { $env:DCRUP_INSTALL_URL } else { 'https://ps1.dcr-tool.ru' }
 $DcrupMirror = if ($env:DCRUP_MIRROR) { $env:DCRUP_MIRROR } else { 'auto' }
 $ApiLatest = 'https://api.github.com/repos/dexoron/dcr/releases/latest'
 $ApiAll    = 'https://api.github.com/repos/dexoron/dcr/releases'
@@ -131,6 +132,18 @@ function Link-Default([string]$id) {
     Copy-Item $src $dst -Force
     Write-Active $id
     Ok "default → $id ($dst)"
+}
+
+function Resolve-InstalledId([string]$spec) {
+    Parse-Spec $spec
+    if ($script:SpecChannel -eq 'night' -or $script:SpecFloating) {
+        $item = Get-ChildItem $DcrupTc -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -like "$($script:SpecChannel)-*" } |
+            Sort-Object Name | Select-Object -Last 1
+        if ($item) { return $item.Name }
+        return $null
+    }
+    return (Toolchain-Id)
 }
 
 function Set-Mirror([string]$value) {
@@ -379,7 +392,19 @@ function Cmd-Show {
 
 function Cmd-SelfInstall {
     Ensure-Dirs
-    Copy-Item $PSCommandPath (Join-Path $DcrupBin 'dcrup.ps1') -Force
+    if ([string]::IsNullOrWhiteSpace($PSCommandPath) -or -not (Test-Path $PSCommandPath)) {
+        # With `irm URL | iex`, PowerShell evaluates text and there is no
+        # source path. Download the canonical installer for self-install.
+        $tmp = Join-Path $env:TEMP ("dcrup-" + [guid]::NewGuid().ToString('N') + '.ps1')
+        try {
+            Invoke-WebRequest -Uri $InstallUrl -OutFile $tmp -UseBasicParsing -UserAgent 'dcrup'
+            Copy-Item $tmp (Join-Path $DcrupBin 'dcrup.ps1') -Force
+        } finally {
+            Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+        }
+    } else {
+        Copy-Item $PSCommandPath (Join-Path $DcrupBin 'dcrup.ps1') -Force
+    }
     Install-CmdShim
     Ensure-UserPath
     Ok "dcrup installed to $DcrupBin (use: dcrup …)"
@@ -417,7 +442,7 @@ switch ($cmd) {
         if ($a -like 'night-*') { Cmd-Install @('night', '--build', '--force') }
         elseif ($a -like 'stable-*') { Cmd-Install @('stable', '--force') }
         elseif ($a -like 'dev-*') { Cmd-Install @('dev', '--force') }
-        else { Ok "pinned $a — install a newer version explicitly" }
+        else { Ok "pinned $a - install a newer version explicitly" }
     }
     'uninstall' {
         if ($rest -contains '--all') {
@@ -426,7 +451,18 @@ switch ($cmd) {
             Remove-Item (Active-Path) -ErrorAction SilentlyContinue
             Ok 'removed all'
         } else {
-            Die 'use: dcrup uninstall --all  (or install a replacement first)'
+            if ($rest.Count -ne 1) { Die 'usage: dcrup uninstall <spec>|--all' }
+            $id = Resolve-InstalledId $rest[0]
+            if (-not $id) { Die "not installed: $($rest[0])" }
+            $dir = Join-Path $DcrupTc $id
+            if (-not (Test-Path $dir)) { Die "not installed: $($rest[0])" }
+            Remove-Item -Recurse -Force $dir
+            if ((Read-Active) -eq $id) {
+                Remove-Item (Join-Path $DcrupBin 'dcr.exe') -ErrorAction SilentlyContinue
+                Remove-Item (Active-Path) -ErrorAction SilentlyContinue
+                Warn 'removed active toolchain; install or select another default'
+            }
+            Ok "removed $id"
         }
     }
     'self-install' { Cmd-SelfInstall }

@@ -15,17 +15,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::prelude::*;
+
 use crate::cli::build::build;
 use crate::cli::flags::parse_build_run_flags;
 use crate::core::build_config::Config;
 use crate::core::runner::run_binary;
 use crate::utils::build::{normalize_target_os, parse_version_info, substitute_vars};
-use crate::utils::fs::find_project_root;
-use crate::utils::fs::with_dir;
-use crate::utils::log::error;
-use crate::utils::text::{BOLD_CYAN, BOLD_GREEN, colored, printc};
-use std::path::Path;
-use std::process::Command;
+use crate::utils::fs::{find_project_root, with_dir};
+use std::{path::Path, process::Command};
 
 /// Retrieves the run command from the config, preferring target-specific,
 /// then profile-specific, then the base `run.cmd`.
@@ -67,42 +65,37 @@ fn get_run_cmd(
 /// Process exit code from the built binary / `run.cmd`, or non-zero on build/setup failure.
 pub fn run(args: &[String]) -> i32 {
     if args.first().is_some_and(|a| a == "--help") {
-        printc("USAGE:", BOLD_GREEN);
-        printc(
-            "    dcr run [--debug | --release] [--target <triple>] [--force] [--clean] [--verbose] [-- <args>...]",
-            BOLD_CYAN,
-        );
-        println!();
-        printc("DESCRIPTION:", BOLD_GREEN);
-        println!("    Builds and runs the project. Only available for kind = \"bin\".");
-        println!("    Arguments after `--` are passed to the built binary (cargo-style).");
-        println!();
-        printc("OPTIONS:", BOLD_GREEN);
-        println!("    --debug              Run with debug profile (default)");
-        println!("    --release            Run with release profile");
-        println!("    --target <triple>    Cross-compile for the given target");
-        println!("    --force              Force a full rebuild");
-        println!("    --clean              Clean before building");
-        println!("    --verbose            Print detailed build output");
-        println!("    -- <args>...         Arguments forwarded to the binary");
+        let mut help = crate::utils::help::HelpBuilder::new("dcr run");
+        help.section("USAGE").example("dcr run [--debug | --release] [--target <triple>] [--force] [--clean] [--verbose] [-- <args>...]");
+        help.description("Builds and runs the project. Only available for kind = \"bin\".")
+            .note("Arguments after `--` are passed to the built binary (cargo-style).");
+        help.section("OPTIONS")
+            .item("--debug", "Run with debug profile (default)")
+            .item("--release", "Run with release profile")
+            .item("--target <triple>", "Cross-compile for the given target")
+            .item("--force", "Force a full rebuild")
+            .item("--clean", "Clean before building")
+            .item("--verbose", "Print detailed build output")
+            .item("-- <args>...", "Arguments forwarded to the binary");
+        help.render();
         return 0;
     }
 
     let start_dir = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(_) => {
-            error("Failed to determine current directory");
+            error!("Failed to determine current directory");
             return 1;
         }
     };
     let root = match find_project_root(&start_dir) {
         Ok(Some(dir)) => dir,
         Ok(None) => {
-            error("dcr.toml file not found");
+            error!("dcr.toml file not found");
             return 1;
         }
         Err(_) => {
-            error("Failed to find project root");
+            error!("Failed to find project root");
             return 1;
         }
     };
@@ -111,7 +104,8 @@ pub fn run(args: &[String]) -> i32 {
     }) {
         Ok(cfg) => cfg,
         Err(err) => {
-            error(&err);
+            error!("{err}");
+
             return 1;
         }
     };
@@ -125,11 +119,7 @@ pub fn run(args: &[String]) -> i32 {
             let build_status = build(&args_for_build(&flags));
             if build_status == 0 {
                 let display = display_run_cmd(&cmd, &flags.bin_args);
-                println!(
-                    "  {} {}",
-                    colored(&format!("{:<9}", "run"), BOLD_GREEN),
-                    display
-                );
+                crate::utils::output::status("run", display);
                 return run_shell_with_args(&cmd, &flags.bin_args);
             }
             return build_status;
@@ -143,11 +133,12 @@ pub fn run(args: &[String]) -> i32 {
         ) {
             Ok(Some(ws)) => ws,
             Ok(None) => {
-                error("Workspace root has no members defined");
+                error!("Workspace root has no members defined");
                 return 1;
             }
             Err(e) => {
-                error(&e);
+                error!("{e}");
+
                 return 1;
             }
         };
@@ -159,9 +150,9 @@ pub fn run(args: &[String]) -> i32 {
             Some(m) => m,
             None => {
                 if let Some(name) = &flags.workspace {
-                    error(&format!("Workspace member '{name}' not found"));
+                    error!("Workspace member '{name}' not found");
                 } else {
-                    error("No workspace member to run (set `main = true` on one member)");
+                    error!("No workspace member to run (set `main = true` on one member)");
                 }
                 return 1;
             }
@@ -172,7 +163,8 @@ pub fn run(args: &[String]) -> i32 {
         }) {
             Ok(code) => code,
             Err(e) => {
-                error(&e);
+                error!("{e}");
+
                 1
             }
         };
@@ -181,7 +173,7 @@ pub fn run(args: &[String]) -> i32 {
     match run_project(&root, &flags, None) {
         Ok(code) => code,
         Err(e) => {
-            error(&e);
+            error!("{e}");
             1
         }
     }
@@ -263,19 +255,11 @@ fn run_project(
     if build_status == 0 {
         if let Some(cmd) = run_cmd {
             let display = display_run_cmd(&cmd, &flags.bin_args);
-            println!(
-                "  {} {}",
-                colored(&format!("{:<9}", "run"), BOLD_GREEN),
-                display
-            );
+            crate::utils::output::status("run", display);
             return Ok(run_shell_with_args(&cmd, &flags.bin_args));
         }
         let display = display_bin_run(&bin_path, &flags.bin_args);
-        println!(
-            "  {} {}",
-            colored(&format!("{:<9}", "run"), BOLD_GREEN),
-            display
-        );
+        crate::utils::output::status("run", display);
         return Ok(run_binary(
             project_name,
             &flags.profile,

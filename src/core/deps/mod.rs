@@ -23,6 +23,7 @@ pub mod register;
 use crate::core::build_config::Config;
 use crate::core::deps::common::ResolvedDeps;
 use crate::core::deps::lock::{DepLock, write_lock};
+use crate::utils::build::{resolve_pkg_config_flags, run_pkg_config};
 use std::path::Path;
 
 /// Returns the version string from a dependency's dcr.toml file, or an empty string if missing.
@@ -73,7 +74,22 @@ pub fn resolve_deps(
     if let Some(deps) = deps_table {
         // Process each dependency declaration in the TOML table
         for (name, value) in deps {
-            if register::is_registry_dep(value) {
+            if let Some(packages) = pkg_config_dep(value, name)? {
+                let (cflags, ldflags) = resolve_pkg_config_flags(&packages, &[], &[])?;
+                resolved.cflags.extend(cflags);
+                resolved.ldflags.extend(ldflags);
+                let version = packages
+                    .first()
+                    .and_then(|pkg| run_pkg_config(pkg, "--modversion").ok())
+                    .map(|v| v.trim().to_string())
+                    .unwrap_or_default();
+                lock_packages.push(DepLock {
+                    name: name.clone(),
+                    version,
+                    checksum: String::new(),
+                    source: format!("pkg-config+{}", packages.join(",")),
+                });
+            } else if register::is_registry_dep(value) {
                 let pkg_info = register::resolve_package_from_registry(name)?;
                 let dep_root = register::package_root_from_registry_info(&pkg_info)?;
 
@@ -274,6 +290,48 @@ fn git_dep(value: &toml::Value) -> Option<GitDep<'_>> {
     None
 }
 
+/// Extracts one or more pkg-config package names from a dependency table.
+/// Both `pkg-config` and the legacy-style `pkg_config` spelling are accepted.
+fn pkg_config_dep(
+    value: &toml::Value,
+    dependency_name: &str,
+) -> Result<Option<Vec<String>>, String> {
+    let Some(table) = value.as_table() else {
+        return Ok(None);
+    };
+    let raw = table.get("pkg-config").or_else(|| table.get("pkg_config"));
+    let Some(raw) = raw else {
+        return Ok(None);
+    };
+    let packages = if let Some(pkg) = raw.as_str() {
+        vec![pkg.to_string()]
+    } else {
+        raw.as_array()
+            .ok_or_else(|| {
+                format!(
+                    "Dependency `{dependency_name}` field `pkg-config` must be a string or array of strings"
+                )
+            })?
+            .iter()
+            .map(|value| {
+                value.as_str().map(str::to_string).ok_or_else(|| {
+                    format!(
+                        "Dependency `{dependency_name}` field `pkg-config` must contain only strings"
+                    )
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .collect()
+    };
+    if packages.is_empty() || packages.iter().any(|pkg| pkg.trim().is_empty()) {
+        return Err(format!(
+            "Dependency `{dependency_name}` field `pkg-config` must not be empty"
+        ));
+    }
+    Ok(Some(packages))
+}
+
 /// Extracts the path for a path-based dependency, supporting both table format and legacy string format.
 fn path_dep_path(value: &toml::Value) -> Option<&str> {
     if let Some(table) = value.as_table() {
@@ -434,6 +492,20 @@ mod tests {
             Some("./libs/mylib")
         );
         assert_eq!(path_dep_path(&Value::String("1.2.3".to_string())), None);
+    }
+
+    #[test]
+    fn pkg_config_dep_accepts_string_and_array() {
+        let single: Value = toml::from_str("pkg-config = \"fmt\"").unwrap();
+        assert_eq!(
+            pkg_config_dep(&single, "fmt"),
+            Ok(Some(vec!["fmt".to_string()]))
+        );
+        let many: Value = toml::from_str("pkg_config = [\"fmt\", \"zlib\"]").unwrap();
+        assert_eq!(
+            pkg_config_dep(&many, "base"),
+            Ok(Some(vec!["fmt".to_string(), "zlib".to_string()]))
+        );
     }
 
     /// Verifies that push_default_lib_dirs includes the target/lib directory when it exists.
