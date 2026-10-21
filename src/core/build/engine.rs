@@ -609,10 +609,14 @@ fn build_project_at_inner(
         tc_as.as_deref(),
     );
     let resolved_linker = resolve_tool("DCR_LD", tc_ld.as_deref());
-    prepend_clang_target_flag(&mut build_cflags, build_target, &resolved_compiler);
+    // The host triple is still used for native target-specific configuration and
+    // artifact paths, but native Clang must select the platform SDK implicitly.
+    // Pass --target only when the user/config explicitly requested a target.
+    let compiler_target = if explicit_target { build_target } else { None };
+    prepend_clang_target_flag(&mut build_cflags, compiler_target, &resolved_compiler);
     prepend_clang_target_flag(
         &mut build_ldflags,
-        build_target,
+        compiler_target,
         resolved_linker.as_deref().unwrap_or(&resolved_compiler),
     );
     let resolved_archiver = resolve_tool("DCR_AR", tc_ar.as_deref());

@@ -782,6 +782,13 @@ mod tests {
         assert_eq!(flags, vec!["-O2".to_string()]);
     }
 
+    #[test]
+    fn native_clang_target_is_not_added_without_explicit_target() {
+        let mut flags = vec!["-O3".to_string()];
+        prepend_clang_target_flag(&mut flags, None, "clang");
+        assert_eq!(flags, vec!["-O3".to_string()]);
+    }
+
     /// Test for parse_version_parts function.
     #[test]
     fn parse_version_parts() {
