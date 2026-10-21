@@ -1,0 +1,33 @@
+---
+sidebar_label: Лицензия
+---
+
+# Лицензия
+
+## DCR
+
+DCR распространяется под лицензией [GPL-3.0-or-later](https://spdx.org/licenses/GPL-3.0-or-later.html).
+
+> **Важно:** DCR — инструмент сборки, а не библиотека. GPL распространяется только на исходный код самого DCR. Проекты, собранные с помощью DCR, не подпадают под лицензию DCR — их лицензирование определяется исключительно их собственным кодом и зависимостями.
+
+## Rust-зависимости
+
+DCR написан на Rust. Ниже перечислены основные статически связываемые крейты:
+
+| Крейт                                                   | Лицензия           |
+| ------------------------------------------------------- | ------------------ |
+| [`ureq`](https://crates.io/crates/ureq)                 | MIT ИЛИ Apache-2.0 |
+| [`serde`](https://crates.io/crates/serde)               | MIT ИЛИ Apache-2.0 |
+| [`toml`](https://crates.io/crates/toml)                 | MIT ИЛИ Apache-2.0 |
+| [`toml_edit`](https://crates.io/crates/toml_edit)       | MIT OR Apache-2.0  |
+| [`serde_json`](https://crates.io/crates/serde_json)     | MIT ИЛИ Apache-2.0 |
+| [`sha2`](https://crates.io/crates/sha2)                 | MIT ИЛИ Apache-2.0 |
+| [`glob`](https://crates.io/crates/glob)                 | MIT ИЛИ Apache-2.0 |
+| [`self-replace`](https://crates.io/crates/self-replace) | MIT ИЛИ Apache-2.0 |
+| [`ctrlc`](https://crates.io/crates/ctrlc)               | MIT ИЛИ Apache-2.0 |
+
+Full dependency tree is available in [`Cargo.lock`](https://github.com/dexoron/dcr/blob/main/Cargo.lock). Подавляющее большинство имеют двойную лицензию MIT OR Apache-2.0.
+
+## Дополнительные благодарности
+
+* Дизайн CLI и модель проектов DCR вдохновлены [Cargo](https://doc.rust-lang.org/cargo/).

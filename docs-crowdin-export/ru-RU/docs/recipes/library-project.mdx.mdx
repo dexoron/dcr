@@ -1,0 +1,70 @@
+---
+sidebar_label: Проект библиотеки
+---
+
+# Проект библиотеки
+
+Создание статической библиотеки и её использование в другом проекте.
+
+## Шаг 1: Создать библиотеку
+
+```bash
+dcr new my-lib
+```
+
+`dcr.toml`:
+
+```toml
+[package]
+name = "my-lib"
+version = "0.1.0"
+type = "lib"
+
+[build]
+language = "c"
+standard = "c17"
+kind = "staticlib"
+```
+
+`src/my_lib.h`:
+
+```c
+#ifndef MY_LIB_H
+#define MY_LIB_H
+int add(int a, int b);
+#endif
+```
+
+`src/my_lib.c`:
+
+```c
+#include "my_lib.h"
+int add(int a, int b) { return a + b; }
+```
+
+## Шаг 2: Собрать
+
+```bash
+cd my-lib
+dcr build --release
+```
+
+Артефакты:
+
+* `target/release/libmy-lib.a` (Linux/macOS)
+* `target/release/my-lib.lib` (Windows)
+* `target/include/` — заголовочные файлы
+
+## Шаг 3: Использовать в проекте
+
+```bash
+dcr new my-app
+cd my-app
+dcr add ../my-lib
+```
+
+Автоматически:
+
+* Добавляется include path на `target/include/` библиотеки
+* Добавляется lib path на `target/release/`
+* Линкуется `libmy-lib.a` / `my-lib.lib`

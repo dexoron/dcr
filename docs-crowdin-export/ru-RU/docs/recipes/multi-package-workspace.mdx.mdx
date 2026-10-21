@@ -1,0 +1,103 @@
+---
+sidebar_label: Рабочая область с несколькими пакетами
+---
+
+# Рабочая область с несколькими пакетами
+
+Проект из трёх пакетов: библиотека, утилита и основной бинарник.
+
+## Структура
+
+```
+workspace/
+├── dcr.toml              # корневой workspace
+├── lib-core/
+│   ├── dcr.toml
+│   └── src/lib.rs
+├── lib-utils/
+│   ├── dcr.toml
+│   └── src/utils.c
+└── app/
+    ├── dcr.toml
+    └── src/main.c
+```
+
+## Корневой dcr.toml
+
+```toml
+[package]
+name = "my-workspace"
+version = "0.1.0"
+type = "none"
+
+[build]
+inherit = true
+language = "c"
+standard = "c11"
+workspace_only = true
+
+[workspace.lib-core]
+path = "lib-core"
+
+[workspace.lib-utils]
+path = "lib-utils"
+deps = ["lib-core"]
+
+[workspace.app]
+path = "app"
+deps = ["lib-core", "lib-utils"]
+main = true
+```
+
+## Пакеты
+
+`lib-core/dcr.toml`:
+
+```toml
+[package]
+name = "lib-core"
+version = "0.1.0"
+type = "lib"
+
+[build]
+kind = "staticlib"
+```
+
+`lib-utils/dcr.toml`:
+
+```toml
+[package]
+name = "lib-utils"
+version = "0.1.0"
+type = "lib"
+
+[build]
+kind = "staticlib"
+```
+
+`app/dcr.toml`:
+
+```toml
+[package]
+name = "app"
+version = "0.1.0"
+type = "app"
+
+[build]
+kind = "bin"
+```
+
+## Сборка
+
+```bash
+cd workspace
+dcr build                     # собирает всё в правильном порядке
+dcr build --workspace app     # только app (lib-core и lib-utils собираются как зависимости)
+dcr run                       # собирает и запускает main-пакет
+```
+
+Порядок сборки (топологическая сортировка):
+
+1. `lib-core`
+2. `lib-utils` (зависит от lib-core)
+3. `app` (зависит от lib-core, lib-utils)
