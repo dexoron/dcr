@@ -1,4 +1,22 @@
 #!/usr/bin/env bash
+# dcrup needs bash. `curl ... | sh` may start dash/ash, so re-run under bash.
+# This block must stay POSIX sh.
+if [ -z "${BASH_VERSION:-}" ]; then
+  if ! command -v bash >/dev/null 2>&1; then
+    echo "[error] dcrup needs bash (install bash and retry)" >&2
+    exit 1
+  fi
+  if [ -f "$0" ] && grep -q 'DCRUP_HOME' "$0" 2>/dev/null; then
+    exec bash "$0" "$@"
+  fi
+  _dcrup_tmp="$(mktemp "${TMPDIR:-/tmp}/dcrup.XXXXXX")" || exit 1
+  if ! curl -fsSL --proto '=https' --tlsv1.2 "${DCRUP_INSTALL_URL:-https://sh.dcr-tool.ru}" -o "$_dcrup_tmp"; then
+    rm -f "$_dcrup_tmp"
+    echo "[error] could not download dcrup to re-run it under bash" >&2
+    exit 1
+  fi
+  exec bash -c 'f=$1; shift; bash "$f" "$@"; r=$?; rm -f "$f"; exit $r' dcrup "$_dcrup_tmp" "$@"
+fi
 set -Eeuo pipefail
 
 DCRUP_HOME="${DCRUP_HOME:-$HOME/.dcr}"
@@ -18,8 +36,9 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-log() { printf "${CYAN}[dcrup]${NC} %s\n" "$*"; }
-ok() { printf "${GREEN}[ok]${NC} %s\n" "$*"; }
+DCRUP_QUIET="${DCRUP_QUIET:-0}"
+log() { [[ "$DCRUP_QUIET" == "1" ]] || printf "${CYAN}[dcrup]${NC} %s\n" "$*"; }
+ok() { [[ "$DCRUP_QUIET" == "1" ]] || printf "${GREEN}[ok]${NC} %s\n" "$*"; }
 warn() { printf "${YELLOW}[warn]${NC} %s\n" "$*"; }
 die() {
   printf "${RED}[error]${NC} %s\n" "$*" >&2
@@ -31,7 +50,7 @@ usage() {
 dcrup — install and switch DCR versions
 
 Usage:
-  dcrup install <spec> [--build|--release] [--force] [--libc gnu|musl|auto] [--mirror auto|cf|gh|sf|ya]
+  dcrup install <spec> [--build|--release] [--force] [-q] [--libc gnu|musl|auto] [--mirror auto|cf|gh|sf|ya]
   dcrup default <spec>
   dcrup update
   dcrup list
@@ -73,6 +92,8 @@ Env:
   DCRUP_REPO      git/GitHub repo URL
   DCRUP_LIBC      gnu|musl|auto (default: gnu)
   DCRUP_MIRROR    auto|cf|gh|sf|ya (default: auto)
+  DCRUP_VERSION   spec used when no spec is given (default: stable)
+  DCRUP_QUIET=1   only warnings and errors
 EOF
 }
 
@@ -160,8 +181,8 @@ detect_triple() {
   MINGW* | MSYS* | CYGWIN*)
     case "$arch" in
     x86_64 | amd64) echo "x86_64-pc-windows-gnu" ;;
-    aarch64 | arm64) echo "aarch64-pc-windows-gnullvm" ;;
-    i686 | i386) echo "i686-pc-windows-gnu" ;;
+    aarch64 | arm64) echo "aarch64-pc-windows-msvc" ;;
+    i686 | i386) echo "i686-pc-windows-msvc" ;;
     *) die "unsupported Windows arch under MSYS: $arch" ;;
     esac
     ;;
@@ -205,6 +226,9 @@ parse_spec() {
     [[ -n "$SPEC_VERSION" ]] || die "invalid spec: $raw"
     ;;
   esac
+  if [[ -n "$SPEC_VERSION" ]] && ! [[ "$SPEC_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+    die "invalid version: $raw (expected e.g. 0.9.5)"
+  fi
 }
 
 toolchain_id() {
@@ -251,8 +275,28 @@ fetch_json() {
   curl -fsSL "$1"
 }
 
+# One JSON field per line (works on compact and pretty JSON).
+json_lines() {
+  printf '%s' "$1" | tr ',{}' '\n\n\n' | sed 's/"[[:space:]]*:[[:space:]]*/":/'
+}
+
+# First tag_name (for a release list: the newest release).
 json_tag() {
-  printf '%s' "$1" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1
+  json_lines "$1" | sed -n 's/^[[:space:]]*"tag_name":"\([^"]*\)".*/\1/p' | head -n1
+}
+
+# SHA256 that GitHub publishes for an asset ("digest"), or empty.
+asset_digest() {
+  json_lines "$1" | awk -v want="\"name\":\"$2\"" '
+    index($0, want) { f = 1; next }
+    f && /"digest":"sha256:/ { sub(/.*sha256:/, ""); sub(/".*/, ""); print; exit }
+    f && /"browser_download_url"/ { exit }'
+}
+
+file_sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | awk '{print $1}'
+  else echo ""; fi
 }
 
 set_mirror() {
@@ -284,24 +328,30 @@ mirrors_to_try() {
 }
 
 download_from_mirrors() {
-  local tag="$1" asset="$2" dest="$3"
-  local tmp="$dest/dcr.download" m url size
+  local tag="$1" asset="$2" dest="$3" want_sha="${4:-}"
+  local tmp="$dest/dcr.download" m url size got
   USED_MIRROR=""
   for m in $(mirrors_to_try); do
     url="$(mirror_url "$m" "$tag" "$asset")"
     log "trying mirror $m …"
     rm -f "$tmp"
-    if curl -fL --retry 2 --retry-delay 1 --connect-timeout 10 --max-time 180 \
+    if curl -fsSL --retry 2 --retry-delay 1 --connect-timeout 10 --max-time 180 \
       -A "dcrup" "$url" -o "$tmp"; then
       size="$(wc -c <"$tmp" | tr -d ' ')"
-      if [[ "${size:-0}" -gt 100000 ]]; then
+      if LC_ALL=C head -c 512 "$tmp" | LC_ALL=C grep -aqiE '<(!doctype|html)'; then
+        warn "mirror $m returned an HTML page, not a binary"
+      elif [[ -n "$want_sha" && "$(file_sha256 "$tmp")" != "$want_sha" && -n "$(file_sha256 "$tmp")" ]]; then
+        got="$(file_sha256 "$tmp")"
+        warn "mirror $m: SHA256 mismatch (got $got)"
+      elif [[ "${size:-0}" -gt 100000 ]]; then
         mv "$tmp" "$dest/dcr"
         USED_MIRROR="$m"
         return 0
+      else
+        warn "mirror $m returned a too-small file (${size:-0} bytes)"
       fi
-      warn "mirror $m returned a too-small file (${size:-0} bytes)"
     else
-      warn "mirror $m failed"
+      [[ "$DCRUP_QUIET" == "1" ]] || warn "mirror $m failed"
     fi
     rm -f "$tmp"
   done
@@ -312,24 +362,10 @@ latest_stable_json() {
   fetch_json "$API_LATEST"
 }
 
+# dev = the newest published release (GitHub lists newest first). An old
+# pre-release must never win over a newer stable release.
 latest_dev_json() {
-  need_cmd curl
-  local json result
-  json="$(fetch_json "$API_ALL")"
-  if command -v jq >/dev/null 2>&1; then
-    result="$(printf '%s' "$json" | jq -e -c '[.[] | select(.prerelease == true)][0]')" || true
-  elif command -v python3 >/dev/null 2>&1; then
-    result="$(printf '%s' "$json" | python3 -c '
-import sys, json
-rels = json.load(sys.stdin)
-pre = [r for r in rels if r.get("prerelease")]
-print(json.dumps(pre[0]) if pre else "", end="")
-')"
-  else
-    die "dev channel needs jq or python3 to parse GitHub API"
-  fi
-  [[ -n "$result" && "$result" != "null" ]] || die "no prerelease (dev) found"
-  printf '%s' "$result"
+  fetch_json "$API_ALL?per_page=10"
 }
 
 release_json_for_spec() {
@@ -340,7 +376,8 @@ release_json_for_spec() {
     night) die "night has no GitHub release binary" ;;
     esac
   else
-    fetch_json "https://api.github.com/repos/dexoron/dcr/releases/tags/v${SPEC_VERSION}"
+    fetch_json "https://api.github.com/repos/dexoron/dcr/releases/tags/v${SPEC_VERSION}" 2>/dev/null ||
+      die "release v${SPEC_VERSION} not found (see $REPO_URL/releases)"
   fi
 }
 
@@ -367,12 +404,20 @@ install_prebuilt() {
 
   mkdir -p "$dest"
   log "downloading $asset (mirror=$DCRUP_MIRROR) …"
-  download_from_mirrors "$tag" "$asset" "$dest" ||
+  local sha
+  sha="$(asset_digest "$json" "$asset")"
+  [[ -n "$sha" ]] || warn "release has no published SHA256; checked by file type only"
+  download_from_mirrors "$tag" "$asset" "$dest" "$sha" ||
     die "no mirror reachable for $asset (try: --mirror cf|gh|sf|ya)"
   mirror="$USED_MIRROR"
   log "mirror → $mirror"
   chmod +x "$dest/dcr"
+  if ! "$dest/dcr" --version >/dev/null 2>&1; then
+    rm -rf "$dest"
+    die "downloaded dcr does not run on this system ($triple); try --libc musl or --build"
+  fi
   printf '%s\n' \
+    "sha256=${sha:-$(file_sha256 "$dest/dcr")}" \
     "channel=$SPEC_CHANNEL" \
     "version=$version" \
     "tag=$tag" \
@@ -489,6 +534,11 @@ cmd_install() {
       set_mirror "${1#--mirror=}"
       shift
       ;;
+    -q | --quiet)
+      DCRUP_QUIET=1
+      shift
+      ;;
+    -y | --yes) shift ;;
     -h | --help)
       usage
       exit 0
@@ -501,6 +551,7 @@ cmd_install() {
       ;;
     esac
   done
+  spec="${spec:-${DCRUP_VERSION:-stable}}"
   [[ -n "$spec" ]] || die "usage: dcrup install <spec> [--build|--release] [--force] [--libc gnu|musl|auto] [--mirror auto|cf|gh|sf|ya]"
   parse_spec "$spec"
   ensure_dirs
@@ -684,7 +735,10 @@ main() {
   local cmd="${1:-}"
   shift || true
   case "$cmd" in
-  "" | -h | --help | help) usage ;;
+  "")
+    if [[ -f "$0" ]] && grep -q 'DCRUP_HOME' "$0" 2>/dev/null; then usage; else cmd_install; cmd_self_install; fi
+    ;;
+  -h | --help | help) usage ;;
   install) cmd_install "$@" ;;
   default) cmd_default "$@" ;;
   update) cmd_update "$@" ;;

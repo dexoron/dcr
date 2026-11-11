@@ -588,7 +588,11 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      # Link the MSVC CRT statically so dcr.exe runs on machines without the
+      # Visual C++ Redistributable (vcruntime140.dll), e.g. clean corporate images.
       - name: Build
+        env:
+          RUSTFLAGS: ${{ contains(matrix.target, 'msvc') && '-C target-feature=+crt-static' || '' }}
         run: cargo build --release --features archive --target ${{ matrix.target }}
 
       - name: Prepare Artifact
@@ -1261,9 +1265,17 @@ jobs:
 
   # ── Mirror Release to Yandex Object Storage (S3) ─────────────────────────
   publish-s3:
+    # Runs even when build jobs were skipped (manual re-mirror of an existing
+    # release with only run_s3 checked), but never after a failed/cancelled build.
     if: |
-      (github.event_name == 'push' && needs.setup.outputs.prerelease == 'false') ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.run_s3 == 'true')
+      !cancelled() &&
+      needs.setup.result == 'success' &&
+      needs.create-release.result == 'success' &&
+      !contains(needs.*.result, 'failure') &&
+      (
+        (github.event_name == 'push' && needs.setup.outputs.prerelease == 'false') ||
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.run_s3 == 'true')
+      )
     needs:
       - setup
       - create-release
@@ -1300,7 +1312,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Yandex mirror is optional: a failure here (e.g. unpaid bucket) must not
+      # block the Cloudflare R2 upload below, which backs cdn-global (cf).
       - name: Upload Everything to Yandex Object Storage
+        continue-on-error: true
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
