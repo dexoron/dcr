@@ -79,36 +79,44 @@ Never fails the command — warnings only. Pre-release suffixes (`1.0.0-dev`) ar
 
 * `build.qt` — (bool) Enable automatic Qt meta-object handling (MOC, UIC, RCC). Requires `qt6` modules installed via `pkg-config`.
 
-| Field            | Default       | Description                                                                                               |
-| ---------------- | ------------- | --------------------------------------------------------------------------------------------------------- |
-| `language`       | `"c"`         | `"c"`, `"c++"`, `"cpp"`, `"cxx"`, `"asm"`, `"llvm_ir"`, `"llvm-ir"`, `"ll"` (optional, defaults to `"c"`) |
-| `standard`       | `"c11"`       | C standard (`c11`, `c17`, `c23`)                                                                          |
-| `cxx_standard`   | —             | C++ standard (`c++17`, `c++20`, `c++23`)                                                                  |
-| `compiler`       | `"clang"`     | Preferred compiler (optional, defaults to `"clang"`)                                                      |
-| `kind`           | `"bin"`       | `bin`, `staticlib`, `sharedlib`, `efi`, `elf`, `none`, `custom`, `flat-bin`                               |
-| `target`         | host          | Target triple for cross-compilation                                                                       |
-| `platform`       | `"native"`    | `native`, `efi`                                                                                           |
-| `cflags`         | `[]`          | Additional C/C++/ASM flags                                                                                |
-| `ldflags`        | `[]`          | Additional linker flags                                                                                   |
-| `filename`       | `""`          | Custom output file name                                                                                   |
-| `extension`      | `""`          | Custom file extension (for `flat-bin`, default is `bin`)                                                  |
-| `roots`          | `["src"]`     | Source roots: directories and/or individual source/header files                                           |
-| `exclude`        | `[]`          | Exclude patterns                                                                                          |
-| `include`        | `[]`          | Additional include directories                                                                            |
-| `src_disable`    | `false`       | Disable auto source discovery                                                                             |
-| `inherit`        | `false`       | Inherit build from workspace root                                                                         |
-| `clean`          | `[]`          | Glob patterns for custom clean paths                                                                      |
-| `out_dir`        | `""`          | Custom output directory                                                                                   |
-| `workspace_only` | `false`       | Workspace-only, not built standalone (no `language`/`compiler` required)                                  |
-| `freestanding`   | `false`       | Compile in freestanding mode (`-ffreestanding` + `-nostdlib -static`)                                     |
-| `opt_level`      | —             | Optimization level: `0`-`3`, `"s"`, `"z"` (derived from profile if omitted)                               |
-| `debug`          | profile-based | Emit debug symbols (`-g`): `true` in debug, `false` in release                                            |
-| `lto`            | `false`       | Link-time optimization (`-flto` for both compiler and linker)                                             |
-| `strip`          | `false`       | Strip symbols from output (`-s` in ldflags)                                                               |
-| `warnings`       | `[]`          | Warning flags (e.g. `"all"`, `"extra"`, `"pedantic"`); engine adds `-Wall -Wextra` in debug if empty      |
-| `panic`          | `""`          | Panic strategy: `"abort"` disables exceptions and unwind tables                                           |
-| `codegen-units`  | `""`          | Max parallel compilation jobs (`"0"` = auto)                                                              |
-| `qt`             | `false`       | Enable automatic Qt meta-object handling (MOC, UIC, RCC)                                                  |
+| Field            | Default       | Description                                                                                                |
+| ---------------- | ------------- | ---------------------------------------------------------------------------------------------------------- |
+| `language`       | `"c"`         | `"c"`, `"c++"`, `"cpp"`, `"cxx"`, `"asm"`, `"llvm_ir"`, `"llvm-ir"`, `"ll"` (optional, defaults to `"c"`)  |
+| `standard`       | `"c11"`       | C standard (`c11`, `c17`, `c23`)                                                                           |
+| `cxx_standard`   | —             | C++ standard (`c++17`, `c++20`, `c++23`)                                                                   |
+| `compiler`       | `"clang"`     | Preferred compiler (optional, defaults to `"clang"`)                                                       |
+| `kind`           | `"bin"`       | `bin`, `staticlib`, `sharedlib`, `efi`, `elf`, `none`, `custom`, `flat-bin`                                |
+| `target`         | host          | Target triple for cross-compilation                                                                        |
+| `platform`       | `"native"`    | `native`, `efi`                                                                                            |
+| `cflags`         | `[]`          | Additional C/C++/ASM flags                                                                                 |
+| `ldflags`        | `[]`          | Additional linker flags                                                                                    |
+| `filename`       | `""`          | Custom output file name                                                                                    |
+| `extension`      | `""`          | Custom file extension (for `flat-bin` the default is `bin`; for libraries it overrides the default suffix) |
+| `roots`          | `["src"]`     | Source roots: directories and/or individual source/header files                                            |
+| `exclude`        | `[]`          | Exclude patterns                                                                                           |
+| `include`        | `[]`          | Additional include directories                                                                             |
+| `src_disable`    | `false`       | Disable auto source discovery                                                                              |
+| `inherit`        | `false`       | Inherit build from workspace root                                                                          |
+| `clean`          | `[]`          | Glob patterns for custom clean paths                                                                       |
+| `out_dir`        | `""`          | Custom output directory                                                                                    |
+| `workspace_only` | `false`       | Workspace-only, not built standalone (no `language`/`compiler` required)                                   |
+| `freestanding`   | `false`       | Compile in freestanding mode (`-ffreestanding` + `-nostdlib -static`)                                      |
+| `opt_level`      | —             | Optimization level: `0`-`3`, `"s"`, `"z"` (derived from profile if omitted)                                |
+| `debug`          | profile-based | Emit debug symbols (`-g`): `true` in debug, `false` in release                                             |
+| `lto`            | `false`       | Link-time optimization (`-flto` for both compiler and linker)                                              |
+| `strip`          | `false`       | Strip symbols from output (`-s` in ldflags)                                                                |
+| `warnings`       | `[]`          | Warning flags (e.g. `"all"`, `"extra"`, `"pedantic"`); engine adds `-Wall -Wextra` in debug if empty       |
+| `panic`          | `""`          | Panic strategy: `"abort"` disables exceptions and unwind tables                                            |
+| `codegen-units`  | `""`          | Max parallel compilation jobs (`"0"` = auto)                                                               |
+| `qt`             | `false`       | Enable automatic Qt meta-object handling (MOC, UIC, RCC)                                                   |
+
+`filename` controls the artifact basename. For `staticlib` / `sharedlib` on Unix,
+the conventional `lib` prefix and default suffix are added when omitted:
+`filename = "libsct"` produces `libsct.a` (`libsct.lib` on Windows). Setting an
+explicit `extension` gives exact control and disables the automatic prefix/suffix.
+DCR dependencies whose artifact does not follow the conventional `lib\<name>.a` /
+`\<name>.lib` pattern are passed to the linker by full path, so custom extensions
+also work for linked libraries.
 
 Settings from raw config (not in typed struct):
 
