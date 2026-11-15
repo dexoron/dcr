@@ -6,7 +6,7 @@ sidebar_label: Установка
 
 ## dcrup (recommended)
 
-Install and switch DCR versions (stable / dev / night, pin `0.8.2`, optional build from source).
+Install and switch DCR versions (stable / dev / night, pin a version, optional build from source).
 
 ### Linux / macOS / BSD / Windows (bash)
 
@@ -37,23 +37,47 @@ After `self-install`, the command is **`dcrup`** (no `.sh` / `.ps1`) and is inst
 
 ```sh
 dcrup install stable              # latest stable prebuilt (auto: cf → gh → sf → ya)
-dcrup install 0.8.2               # pin → 0.8.2@stable
-dcrup install 0.8.2@dev
-dcrup install stable --libc musl  # Linux: musl asset (default: gnu)
+dcrup install 0.7.3               # pin → 0.7.3@stable
+dcrup install 0.7.3@dev           # v0.7.3-dev (falls back to v0.7.3 if no dev tag)
+dcrup install stable --libc musl  # Linux only: musl asset (default: gnu)
 dcrup install stable --mirror cf  # CloudFlare CDN
 dcrup install stable --mirror ya  # Yandex CDN (RU fallback)
-dcrup install stable --build      # cargo build --features archive
+dcrup install stable --force      # reinstall even if present
+dcrup install stable --build      # cargo build --release --features archive
 dcrup install night               # always build from branch dev HEAD
-dcrup default 0.8.2
+dcrup default 0.7.3
 dcrup update
 dcrup list
 dcrup show
 dcrup which
-dcrup uninstall 0.8.2    # remove one installed version
+dcrup uninstall 0.7.3    # remove one installed version
 dcrup uninstall --all    # remove all installed versions
 ```
 
-Layout: `~/.dcr/toolchains/\<id>/dcr` and `~/.dcr/bin/dcr` → active version.
+`dcrup default \<version>` and `dcrup uninstall \<version>` also find a floating
+`stable-\<version>` install created by `dcrup install stable`. `--build` uses
+the same tag resolution as prebuilt installs, including the `VERSION@dev`
+fallback to `vVERSION`.
+
+PowerShell-only options:
+
+```powershell
+dcrup install stable --target gnu    # x86_64 self-contained GNU build
+dcrup install stable --no-modify-path
+dcrup install stable --system        # %ProgramData%\dcr (Administrator)
+dcrup self-uninstall
+```
+
+`--libc` is Linux-only (`.sh` installer). `--target`, `--system`, `--no-modify-path`, and
+`self-uninstall` are PowerShell-only. `DCRUP_VERSION` supplies the default spec when no
+version is passed.
+
+Layout:
+
+* Unix: `~/.dcr/toolchains/\<id>/dcr`, with `~/.dcr/bin/dcr` linked to the active version.
+* Windows PowerShell: `%USERPROFILE%\.dcr\toolchains\<id>\dcr.exe`; `%USERPROFILE%\.dcr\bin\dcr.exe` is the active copy.
+* Windows bash (Git Bash/MSYS2): the same `dcr.exe` layout; the prebuilt asset and bin entry include `.exe`.
+* `--system` / `DCRUP_SYSTEM=1` uses `%ProgramData%\dcr` instead of the user profile.
 
 ### Download mirrors
 
