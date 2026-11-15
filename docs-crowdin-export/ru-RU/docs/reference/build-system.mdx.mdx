@@ -78,16 +78,16 @@ moc = "moc {in} -o {out}"
 
 ## Типы сборок
 
-| Тип                | Тип                                  | Путь (пример для Linux)                                                                                                                       |
-| ------------------ | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bin`              | Исполняемый файл                     | `target/\<profile>/\<name>` (.exe)                                                                          |
-| `staticlib`        | Статическая библиотека               | `target/\<profile>/lib\<name>.a` (.lib)                                                                     |
-| `sharedlib`        | Динамическая библиотека              | `target/\<profile>/lib\<name>.so` (.dll/.dylib)                                                             |
-| `efi`              | UEFI приложение                      | `target/\<profile>/\<name>.efi`                                                                             |
-| `эльф`             | ELF без стандартной библиотеки       | `target/\<profile>/\<name>`                                                                                 |
-| `нет`              | Только компиляция, без линковки      | —                                                                                                                                             |
-| `пользовательский` | Полный контроль filename + extension | `target/\<profile>/\<filename>.\<extension>`                                               |
-| `flat-bin`         | Raw binary                           | ASM: `\<stem>.bin` (NASM `-f bin` / FASM / GAS·MASM·LLC via objcopy); C/C++: `\<name>.bin` (link + objcopy) |
+| Тип                | Тип                                  | Путь (пример для Linux)                                                                                                                                  |
+| ------------------ | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bin`              | Исполняемый файл                     | `target/\<profile>/\<name>` (.exe)                                                                                     |
+| `staticlib`        | Статическая библиотека               | `target/\<triple>/\<profile>/lib\<name>.a` (.lib); `filename` / `extension` override the name         |
+| `sharedlib`        | Динамическая библиотека              | `target/\<triple>/\<profile>/lib\<name>.so` (.dll/.dylib); `filename` / `extension` override the name |
+| `efi`              | UEFI приложение                      | `target/\<profile>/\<name>.efi`                                                                                        |
+| `эльф`             | ELF без стандартной библиотеки       | `target/\<profile>/\<name>`                                                                                            |
+| `нет`              | Только компиляция, без линковки      | —                                                                                                                                                        |
+| `пользовательский` | Полный контроль filename + extension | `target/\<profile>/\<filename>.\<extension>`                                                          |
+| `flat-bin`         | Raw binary                           | ASM: `\<stem>.bin` (NASM `-f bin` / FASM / GAS·MASM·LLC via objcopy); C/C++: `\<name>.bin` (link + objcopy)            |
 
 ## Disk images (`[archive]`)
 
