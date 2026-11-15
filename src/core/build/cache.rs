@@ -130,21 +130,7 @@ fn build_cache_path(profile: &str, target_dir: Option<&str>) -> PathBuf {
 
 /// Resolves the output path for the build artifact using the provided context.
 pub fn build_output_path(ctx: &BuildContext) -> String {
-    crate::core::build::builder::artifact::resolve_artifact_path(
-        ctx.kind,
-        ctx.profile,
-        ctx.project_name,
-        ctx.target_dir,
-        ctx.output_filename,
-        ctx.output_extension,
-    )
-    .unwrap_or_else(|| {
-        crate::platform::bin_path(
-            ctx.profile,
-            ctx.output_filename.unwrap_or(ctx.project_name),
-            ctx.target_dir,
-        )
-    })
+    crate::core::build::builder::artifact::output_path(ctx)
 }
 
 /// Collects header files from source roots and include directories, filtering out excluded paths.

@@ -204,6 +204,45 @@ pub fn lib_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     }
 }
 
+/// Host OS path for a static library with an already complete filename.
+///
+/// Unlike [`lib_path`], this does not add a `lib` prefix or platform suffix.
+pub fn lib_path_exact(profile: &str, file: &str, target_dir: Option<&str>) -> String {
+    #[cfg(target_os = "linux")]
+    {
+        linux::lib_path_exact(profile, file, target_dir)
+    }
+    #[cfg(target_os = "macos")]
+    {
+        macos::lib_path_exact(profile, file, target_dir)
+    }
+    #[cfg(target_os = "windows")]
+    {
+        windows::lib_path_exact(profile, file, target_dir)
+    }
+    #[cfg(any(
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    ))]
+    {
+        bsd::lib_path_exact(profile, file, target_dir)
+    }
+    #[cfg(not(any(
+        target_os = "linux",
+        target_os = "macos",
+        target_os = "windows",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    )))]
+    {
+        posix::lib_path_exact(profile, file, target_dir)
+    }
+}
+
 /// Host OS path for a shared library (`profile`, `name`, optional `target_dir`).
 ///
 /// Backend is chosen at compile time via `cfg!(target_os = …)`, not by the build target triple.
@@ -240,5 +279,44 @@ pub fn shared_lib_path(profile: &str, name: &str, target_dir: Option<&str>) -> S
     )))]
     {
         posix::shared_lib_path(profile, name, target_dir)
+    }
+}
+
+/// Host OS path for a shared library with an already complete filename.
+///
+/// Unlike [`shared_lib_path`], this does not add a `lib` prefix or platform suffix.
+pub fn shared_lib_path_exact(profile: &str, file: &str, target_dir: Option<&str>) -> String {
+    #[cfg(target_os = "linux")]
+    {
+        linux::shared_lib_path_exact(profile, file, target_dir)
+    }
+    #[cfg(target_os = "macos")]
+    {
+        macos::shared_lib_path_exact(profile, file, target_dir)
+    }
+    #[cfg(target_os = "windows")]
+    {
+        windows::shared_lib_path_exact(profile, file, target_dir)
+    }
+    #[cfg(any(
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    ))]
+    {
+        bsd::shared_lib_path_exact(profile, file, target_dir)
+    }
+    #[cfg(not(any(
+        target_os = "linux",
+        target_os = "macos",
+        target_os = "windows",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    )))]
+    {
+        posix::shared_lib_path_exact(profile, file, target_dir)
     }
 }

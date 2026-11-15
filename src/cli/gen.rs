@@ -21,12 +21,14 @@ use crate::core::build::builder::BuildContext;
 use crate::core::build::builder::artifact::{absolute_artifact_path, resolve_artifact_path};
 use crate::core::build::builder::collect_sources;
 use crate::core::build::common;
+use crate::core::build::resolve::get_string_with_profile_and_target;
 use crate::core::build_config::Config;
 use crate::core::workspace::parse_workspace;
 use crate::utils::build::{
-    get_bool_with_profile, get_config_opt, get_config_str, get_language_with_profile_or_default,
-    get_list_with_profile, get_string_with_profile, normalize_kind, normalize_platform,
-    resolve_artifact_target_dir, resolve_compiler, resolve_pkg_config_flags_lossy,
+    default_target_triple, get_bool_with_profile, get_config_opt, get_config_str,
+    get_language_with_profile_or_default, get_list_with_profile, get_string_with_profile,
+    normalize_kind, normalize_platform, resolve_artifact_target_dir, resolve_compiler,
+    resolve_pkg_config_flags_lossy,
 };
 use crate::utils::fs::{
     absolute_join, atomic_write, canonicalize_path, ensure_dcr_dir, find_project_root,
@@ -321,16 +323,28 @@ fn collect_project_info_inner(
 
     let name = get_config_str(&config, "package.name");
     let version = get_config_str(&config, "package.version");
-    let language = get_language_with_profile_or_default(&config, profile);
-    let standard = get_string_with_profile(&config, "standard", profile);
-    let cxx_standard = get_string_with_profile(&config, "cxx_standard", profile);
-    let compiler_s = get_string_with_profile(&config, "compiler", profile);
-    let kind_raw = get_string_with_profile(&config, "kind", profile);
-    let kind = normalize_kind(&kind_raw).to_string();
     let build_target = get_string_with_profile(&config, "target", profile);
-    let platform = get_string_with_profile(&config, "platform", profile);
-    let output_filename_s = get_string_with_profile(&config, "filename", profile);
-    let output_extension_s = get_string_with_profile(&config, "extension", profile);
+    let lookup_target = if build_target.trim().is_empty() {
+        default_target_triple()
+    } else {
+        build_target.clone()
+    };
+    let language = get_language_with_profile_or_default(&config, profile);
+    let standard =
+        get_string_with_profile_and_target(&config, "standard", profile, Some(&lookup_target));
+    let cxx_standard =
+        get_string_with_profile_and_target(&config, "cxx_standard", profile, Some(&lookup_target));
+    let compiler_s =
+        get_string_with_profile_and_target(&config, "compiler", profile, Some(&lookup_target));
+    let kind_raw =
+        get_string_with_profile_and_target(&config, "kind", profile, Some(&lookup_target));
+    let kind = normalize_kind(&kind_raw).to_string();
+    let platform =
+        get_string_with_profile_and_target(&config, "platform", profile, Some(&lookup_target));
+    let output_filename_s =
+        get_string_with_profile_and_target(&config, "filename", profile, Some(&lookup_target));
+    let output_extension_s =
+        get_string_with_profile_and_target(&config, "extension", profile, Some(&lookup_target));
     let output_filename = if output_filename_s.is_empty() {
         None
     } else {

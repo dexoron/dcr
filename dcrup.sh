@@ -39,7 +39,9 @@ NC='\033[0m'
 DCRUP_QUIET="${DCRUP_QUIET:-0}"
 log() { [[ "$DCRUP_QUIET" == "1" ]] || printf "${CYAN}[dcrup]${NC} %s\n" "$*"; }
 ok() { [[ "$DCRUP_QUIET" == "1" ]] || printf "${GREEN}[ok]${NC} %s\n" "$*"; }
-warn() { printf "${YELLOW}[warn]${NC} %s\n" "$*"; }
+# Warnings go to stderr: callers capture stdout with $(...), and a warning
+# must never become part of a tag, JSON body, or other captured value.
+warn() { printf "${YELLOW}[warn]${NC} %s\n" "$*" >&2; }
 die() {
   printf "${RED}[error]${NC} %s\n" "$*" >&2
   exit 1
@@ -76,6 +78,9 @@ Linux libc (prebuilt triple only):
   --libc gnu    x86_64-unknown-linux-gnu (default)
   --libc musl   x86_64-unknown-linux-musl
   --libc auto   musl if host ldd/libc is musl, else gnu
+
+Windows (Git Bash / MSYS2 / Cygwin):
+  prebuilt assets and bin entries carry the .exe suffix; --libc is ignored.
 
 Mirrors (prebuilt download only):
   --mirror auto   try cf → gh → sf → ya, first successful download wins (default)
@@ -196,6 +201,20 @@ normalize_version() {
   printf '%s' "$v"
 }
 
+exe_suffix_for_triple() {
+  case "$1" in
+  *windows*) echo ".exe" ;;
+  *) echo "" ;;
+  esac
+}
+
+host_exe_suffix() {
+  case "$(uname -s)" in
+  MINGW* | MSYS* | CYGWIN*) echo ".exe" ;;
+  *) echo "" ;;
+  esac
+}
+
 parse_spec() {
   local raw="$1"
   SPEC_RAW="$raw"
@@ -247,6 +266,37 @@ ensure_dirs() {
   mkdir -p "$DCRUP_TC" "$DCRUP_BIN" "$DCRUP_META"
 }
 
+# Returns the newest installed toolchain id for a floating channel.
+# Versions are compared numerically (0.10.0 > 0.9.5), night by mtime.
+latest_toolchain_for_channel() {
+  local channel="$1" d base best="" best_key="" key ver core major minor patch exe
+  exe="$(host_exe_suffix)"
+  if [[ "$channel" == "night" ]]; then
+    while IFS= read -r d; do
+      if [[ -n "$d" && -x "$d/dcr$exe" ]]; then
+        basename "$d"
+        return 0
+      fi
+    done < <(ls -1dt "$DCRUP_TC"/night-* 2>/dev/null || true)
+    return 0
+  fi
+  for d in "$DCRUP_TC/$channel"-*; do
+    [[ -d "$d" && -x "$d/dcr$exe" ]] || continue
+    base="$(basename "$d")"
+    ver="${base#"$channel"-}"
+    core="${ver%%-*}"
+    IFS=. read -r major minor patch <<<"$core"
+    [[ "$major" =~ ^[0-9]+$ && "$minor" =~ ^[0-9]+$ && "$patch" =~ ^[0-9]+$ ]] || continue
+    key="$(printf '%010d%010d%010d' "$major" "$minor" "$patch")"
+    if [[ -z "$best" || "$key" > "$best_key" ]]; then
+      best="$base"
+      best_key="$key"
+    fi
+  done
+  [[ -n "$best" ]] && printf '%s' "$best"
+  return 0
+}
+
 active_file() { echo "$DCRUP_META/active"; }
 
 read_active() {
@@ -260,14 +310,24 @@ write_active() {
 }
 
 link_default() {
-  local id="$1"
-  local src="$DCRUP_TC/$id/dcr"
+  local id="$1" exe link
+  exe="$(host_exe_suffix)"
+  local src="$DCRUP_TC/$id/dcr$exe"
   [[ -x "$src" ]] || die "toolchain not installed: $id"
   # Resolve the source so a relative DCRUP_HOME cannot create a broken link.
   src="$(cd "$(dirname "$src")" && pwd)/$(basename "$src")"
-  ln -sfn "$src" "$DCRUP_BIN/dcr"
+  link="$DCRUP_BIN/dcr$exe"
+  # Drop the other naming variant when switching between Unix and Windows bash.
+  if [[ "$exe" == ".exe" ]]; then
+    rm -f "$DCRUP_BIN/dcr"
+  else
+    rm -f "$DCRUP_BIN/dcr.exe"
+  fi
+  if ! ln -sfn "$src" "$link" 2>/dev/null; then
+    cp "$src" "$link"
+  fi
   write_active "$id"
-  ok "default → $id ($DCRUP_BIN/dcr)"
+  ok "default → $id ($link)"
 }
 
 fetch_json() {
@@ -328,7 +388,7 @@ mirrors_to_try() {
 }
 
 download_from_mirrors() {
-  local tag="$1" asset="$2" dest="$3" want_sha="${4:-}"
+  local tag="$1" asset="$2" dest="$3" want_sha="${4:-}" binary="${5:-dcr}"
   local tmp="$dest/dcr.download" m url size got
   USED_MIRROR=""
   for m in $(mirrors_to_try); do
@@ -344,7 +404,7 @@ download_from_mirrors() {
         got="$(file_sha256 "$tmp")"
         warn "mirror $m: SHA256 mismatch (got $got)"
       elif [[ "${size:-0}" -gt 100000 ]]; then
-        mv "$tmp" "$dest/dcr"
+        mv "$tmp" "$dest/$binary"
         USED_MIRROR="$m"
         return 0
       else
@@ -368,6 +428,36 @@ latest_dev_json() {
   fetch_json "$API_ALL?per_page=10"
 }
 
+release_tag_candidates() {
+  if [[ "$SPEC_CHANNEL" == "dev" ]]; then
+    # Prefer the development tag; fall back to a stable tag for versions that
+    # never got a -dev release (keeps `VERSION@dev` usable).
+    printf '%s\n' "v${SPEC_VERSION}-dev" "v${SPEC_VERSION}"
+  else
+    printf '%s\n' "v${SPEC_VERSION}"
+  fi
+}
+
+# Resolves a pinned tag from the git remote (no GitHub API required).
+# For VERSION@dev prefer vVERSION-dev, then fall back to vVERSION.
+pinned_git_tag() {
+  local tag first="" refs
+  while IFS= read -r tag; do
+    [[ -n "$first" ]] || first="$tag"
+    # Avoid `git ... | grep -q .`: with `pipefail` a SIGPIPE can make a
+    # matching tag look missing.
+    refs="$(git ls-remote --tags "$REPO_URL" "refs/tags/$tag" 2>/dev/null || true)"
+    if [[ -n "$refs" ]]; then
+      if [[ "$tag" != "$first" ]]; then
+        warn "tag $first not found; falling back to $tag"
+      fi
+      printf '%s' "$tag"
+      return 0
+    fi
+  done < <(release_tag_candidates)
+  printf '%s' "$first"
+}
+
 release_json_for_spec() {
   if [[ "$SPEC_FLOATING" -eq 1 ]]; then
     case "$SPEC_CHANNEL" in
@@ -375,49 +465,67 @@ release_json_for_spec() {
     dev) latest_dev_json ;;
     night) die "night has no GitHub release binary" ;;
     esac
-  else
-    fetch_json "https://api.github.com/repos/dexoron/dcr/releases/tags/v${SPEC_VERSION}" 2>/dev/null ||
-      die "release v${SPEC_VERSION} not found (see $REPO_URL/releases)"
+    return 0
   fi
+
+  local tag json first="" tried=""
+  while IFS= read -r tag; do
+    tried="${tried}${tried:+, }$tag"
+    if json="$(fetch_json "https://api.github.com/repos/dexoron/dcr/releases/tags/$tag" 2>/dev/null)"; then
+      if [[ -n "$first" ]]; then
+        warn "release $first not found; falling back to $tag"
+      fi
+      printf '%s' "$json"
+      return 0
+    fi
+    [[ -n "$first" ]] || first="$tag"
+  done < <(release_tag_candidates)
+  die "release not found (tried: $tried; see $REPO_URL/releases)"
 }
 
 install_prebuilt() {
-  local triple asset tag version id dest mirror
+  local triple asset tag version id dest mirror exe created=0
   need_cmd curl
   triple="$(detect_triple)"
+  exe="$(exe_suffix_for_triple "$triple")"
   json="$(release_json_for_spec)"
   tag="$(json_tag "$json")"
   [[ -n "$tag" ]] || die "failed to parse release tag"
   version="$(normalize_version "$tag")"
-  asset="dcr-${triple}-${version}"
-  case "$triple" in
-  *windows*) asset="${asset}.exe" ;;
-  esac
+  asset="dcr-${triple}-${version}${exe}"
 
   id="$(toolchain_id "$version")"
   dest="$DCRUP_TC/$id"
-  if [[ -x "$dest/dcr" && "${FORCE:-0}" != "1" ]]; then
+  if [[ -x "$dest/dcr$exe" && "${FORCE:-0}" != "1" ]]; then
     ok "already installed: $id"
     link_default "$id"
     return 0
   fi
 
-  mkdir -p "$dest"
+  if [[ ! -x "$dest/dcr$exe" ]]; then
+    # A failed earlier download can leave an empty/partial directory. Clear it
+    # so `dcrup list/default/uninstall` never see a toolchain without a binary.
+    [[ -d "$dest" ]] && rm -rf "$dest"
+    mkdir -p "$dest"
+    created=1
+  fi
   log "downloading $asset (mirror=$DCRUP_MIRROR) …"
   local sha
   sha="$(asset_digest "$json" "$asset")"
   [[ -n "$sha" ]] || warn "release has no published SHA256; checked by file type only"
-  download_from_mirrors "$tag" "$asset" "$dest" "$sha" ||
+  if ! download_from_mirrors "$tag" "$asset" "$dest" "$sha" "dcr$exe"; then
+    [[ "$created" -eq 1 ]] && rm -rf "$dest"
     die "no mirror reachable for $asset (try: --mirror cf|gh|sf|ya)"
+  fi
   mirror="$USED_MIRROR"
   log "mirror → $mirror"
-  chmod +x "$dest/dcr"
-  if ! "$dest/dcr" --version >/dev/null 2>&1; then
+  chmod +x "$dest/dcr$exe"
+  if ! "$dest/dcr$exe" --version >/dev/null 2>&1; then
     rm -rf "$dest"
     die "downloaded dcr does not run on this system ($triple); try --libc musl or --build"
   fi
   printf '%s\n' \
-    "sha256=${sha:-$(file_sha256 "$dest/dcr")}" \
+    "sha256=${sha:-$(file_sha256 "$dest/dcr$exe")}" \
     "channel=$SPEC_CHANNEL" \
     "version=$version" \
     "tag=$tag" \
@@ -431,18 +539,20 @@ install_prebuilt() {
 }
 
 install_build() {
-  local tmp id dest sha version branch_or_tag
+  local tmp id dest sha version exe
   need_cmd git
   need_cmd cargo
 
   tmp="$(mktemp -d "${TMPDIR:-/tmp}/dcrup.XXXXXX")"
-  cleanup_tmp() { rm -rf "$tmp"; }
+  # `tmp` is local; the EXIT trap can run after the function scope is gone.
+  cleanup_tmp() { if [[ -n "${tmp:-}" ]]; then rm -rf "$tmp"; fi; }
   trap cleanup_tmp EXIT
 
   if [[ "$SPEC_CHANNEL" == "night" ]]; then
     log "cloning $REPO_URL (branch dev) for night …"
     git clone --depth 1 --branch dev "$REPO_URL" "$tmp/src" 2>/dev/null ||
-      git clone --depth 1 "$REPO_URL" "$tmp/src"
+      git clone --depth 1 "$REPO_URL" "$tmp/src" ||
+      die "git clone of $REPO_URL failed"
     sha="$(git -C "$tmp/src" rev-parse --short HEAD)"
     version="night"
     id="$(toolchain_id "$sha")"
@@ -456,27 +566,33 @@ install_build() {
     log "cloning $REPO_URL @ $tag …"
     git clone --depth 1 --branch "$tag" "$REPO_URL" "$tmp/src" 2>/dev/null ||
       {
-        git clone --depth 1 "$REPO_URL" "$tmp/src"
-        git -C "$tmp/src" fetch --depth 1 origin "refs/tags/${tag}:refs/tags/${tag}"
-        git -C "$tmp/src" checkout "$tag"
-      }
+        git clone --depth 1 "$REPO_URL" "$tmp/src" &&
+          git -C "$tmp/src" fetch --depth 1 origin "refs/tags/${tag}:refs/tags/${tag}" &&
+          git -C "$tmp/src" checkout "$tag"
+      } ||
+      die "git clone of $tag failed"
     sha="$(git -C "$tmp/src" rev-parse --short HEAD)"
   else
     version="$SPEC_VERSION"
     id="$(toolchain_id)"
-    local tag="v${SPEC_VERSION}"
+    local tag
+    tag="$(pinned_git_tag)"
+    [[ -n "$tag" ]] || die "failed to resolve pinned tag"
+    version="$(normalize_version "$tag")"
     log "cloning $REPO_URL @ $tag …"
     git clone --depth 1 --branch "$tag" "$REPO_URL" "$tmp/src" 2>/dev/null ||
       {
-        git clone --depth 1 "$REPO_URL" "$tmp/src"
-        git -C "$tmp/src" fetch --depth 1 origin "refs/tags/${tag}:refs/tags/${tag}"
-        git -C "$tmp/src" checkout "$tag"
-      }
+        git clone --depth 1 "$REPO_URL" "$tmp/src" &&
+          git -C "$tmp/src" fetch --depth 1 origin "refs/tags/${tag}:refs/tags/${tag}" &&
+          git -C "$tmp/src" checkout "$tag"
+      } ||
+      die "git clone of $tag failed"
     sha="$(git -C "$tmp/src" rev-parse --short HEAD)"
   fi
 
+  exe="$(host_exe_suffix)"
   dest="$DCRUP_TC/$id"
-  if [[ -x "$dest/dcr" && "${FORCE:-0}" != "1" ]]; then
+  if [[ -x "$dest/dcr$exe" && "${FORCE:-0}" != "1" ]]; then
     ok "already installed: $id"
     link_default "$id"
     return 0
@@ -485,12 +601,15 @@ install_build() {
   log "building release (features: $FEATURES) …"
   (
     cd "$tmp/src"
-    # shellcheck disable=SC2086
-    cargo build --release --features $FEATURES
+    if [[ -n "$FEATURES" ]]; then
+      cargo build --release --features "$FEATURES"
+    else
+      cargo build --release
+    fi
   )
   mkdir -p "$dest"
-  cp "$tmp/src/target/release/dcr" "$dest/dcr"
-  chmod +x "$dest/dcr"
+  cp "$tmp/src/target/release/dcr$exe" "$dest/dcr$exe"
+  chmod +x "$dest/dcr$exe"
   printf '%s\n' "channel=$SPEC_CHANNEL" "version=$version" "git=$sha" "source=build" "features=$FEATURES" >"$dest/dcrup-meta"
   ok "installed build $id"
   link_default "$id"
@@ -582,13 +701,22 @@ cmd_default() {
   [[ $# -eq 1 ]] || die "usage: dcrup default <spec>"
   parse_spec "$1"
   ensure_dirs
-  local id
+  local id exe alt
+  exe="$(host_exe_suffix)"
   if [[ "$SPEC_CHANNEL" == "night" || "$SPEC_FLOATING" -eq 1 ]]; then
-    id="$(ls -1 "$DCRUP_TC" 2>/dev/null | grep -E "^${SPEC_CHANNEL}-" | sort | tail -n1 || true)"
+    id="$(latest_toolchain_for_channel "$SPEC_CHANNEL")"
     [[ -n "$id" ]] || die "no installed toolchain for channel $SPEC_CHANNEL (run: dcrup install $SPEC_CHANNEL)"
   else
     id="$(toolchain_id)"
-    [[ -d "$DCRUP_TC/$id" ]] || die "not installed: $id (run: dcrup install $1)"
+    if [[ ! -x "$DCRUP_TC/$id/dcr$exe" ]]; then
+      # `dcrup install stable` stores the same version as stable-<version>;
+      # let a plain `dcrup default <version>` find that floating install.
+      alt="${SPEC_CHANNEL}-${SPEC_VERSION}"
+      if [[ -x "$DCRUP_TC/$alt/dcr$exe" ]]; then
+        id="$alt"
+      fi
+    fi
+    [[ -x "$DCRUP_TC/$id/dcr$exe" ]] || die "not installed: $id (run: dcrup install $1)"
   fi
   link_default "$id"
 }
@@ -625,9 +753,11 @@ cmd_list() {
     warn "no toolchains installed"
     return 0
   fi
-  local d base
+  local d base exe count=0
+  exe="$(host_exe_suffix)"
   for d in "$DCRUP_TC"/*; do
-    [[ -d "$d" ]] || continue
+    [[ -d "$d" && -x "$d/dcr$exe" ]] || continue
+    count=$((count + 1))
     base="$(basename "$d")"
     if [[ "$base" == "$active" ]]; then
       printf ' * %s\n' "$base"
@@ -635,12 +765,14 @@ cmd_list() {
       printf '   %s\n' "$base"
     fi
   done
+  [[ "$count" -gt 0 ]] || warn "no toolchains installed"
 }
 
 cmd_show() {
   ensure_dirs
-  local active
+  local active exe
   active="$(read_active)"
+  exe="$(host_exe_suffix)"
   echo "DCRUP_HOME=$DCRUP_HOME"
   echo "DCRUP_BIN=$DCRUP_BIN"
   echo "active=${active:-none}"
@@ -648,15 +780,17 @@ cmd_show() {
     echo "--- meta ---"
     cat "$DCRUP_TC/$active/dcrup-meta"
   fi
-  if [[ -x "$DCRUP_BIN/dcr" ]]; then
+  if [[ -x "$DCRUP_BIN/dcr$exe" ]]; then
     echo "--- dcr --version ---"
-    "$DCRUP_BIN/dcr" --version 2>/dev/null || true
+    "$DCRUP_BIN/dcr$exe" --version 2>/dev/null || true
   fi
 }
 
 cmd_which() {
-  if [[ -L "$DCRUP_BIN/dcr" || -e "$DCRUP_BIN/dcr" ]]; then
-    readlink -f "$DCRUP_BIN/dcr" 2>/dev/null || readlink "$DCRUP_BIN/dcr" 2>/dev/null || echo "$DCRUP_BIN/dcr"
+  local exe
+  exe="$(host_exe_suffix)"
+  if [[ -L "$DCRUP_BIN/dcr$exe" || -e "$DCRUP_BIN/dcr$exe" ]]; then
+    readlink -f "$DCRUP_BIN/dcr$exe" 2>/dev/null || readlink "$DCRUP_BIN/dcr$exe" 2>/dev/null || echo "$DCRUP_BIN/dcr$exe"
   else
     die "dcr not linked (run: dcrup install stable)"
   fi
@@ -666,34 +800,52 @@ cmd_uninstall() {
   ensure_dirs
   if [[ "${1:-}" == "--all" ]]; then
     rm -rf "$DCRUP_TC"
-    rm -f "$DCRUP_BIN/dcr" "$(active_file)"
+    rm -f "$DCRUP_BIN/dcr" "$DCRUP_BIN/dcr.exe" "$(active_file)"
     ok "removed all toolchains"
     return 0
   fi
   [[ $# -eq 1 ]] || die "usage: dcrup uninstall <spec>|--all"
   parse_spec "$1"
-  local id
+  local id exe alt next="" d
+  exe="$(host_exe_suffix)"
   if [[ "$SPEC_FLOATING" -eq 1 || "$SPEC_CHANNEL" == "night" ]]; then
-    id="$(ls -1 "$DCRUP_TC" 2>/dev/null | grep -E "^${SPEC_CHANNEL}-" | sort | tail -n1 || true)"
+    id="$(latest_toolchain_for_channel "$SPEC_CHANNEL")"
   else
     id="$(toolchain_id)"
+    if [[ ! -x "$DCRUP_TC/$id/dcr$exe" ]]; then
+      alt="${SPEC_CHANNEL}-${SPEC_VERSION}"
+      if [[ -x "$DCRUP_TC/$alt/dcr$exe" ]]; then
+        id="$alt"
+      fi
+    fi
   fi
-  [[ -n "$id" && -d "$DCRUP_TC/$id" ]] || die "not installed: $1"
+  [[ -n "$id" && -x "$DCRUP_TC/$id/dcr$exe" ]] || die "not installed: $1"
   rm -rf "$DCRUP_TC/$id"
   if [[ "$(read_active)" == "$id" ]]; then
-    rm -f "$DCRUP_BIN/dcr" "$(active_file)"
-    warn "removed active toolchain; run: dcrup install stable"
+    while IFS= read -r d; do
+      if [[ -d "$d" && -x "$d/dcr$exe" ]]; then
+        next="$(basename "$d")"
+        break
+      fi
+    done < <(ls -1dt "$DCRUP_TC"/* 2>/dev/null || true)
+    if [[ -n "$next" ]]; then
+      link_default "$next"
+    else
+      rm -f "$DCRUP_BIN/dcr" "$DCRUP_BIN/dcr.exe" "$(active_file)"
+      warn "removed active toolchain; run: dcrup install stable"
+    fi
   fi
   ok "removed $id"
 }
 
 check_path() {
+  local dir="${1:-$DCRUP_BIN}"
   case ":$PATH:" in
-  *":$DCRUP_BIN:"*) ;;
+  *":$dir:"*) ;;
   *)
-    warn "$DCRUP_BIN is not in PATH"
+    warn "$dir is not in PATH"
     echo "Add to ~/.bashrc / ~/.zshrc / ~/.profile:"
-    echo "  export PATH=\"$DCRUP_BIN:\$PATH\""
+    echo "  export PATH=\"$dir:\$PATH\""
     ;;
   esac
 }
@@ -703,6 +855,7 @@ cmd_self_install() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
     --to)
+      [[ $# -ge 2 ]] || die "--to needs a directory"
       dest="$2"
       shift 2
       ;;
@@ -711,7 +864,7 @@ cmd_self_install() {
   done
   ensure_dirs
   mkdir -p "$dest"
-  local self
+  local self target
   self="$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || true)"
   if [[ -z "$self" || ! -f "$self" ]]; then
     # When invoked as `curl ... | sh`, the shell has no script file to copy.
@@ -724,10 +877,16 @@ cmd_self_install() {
     }
     trap 'rm -f "$self"' EXIT
   fi
-  cp "$self" "$dest/dcrup"
-  chmod +x "$dest/dcrup"
-  ok "dcrup installed to $dest/dcrup"
-  check_path
+  target="$dest/dcrup"
+  if [[ -e "$target" && "$self" -ef "$target" ]]; then
+    ok "dcrup is already installed at $target"
+    check_path "$dest"
+    return 0
+  fi
+  cp "$self" "$target"
+  chmod +x "$target"
+  ok "dcrup installed to $target"
+  check_path "$dest"
   echo "Then: dcrup install stable"
 }
 

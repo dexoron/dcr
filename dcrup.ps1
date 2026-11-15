@@ -62,10 +62,20 @@ function Die($m)  {
 
 # Runs a native command with stderr shown but not treated as a PowerShell error
 # (Windows PowerShell 5.1 turns redirected stderr into terminating errors).
+# Output is buffered so errors are still shown under --quiet.
 function Invoke-Native([string]$exe, [string[]]$argv) {
+    $prev = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
-    & $exe @argv 2>&1 | ForEach-Object { if (-not $script:Quiet) { Write-Host "  $_" } }
-    return ($LASTEXITCODE -eq 0)
+    try {
+        $lines = @(& $exe @argv 2>&1)
+        $code = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+    if (-not $script:Quiet -or $code -ne 0) {
+        foreach ($line in $lines) { Write-Host "  $line" }
+    }
+    return ($code -eq 0)
 }
 
 function Show-Usage {
@@ -330,8 +340,15 @@ function Set-Default([string]$id) {
 # Returns the GitHub release object for a spec.
 function Get-Release($spec) {
     if (-not $spec.Floating) {
-        $rel = Invoke-Api "/releases/tags/v$($spec.Version)"
-        if (-not $rel -and $spec.Channel -eq 'dev') { $rel = Invoke-Api "/releases/tags/v$($spec.Version)-dev" }
+        if ($spec.Channel -eq 'dev') {
+            $rel = Invoke-Api "/releases/tags/v$($spec.Version)-dev"
+            if (-not $rel) {
+                $rel = Invoke-Api "/releases/tags/v$($spec.Version)"
+                if ($rel) { Warn "release v$($spec.Version)-dev not found; falling back to v$($spec.Version)" }
+            }
+        } else {
+            $rel = Invoke-Api "/releases/tags/v$($spec.Version)"
+        }
         if (-not $rel) { Die "release v$($spec.Version) not found (see $($script:RepoUrl)/releases)" }
         return $rel
     }
@@ -467,6 +484,31 @@ function Install-Prebuilt($spec, [bool]$force) {
     return $id
 }
 
+function Get-PinnedGitTag($spec) {
+    $tags = if ($spec.Channel -eq 'dev') {
+        @("v$($spec.Version)-dev", "v$($spec.Version)")
+    } else {
+        @("v$($spec.Version)")
+    }
+    foreach ($tag in $tags) {
+        # PS 5.1 turns native stderr into a terminating error under 'Stop'
+        # (the same reason Invoke-Native switches to 'Continue').
+        $prev = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $out = @(& git ls-remote --tags $script:RepoUrl "refs/tags/$tag" 2>$null)
+            $code = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $prev
+        }
+        if ($code -eq 0 -and $out.Count -gt 0) {
+            if ($tag -ne $tags[0]) { Warn "tag $($tags[0]) not found; falling back to $tag" }
+            return $tag
+        }
+    }
+    return $tags[0]
+}
+
 function Install-Build($spec, [bool]$force) {
     foreach ($tool in @('git', 'cargo')) {
         if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { Die "$tool not found in PATH (needed for --build / night)" }
@@ -481,7 +523,9 @@ function Install-Build($spec, [bool]$force) {
         } elseif ($spec.Floating) {
             $ref = (Get-Release $spec).tag_name
         } else {
-            $ref = "v$($spec.Version)"
+            # Resolve pinned tags from git so --build respects DCRUP_REPO and
+            # does not need the GitHub API. VERSION@dev prefers vVERSION-dev.
+            $ref = Get-PinnedGitTag $spec
         }
         Info "cloning $($script:RepoUrl) ($ref)"
         if (-not (Invoke-Native 'git' @('clone', '--quiet', '--depth', '1', '--branch', $ref, $script:RepoUrl, $src))) { Die "git clone of $ref failed" }
@@ -554,13 +598,13 @@ function Test-SamePath([string]$a, [string]$b) {
 
 function Add-ToPath {
     $dir = $script:Bin
-    # Current session first, so dcr works right away after `irm | iex`.
-    if (-not (@($env:Path -split ';') | Where-Object { $_ -and (Test-SamePath $_ $dir) })) {
-        $env:Path = "$dir;$env:Path"
-    }
     if ($script:NoModifyPath) {
         Info "PATH not modified (--no-modify-path); add $dir yourself"
         return
+    }
+    # Current session first, so dcr works right away after `irm | iex`.
+    if (-not (@($env:Path -split ';') | Where-Object { $_ -and (Test-SamePath $_ $dir) })) {
+        $env:Path = "$dir;$env:Path"
     }
     $raw = Get-RawPath
     # Keep the existing value byte-for-byte (empty entries included); only prepend.

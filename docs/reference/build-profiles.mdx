@@ -73,9 +73,14 @@ cflags = ["-DLINUX"]
 cflags = ["-DWIN32", "-O0", "-g"]
 ```
 
+Short OS names (`linux`, `macos`, `windows`, ...) are aliases for the canonical
+target triple. `[build.windows]` and `[build.x86_64-pc-windows-msvc]` are
+equivalent; if both are present, the full triple wins.
+
 Application order (highest priority first):
 1. `[build.<target>.<profile>]`
 2. `[build.<profile>.<target>]`
 3. `[build.<target>]`
-4. `[build.<profile>]`
-5. `[build]`
+4. the same three keys with a short OS name (`[build.linux.<profile>]`, `[build.<profile>.linux]`, `[build.linux]`)
+5. `[build.<profile>]`
+6. `[build]`

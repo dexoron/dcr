@@ -99,10 +99,10 @@ jobs:
           notes_file=".github/release-notes.md"
           # Strip -dev suffix to match base version in CHANGELOG
           changelog_tag="${tag%-dev}"
-          if grep -q "^## \\[${changelog_tag}\\]" CHANGELOG.md; then
-            # Extract release name from header: ## [0.7.1] - 2026-06-02 "Title"
+          if grep -qE "^## \\[v?${changelog_tag}\\]" CHANGELOG.md; then
+            # Extract release name from header: ## [v0.9.6] - 2026-11-15 "Title"
             release_name=$(awk -v search_ver="$changelog_tag" -v display_ver="$tag" '
-              $0 ~ "^## \\[" search_ver "\\]" {
+              $0 ~ "^## \\[v?" search_ver "\\]" {
                 match($0, /"([^"]+)"/, arr)
                 if (arr[1] != "") {
                   print "v" display_ver " - " arr[1]
@@ -113,7 +113,7 @@ jobs:
             ' CHANGELOG.md)
             echo "release_name=${release_name}" >> "$GITHUB_OUTPUT"
             awk -v ver="$changelog_tag" '
-              $0 ~ "^## \\[" ver "\\]" {found=1; next}
+              $0 ~ "^## \\[v?" ver "\\]" {found=1; next}
               found && $0 ~ "^## \\[" {exit}
               found {print}
             ' CHANGELOG.md | sed -e '${/^$/d;}' > "$notes_file"

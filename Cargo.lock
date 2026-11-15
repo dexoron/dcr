@@ -219,7 +219,7 @@ dependencies = [
 
 [[package]]
 name = "dcr"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "ctrlc",
  "env_logger",

@@ -22,12 +22,90 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Instant;
 
+/// Appends a library reference to a Unix-style linker command.
+///
+/// Dependency artifacts whose name is not linkable through `-l` are resolved to
+/// absolute paths by the dependency resolver and passed through unchanged.
+fn push_unix_lib(cmd: &mut Command, lib: &str) {
+    if Path::new(lib).is_absolute() {
+        cmd.arg(lib);
+    } else {
+        cmd.arg(format!("-l{lib}"));
+    }
+}
+
 /// Returns the artifact directory path based on the build context.
 pub(crate) fn artifact_dir(ctx: &BuildContext) -> PathBuf {
     match ctx.target_dir {
         Some(dir) => Path::new(dir).to_path_buf(),
         None => Path::new("./target").join(ctx.profile),
     }
+}
+
+/// Default file extension for a library kind on the host platform.
+fn default_library_extension(kind: &str) -> &'static str {
+    match kind {
+        "staticlib" => {
+            if cfg!(windows) {
+                "lib"
+            } else {
+                "a"
+            }
+        }
+        "sharedlib" => {
+            if cfg!(windows) {
+                "dll"
+            } else if cfg!(target_os = "macos") {
+                "dylib"
+            } else {
+                "so"
+            }
+        }
+        _ => "",
+    }
+}
+
+/// Builds the final filename for a custom `build.filename` / `build.extension`.
+///
+/// For libraries the platform prefix/suffix is applied only when the user did not
+/// provide an explicit extension. This keeps `filename = "sct"` producing the
+/// conventional `libsct.a` on Unix while `filename = "libsct"` is not prefixed twice.
+pub(crate) fn custom_artifact_file_name(
+    kind: &str,
+    name: &str,
+    output_extension: Option<&str>,
+) -> String {
+    if let Some(ext) = output_extension.map(str::trim).filter(|e| !e.is_empty()) {
+        let suffix = format!(".{ext}");
+        if name
+            .to_ascii_lowercase()
+            .ends_with(&suffix.to_ascii_lowercase())
+        {
+            return name.to_string();
+        }
+        return format!("{name}{suffix}");
+    }
+
+    if matches!(kind, "staticlib" | "sharedlib") {
+        let file = if Path::new(name).extension().is_some() {
+            name.to_string()
+        } else {
+            format!("{name}.{}", default_library_extension(kind))
+        };
+        #[cfg(not(windows))]
+        let file = if !file.to_ascii_lowercase().starts_with("lib") {
+            format!("lib{file}")
+        } else {
+            file
+        };
+        return file;
+    }
+
+    if kind == "efi" && Path::new(name).extension().is_none() {
+        return format!("{name}.efi");
+    }
+
+    name.to_string()
 }
 
 /// Resolves the artifact path for a given kind/profile/name.
@@ -68,22 +146,46 @@ pub fn resolve_artifact_path(
         return None;
     }
 
+    let custom = output_filename.is_some() || output_extension.is_some();
     let name = output_filename.unwrap_or(project_name);
-    let ext = output_extension.unwrap_or("");
-    let final_name = if ext.is_empty() {
-        name.to_string()
+    let final_name = if custom {
+        custom_artifact_file_name(kind, name, output_extension)
     } else {
-        format!("{}.{}", name, ext)
+        name.to_string()
     };
 
     let path = match kind {
+        "staticlib" if custom => platform::lib_path_exact(profile, &final_name, target_dir),
         "staticlib" => platform::lib_path(profile, &final_name, target_dir),
+        "sharedlib" if custom => platform::shared_lib_path_exact(profile, &final_name, target_dir),
         "sharedlib" => platform::shared_lib_path(profile, &final_name, target_dir),
         "efi" => platform::efi_path(profile, &final_name, target_dir),
         "elf" => platform::elf_path(profile, &final_name, target_dir),
         _ => platform::bin_path(profile, &final_name, target_dir),
     };
     Some(path)
+}
+
+/// Returns the output path for the current build context.
+///
+/// This is the single source of truth used by the builder, cache, IDE files and
+/// packaging, so a custom `build.filename` cannot diverge between them.
+pub(crate) fn output_path(ctx: &BuildContext) -> String {
+    resolve_artifact_path(
+        ctx.kind,
+        ctx.profile,
+        ctx.project_name,
+        ctx.target_dir,
+        ctx.output_filename,
+        ctx.output_extension,
+    )
+    .unwrap_or_else(|| {
+        platform::bin_path(
+            ctx.profile,
+            ctx.output_filename.unwrap_or(ctx.project_name),
+            ctx.target_dir,
+        )
+    })
 }
 
 /// Converts a relative or absolute path to an absolute path by joining with project root if needed.
@@ -195,7 +297,7 @@ pub(crate) fn link_flat_binary(
         cmd.arg(format!("-L{dir}"));
     }
     for lib in ctx.libs {
-        cmd.arg(format!("-l{lib}"));
+        push_unix_lib(&mut cmd, lib);
     }
     for flag in ctx.ldflags {
         cmd.arg(flag);
@@ -231,7 +333,7 @@ pub(crate) fn archive_static(
     objects: &[String],
     start_time: Instant,
 ) -> Result<f64, String> {
-    let lib_path = platform::lib_path(ctx.profile, ctx.project_name, ctx.target_dir);
+    let lib_path = output_path(ctx);
     if !common::needs_link(objects, &lib_path) {
         return Ok(common::elapsed_secs(start_time));
     }
@@ -287,29 +389,13 @@ pub(crate) fn link_binary(
         cmd.arg(format!("-L{dir}"));
     }
     for lib in ctx.libs {
-        cmd.arg(format!("-l{lib}"));
+        push_unix_lib(&mut cmd, lib);
     }
     for flag in ctx.ldflags {
         cmd.arg(flag);
     }
 
-    let name = ctx.output_filename.unwrap_or(ctx.project_name);
-    let ext = ctx.output_extension.unwrap_or("");
-    let final_name = if ext.is_empty() {
-        name.to_string()
-    } else {
-        format!("{}.{}", name, ext)
-    };
-
-    let out_path = if ctx.kind == "sharedlib" {
-        platform::shared_lib_path(ctx.profile, &final_name, ctx.target_dir)
-    } else if ctx.kind == "efi" {
-        platform::efi_path(ctx.profile, &final_name, ctx.target_dir)
-    } else if ctx.kind == "elf" {
-        platform::elf_path(ctx.profile, &final_name, ctx.target_dir)
-    } else {
-        platform::bin_path(ctx.profile, &final_name, ctx.target_dir)
-    };
+    let out_path = output_path(ctx);
 
     if !common::needs_link(objects, &out_path) {
         return Ok(common::elapsed_secs(start_time));
@@ -395,6 +481,42 @@ mod tests {
         };
         let expected = Path::new("dist").join(name);
         assert_eq!(p, expected.to_string_lossy());
+    }
+
+    /// A custom `staticlib` filename is not prefixed twice.
+    #[test]
+    fn resolve_staticlib_custom_filename() {
+        let p = resolve_artifact_path(
+            "staticlib",
+            "release",
+            "Simple-C-Types",
+            Some("dist"),
+            Some("libsct"),
+            None,
+        )
+        .unwrap();
+        let name = if cfg!(windows) {
+            "libsct.lib"
+        } else {
+            "libsct.a"
+        };
+        let expected = Path::new("dist").join(name);
+        assert_eq!(p, expected.to_string_lossy());
+    }
+
+    /// An explicit extension gives full control over the artifact name.
+    #[test]
+    fn resolve_staticlib_custom_extension() {
+        let p = resolve_artifact_path(
+            "staticlib",
+            "release",
+            "Simple-C-Types",
+            Some("dist"),
+            Some("KERNEL"),
+            Some("EFI"),
+        )
+        .unwrap();
+        assert_eq!(p, Path::new("dist").join("KERNEL.EFI").to_string_lossy());
     }
 
     /// Custom output filename and extension override the default name.

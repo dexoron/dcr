@@ -298,25 +298,36 @@ fn staticlib_build() {
 
     let toml_path = dir.join("dcr.toml");
     let toml = std::fs::read_to_string(&toml_path).expect("read dcr.toml");
-    let updated = toml.replace("kind = \"bin\"", "kind = \"staticlib\"");
+    let updated = toml.replace(
+        "kind = \"bin\"",
+        "kind = \"staticlib\"\nfilename = \"libsct\"",
+    );
     std::fs::write(&toml_path, updated).expect("write dcr.toml");
 
     let envs = [("DCR_COMPILER", compiler)];
     let out = run_dcr_env(&["build"], &dir, &envs);
     assert!(out.status.success(), "staticlib build should succeed");
     let lib_path = host_profile_dir(&dir, "debug");
-    let has_lib = std::fs::read_dir(&lib_path)
-        .map(|entries| {
-            entries.filter_map(|e| e.ok()).any(|e| {
-                let name = e.file_name().to_string_lossy().to_string();
-                name.ends_with(".a") || name.ends_with(".lib")
-            })
-        })
-        .unwrap_or(false);
+    let lib_name = if cfg!(windows) {
+        "libsct.lib"
+    } else {
+        "libsct.a"
+    };
+    let artifact = lib_path.join(lib_name);
     assert!(
-        has_lib,
-        "staticlib should produce a .a/.lib in {}",
-        lib_path.display()
+        artifact.is_file(),
+        "custom build.filename should produce {} (got: {:?})",
+        artifact.display(),
+        std::fs::read_dir(&lib_path)
+            .map(|entries| entries
+                .filter_map(|e| e.ok())
+                .map(|e| e.file_name().to_string_lossy().to_string())
+                .collect::<Vec<_>>())
+            .unwrap_or_default()
+    );
+    assert!(
+        dir.join("target").join("lib").join(lib_name).is_file(),
+        "custom staticlib should be packaged into target/lib"
     );
 }
 

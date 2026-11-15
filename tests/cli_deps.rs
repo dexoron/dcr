@@ -227,7 +227,7 @@ fn path_dcr_dependency_is_built_before_consumer() {
     std::fs::create_dir_all(app.join("src")).unwrap();
     std::fs::write(
         dep.join("dcr.toml"),
-        "[package]\nname = \"mathlib\"\nversion = \"0.1.0\"\ntype = \"lib\"\n\n[build]\nlanguage = \"c\"\ncompiler = \"clang\"\nkind = \"staticlib\"\n",
+        "[package]\nname = \"mathlib\"\nversion = \"0.1.0\"\ntype = \"lib\"\n\n[build]\nlanguage = \"c\"\ncompiler = \"clang\"\nkind = \"staticlib\"\nfilename = \"libmath\"\n",
     )
     .unwrap();
     std::fs::write(dep.join("src/mathlib.h"), "int answer(void);\n").unwrap();
@@ -254,7 +254,60 @@ fn path_dcr_dependency_is_built_before_consumer() {
         String::from_utf8_lossy(&out.stderr)
     );
     assert!(dep.join("target/include/mathlib.h").is_file());
-    assert!(dep.join("target/lib").is_dir());
+    let lib_name = if cfg!(windows) {
+        "libmath.lib"
+    } else {
+        "libmath.a"
+    };
+    assert!(
+        dep.join("target/lib").join(lib_name).is_file(),
+        "custom dependency filename should be packaged as {lib_name}"
+    );
+}
+
+#[test]
+fn path_dcr_dependency_custom_extension_links() {
+    let Some(compiler) = available_compiler() else {
+        eprintln!("no compiler found; skipping custom extension dependency test");
+        return;
+    };
+    let root = unique_sandbox_dir("path_dcr_ext");
+    let dep = root.join("dep");
+    let app = root.join("app");
+    std::fs::create_dir_all(dep.join("src")).unwrap();
+    std::fs::create_dir_all(app.join("src")).unwrap();
+    std::fs::write(
+        dep.join("dcr.toml"),
+        "[package]\nname = \"mathlib\"\nversion = \"0.1.0\"\ntype = \"lib\"\n\n[build]\nlanguage = \"c\"\ncompiler = \"clang\"\nkind = \"staticlib\"\nfilename = \"sct\"\nextension = \"a\"\n",
+    )
+    .unwrap();
+    std::fs::write(dep.join("src/mathlib.h"), "int answer(void);\n").unwrap();
+    std::fs::write(
+        dep.join("src/mathlib.c"),
+        "int answer(void) { return 42; }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        app.join("dcr.toml"),
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\n\n[build]\nlanguage = \"c\"\ncompiler = \"clang\"\nkind = \"bin\"\n\n[dependencies]\nrenamed = { path = \"../dep\" }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        app.join("src/main.c"),
+        "#include \"mathlib.h\"\nint main(void) { return answer() == 42 ? 0 : 1; }\n",
+    )
+    .unwrap();
+
+    let out = run_dcr_env(&["build"], &app, &[("DCR_COMPILER", compiler)]);
+    assert!(
+        out.status.success(),
+        "custom extension dependency build failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        dep.join("target/lib/sct.a").is_file(),
+        "custom extension should be packaged as target/lib/sct.a"
+    );
 }
 
 #[test]

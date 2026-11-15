@@ -81,8 +81,8 @@ Three levels of incrementality:
 | Kind | Type | Path (Linux example) |
 |------|------|---------------------|
 | `bin` | Executable | `target/<triple>/<profile>/<name>` (.exe on Windows) |
-| `staticlib` | Static library | `target/<triple>/<profile>/lib<name>.a` (.lib) |
-| `sharedlib` | Dynamic library | `target/<triple>/<profile>/lib<name>.so` (.dll/.dylib) |
+| `staticlib` | Static library | `target/<triple>/<profile>/lib<name>.a` (.lib); `filename` / `extension` override the name |
+| `sharedlib` | Dynamic library | `target/<triple>/<profile>/lib<name>.so` (.dll/.dylib); `filename` / `extension` override the name |
 | `efi` | UEFI application | `target/<triple>/<profile>/<name>.efi` |
 | `elf` | ELF without stdlib | `target/<triple>/<profile>/<name>` |
 | `none` | Compile only, no link | — |

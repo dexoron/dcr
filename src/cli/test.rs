@@ -19,10 +19,13 @@ use crate::prelude::*;
 
 use crate::cli::build;
 use crate::config::{FILE_DCR_TEST_H, FILE_TEST_C, flags};
+use crate::core::build::resolve::{
+    get_list_with_profile_and_target, get_string_with_profile_and_target,
+};
 use crate::core::build_config::Config;
 use crate::utils::build::{
-    get_config_opt, get_config_str, get_language_with_profile, get_list_with_profile,
-    get_string_with_profile, resolve_compiler, resolve_pkg_config_flags,
+    default_target_triple, get_config_opt, get_config_str, get_language_with_profile,
+    get_list_with_profile, get_string_with_profile, resolve_compiler, resolve_pkg_config_flags,
 };
 use crate::utils::fs::{find_project_root, with_dir};
 use std::fs;
@@ -109,11 +112,20 @@ fn run_testsuite(profile: &str) -> Result<i32, String> {
 
     let config = Config::open("./dcr.toml").map_err(|_| "Failed to read dcr.toml".to_string())?;
     let name = get_config_str(&config, "package.name");
+    let build_target = get_string_with_profile(&config, "target", profile);
+    let lookup_target = if build_target.trim().is_empty() {
+        default_target_triple()
+    } else {
+        build_target.clone()
+    };
     let language = get_language_with_profile(&config, profile)?;
-    let compiler_cfg = get_string_with_profile(&config, "compiler", profile);
-    let standard = get_string_with_profile(&config, "standard", profile);
+    let compiler_cfg =
+        get_string_with_profile_and_target(&config, "compiler", profile, Some(&lookup_target));
+    let standard =
+        get_string_with_profile_and_target(&config, "standard", profile, Some(&lookup_target));
     let package_type = get_config_str(&config, "package.type");
-    let build_kind = get_string_with_profile(&config, "kind", profile);
+    let build_kind =
+        get_string_with_profile_and_target(&config, "kind", profile, Some(&lookup_target));
     let tc_cc = get_config_opt(&config, "toolchain.cc");
     let tc_cxx = get_config_opt(&config, "toolchain.cxx");
     let tc_as = get_config_opt(&config, "toolchain.as");
@@ -130,11 +142,19 @@ fn run_testsuite(profile: &str) -> Result<i32, String> {
         .iter()
         .map(|v| v.to_string())
         .collect();
-    cflags.extend(get_list_with_profile(&config, "cflags", profile));
-    let ldflags = get_list_with_profile(&config, "ldflags", profile);
-    let pkg_configs = get_list_with_profile(&config, "pkg_config", profile);
+    cflags.extend(get_list_with_profile_and_target(
+        &config,
+        "cflags",
+        profile,
+        Some(&lookup_target),
+    )?);
+    let ldflags =
+        get_list_with_profile_and_target(&config, "ldflags", profile, Some(&lookup_target))?;
+    let pkg_configs =
+        get_list_with_profile_and_target(&config, "pkg_config", profile, Some(&lookup_target))?;
     let (mut cflags, mut ldflags) = resolve_pkg_config_flags(&pkg_configs, &cflags, &ldflags)?;
-    let deps = crate::core::deps::resolve_deps(&config, profile, None, Path::new("."))?;
+    let deps =
+        crate::core::deps::resolve_deps(&config, profile, Some(&lookup_target), Path::new("."))?;
     cflags.extend(deps.cflags);
     ldflags.extend(deps.ldflags);
     let mut includes = test_include_dirs(&config, profile);
@@ -146,6 +166,15 @@ fn run_testsuite(profile: &str) -> Result<i32, String> {
 
     let link_project_lib =
         package_type == "lib" || build_kind == "staticlib" || build_kind == "sharedlib";
+    let project_lib = link_project_lib.then(|| {
+        crate::core::deps::package_link_name(
+            Path::new("."),
+            &name,
+            profile,
+            Some(&lookup_target),
+            None,
+        )
+    });
     let mut stdout = String::new();
     let mut declared = Vec::new();
     let mut suite_success = true;
@@ -166,7 +195,7 @@ fn run_testsuite(profile: &str) -> Result<i32, String> {
         link_test_binary(
             &compiler,
             &ldflags,
-            link_project_lib.then_some(name.as_str()),
+            project_lib.as_deref(),
             &obj_path,
             &bin_path,
         )?;
@@ -330,8 +359,14 @@ fn link_test_binary(
 ) -> Result<(), String> {
     let mut cmd = Command::new(compiler);
     cmd.arg(obj_path);
-    if let Some(name) = project_lib {
-        cmd.arg("-Ltarget/lib").arg(format!("-l{name}"));
+    if let Some(lib) = project_lib {
+        if Path::new(lib).is_absolute() {
+            // A custom `filename`/`extension` produced a non-conventional
+            // artifact name; link the packaged file directly.
+            cmd.arg(lib);
+        } else {
+            cmd.arg("-Ltarget/lib").arg(format!("-l{lib}"));
+        }
     }
     for flag in ldflags {
         cmd.arg(flag);

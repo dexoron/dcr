@@ -103,7 +103,7 @@ pub fn flag_update(args: &[String]) -> i32 {
         return 0;
     }
 
-    let candidate_names = asset_candidates(target);
+    let candidate_names = asset_candidates(target, latest_version);
     let Some(asset) = release
         .assets
         .iter()
@@ -177,13 +177,21 @@ fn download_asset(url: &str) -> Result<Vec<u8>, String> {
 }
 
 /// Builds the list of expected asset file names for the given build target.
-fn asset_candidates(target: &str) -> Vec<String> {
-    let mut names = vec![format!("dcr-{target}")];
+fn asset_candidates(target: &str, version: &str) -> Vec<String> {
+    let windows = target.contains("-windows-") || target.ends_with("-windows");
+    let mut names = Vec::new();
 
-    // Windows releases may publish the binary with an `.exe` suffix.
-    if target.contains("-windows-") || target.ends_with("-windows") {
+    // Current release naming: dcr-<target>-<version>[.exe].
+    if windows {
+        names.push(format!("dcr-{target}-{version}.exe"));
+    }
+    names.push(format!("dcr-{target}-{version}"));
+
+    // Keep accepting older releases that did not include the version.
+    if windows {
         names.push(format!("dcr-{target}.exe"));
     }
+    names.push(format!("dcr-{target}"));
 
     names
 }
@@ -234,4 +242,29 @@ fn pacman_owned_package(path: &Path) -> Option<String> {
 #[cfg(not(target_os = "linux"))]
 fn pacman_owned_package(_path: &Path) -> Option<String> {
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::asset_candidates;
+
+    #[test]
+    fn asset_candidates_match_release_names() {
+        assert_eq!(
+            asset_candidates("x86_64-unknown-linux-gnu", "0.7.3"),
+            vec![
+                "dcr-x86_64-unknown-linux-gnu-0.7.3",
+                "dcr-x86_64-unknown-linux-gnu",
+            ]
+        );
+        assert_eq!(
+            asset_candidates("x86_64-pc-windows-msvc", "0.7.3"),
+            vec![
+                "dcr-x86_64-pc-windows-msvc-0.7.3.exe",
+                "dcr-x86_64-pc-windows-msvc-0.7.3",
+                "dcr-x86_64-pc-windows-msvc.exe",
+                "dcr-x86_64-pc-windows-msvc",
+            ]
+        );
+    }
 }

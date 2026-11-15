@@ -21,7 +21,9 @@ use crate::utils::build::{get_config_str, normalize_target_os, profile_table};
 /// Retrieves a raw TOML value from the config using a prioritized lookup order based on target, profile, and base sections.
 ///
 /// The keys are checked in this order:
-/// {section}.{target}.{profile}.{field}, {section}.{profile}.{target}.{field}, {section}.{target}.{field}, {section}.{profile}.{field}, {section}.{field}
+/// {section}.{target}.{profile}.{field}, {section}.{profile}.{target}.{field}, {section}.{target}.{field},
+/// then the same three keys with the short OS name (`linux`, `macos`, `windows`, ...),
+/// then {section}.{profile}.{field}, {section}.{field}.
 ///
 /// Returns the value if found, otherwise None.
 pub(crate) fn get_config_value_raw(
@@ -31,36 +33,50 @@ pub(crate) fn get_config_value_raw(
     profile: &str,
     target: Option<&str>,
 ) -> Option<toml::Value> {
-    // Order: target.profile, profile.target, target, profile, base
-    let keys = [
-        target.map(|t| {
-            format!(
-                "{}.{}.{}.{}",
-                section,
-                normalize_target_os(t),
-                profile,
-                field
-            )
-        }),
-        target.map(|t| {
-            format!(
-                "{}.{}.{}.{}",
-                section,
-                profile,
-                normalize_target_os(t),
-                field
-            )
-        }),
-        target.map(|t| format!("{}.{}.{}", section, normalize_target_os(t), field)),
-        Some(format!("{}.{}.{}", section, profile, field)),
-        Some(format!("{}.{}", section, field)),
-    ];
-    for key in keys.into_iter().flatten() {
+    let mut keys: Vec<String> = Vec::new();
+    if let Some(t) = target {
+        let full = normalize_target_os(t);
+        keys.push(format!("{section}.{full}.{profile}.{field}"));
+        keys.push(format!("{section}.{profile}.{full}.{field}"));
+        keys.push(format!("{section}.{full}.{field}"));
+        // Users write `[build.windows]` while the build target is a full
+        // triple; accept the short OS name as an alias, after the exact keys.
+        if let Some(short) = short_target_name(full) {
+            keys.push(format!("{section}.{short}.{profile}.{field}"));
+            keys.push(format!("{section}.{profile}.{short}.{field}"));
+            keys.push(format!("{section}.{short}.{field}"));
+        }
+    }
+    keys.push(format!("{section}.{profile}.{field}"));
+    keys.push(format!("{section}.{field}"));
+    for key in keys {
         if let Some(val) = config.get(&key) {
             return Some(val.clone());
         }
     }
     None
+}
+
+/// Short OS alias accepted in target-specific config sections.
+fn short_target_name(target: &str) -> Option<&'static str> {
+    let target = target.to_ascii_lowercase();
+    if target.contains("windows") {
+        Some("windows")
+    } else if target.contains("darwin") || target.contains("macos") {
+        Some("macos")
+    } else if target.contains("linux") {
+        Some("linux")
+    } else if target.contains("freebsd") {
+        Some("freebsd")
+    } else if target.contains("openbsd") {
+        Some("openbsd")
+    } else if target.contains("netbsd") {
+        Some("netbsd")
+    } else if target.contains("dragonfly") {
+        Some("dragonfly")
+    } else {
+        None
+    }
 }
 
 /// Checks if the 'inherit' flag is enabled for the given section, profile, and target.
@@ -251,6 +267,8 @@ pub(crate) fn get_config_list(config: &Config, key: &str) -> Result<Vec<String>,
 
 #[cfg(test)]
 mod tests {
+    use super::get_string_with_profile_and_target;
+    use crate::core::build_config::Config;
     use crate::utils::build::normalize_target_os;
 
     #[test]
@@ -263,5 +281,44 @@ mod tests {
             "x86_64-unknown-linux-gnu"
         );
         assert_eq!(normalize_target_os("unknown"), "unknown");
+    }
+
+    #[test]
+    fn short_target_section_is_an_alias_for_the_full_triple() {
+        let dir = std::env::temp_dir().join(format!(
+            "dcr_resolve_short_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("dcr.toml");
+        std::fs::write(
+            &path,
+            "[package]\nname = \"x\"\nversion = \"0.1.0\"\n\n[build]\nkind = \"bin\"\n\n[build.windows]\nfilename = \"win\"\n",
+        )
+        .unwrap();
+        let config = Config::open(path.to_str().unwrap()).unwrap();
+        assert_eq!(
+            get_string_with_profile_and_target(
+                &config,
+                "filename",
+                "debug",
+                Some("x86_64-pc-windows-msvc")
+            ),
+            "win"
+        );
+        assert_eq!(
+            get_string_with_profile_and_target(
+                &config,
+                "filename",
+                "debug",
+                Some("x86_64-unknown-linux-gnu")
+            ),
+            ""
+        );
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

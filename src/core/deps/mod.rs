@@ -20,6 +20,8 @@ pub mod common;
 pub mod lock;
 pub mod register;
 
+use crate::core::build::builder::artifact::custom_artifact_file_name;
+use crate::core::build::resolve::get_string_with_profile_and_target;
 use crate::core::build_config::Config;
 use crate::core::deps::common::ResolvedDeps;
 use crate::core::deps::lock::{DepLock, write_lock};
@@ -45,15 +47,16 @@ fn dep_version(path: &Path) -> String {
 ///
 /// # Parameters
 /// - `config`: Loaded `dcr.toml`.
-/// - `_profile` / `_target`: Reserved for future profile/target-specific deps.
+/// - `profile` / `target`: Active build profile and target, used for per-profile/target
+///   `filename` / `extension` overrides.
 /// - `project_root`: Root used to resolve path deps and write `dcr.lock`.
 ///
 /// # Returns
 /// Aggregated include/lib/libs, or an error string on resolve/lock failure.
 pub fn resolve_deps(
     config: &Config,
-    _profile: &str,
-    _target: Option<&str>,
+    profile: &str,
+    target: Option<&str>,
     project_root: &Path,
 ) -> Result<ResolvedDeps, String> {
     let mut resolved = ResolvedDeps::default();
@@ -103,7 +106,10 @@ pub fn resolve_deps(
                         .to_string_lossy()
                         .to_string(),
                 );
-                resolved.libs.push(name.clone());
+                let fallback = package_name(&dep_root).unwrap_or_else(|| name.clone());
+                resolved.libs.push(package_link_name(
+                    &dep_root, &fallback, profile, target, None,
+                ));
                 resolved
                     .package_roots
                     .push(dep_root.to_string_lossy().to_string());
@@ -161,17 +167,19 @@ pub fn resolve_deps(
                             }
                         }
                     } else {
-                        resolved
-                            .libs
-                            .push(dcr_package_name.clone().unwrap_or_else(|| name.clone()));
+                        let fallback = dcr_package_name.as_deref().unwrap_or(name);
+                        resolved.libs.push(package_link_name(
+                            &dep_root, fallback, profile, target, None,
+                        ));
                     }
                 } else {
                     push_if_exists(&mut resolved.include_dirs, &dep_root.join("include"));
                     push_package_output_dirs(&mut resolved, &dep_root);
                     push_default_lib_dirs(&mut resolved.lib_dirs, &dep_root);
-                    resolved
-                        .libs
-                        .push(dcr_package_name.clone().unwrap_or_else(|| name.clone()));
+                    let fallback = dcr_package_name.as_deref().unwrap_or(name);
+                    resolved.libs.push(package_link_name(
+                        &dep_root, fallback, profile, target, None,
+                    ));
                 }
 
                 if use_dcr_package {
@@ -214,8 +222,11 @@ pub fn resolve_deps(
                 if !has_lib {
                     push_default_lib_dirs(&mut resolved.lib_dirs, &dep_root);
                 }
-                if !has_libs && let Some(package_name) = dcr_package_name.as_deref() {
-                    resolved.libs.push(package_name.to_string());
+                if !has_libs {
+                    let fallback = dcr_package_name.as_deref().unwrap_or(name);
+                    resolved.libs.push(package_link_name(
+                        &dep_root, fallback, profile, target, None,
+                    ));
                 }
                 if use_dcr_package {
                     resolved
@@ -451,6 +462,115 @@ fn push_unique_path(paths: &mut Vec<String>, path: std::path::PathBuf) {
     let path = path.to_string_lossy().to_string();
     if !paths.contains(&path) {
         paths.push(path);
+    }
+}
+
+/// Returns the linker reference for a DCR dependency.
+///
+/// A custom `build.filename` / `build.extension` changes the packaged artifact
+/// name. When the result still follows the platform convention (`libfoo.a`,
+/// `libfoo.so`, `foo.lib`) a plain `-l` name is returned; otherwise the exact
+/// packaged artifact path is returned so the linker can consume it directly.
+///
+/// `lib_root` is the directory the dependency is packaged into: `None` means
+/// `<package>/target/lib`, while workspace builds pass the workspace
+/// `target/lib`, because `package_library` copies member libraries there.
+pub(crate) fn package_link_name(
+    path: &Path,
+    fallback: &str,
+    profile: &str,
+    target: Option<&str>,
+    lib_root: Option<&Path>,
+) -> String {
+    let Ok(config) = Config::open(&path.join("dcr.toml").to_string_lossy()) else {
+        return fallback.to_string();
+    };
+    let kind = get_string_with_profile_and_target(&config, "kind", profile, target);
+    if kind.as_str() != "staticlib" && kind.as_str() != "sharedlib" {
+        return fallback.to_string();
+    }
+    let filename = get_string_with_profile_and_target(&config, "filename", profile, target);
+    let extension = get_string_with_profile_and_target(&config, "extension", profile, target);
+    let filename = filename.trim();
+    let extension = extension.trim();
+    if filename.is_empty() && extension.is_empty() {
+        return fallback.to_string();
+    }
+    let base = if filename.is_empty() {
+        // `extension` without `filename` uses the dependency's real package
+        // name, which may differ from the key in `[dependencies]`.
+        config
+            .get("package.name")
+            .and_then(|value| value.as_str())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or(fallback)
+    } else {
+        filename
+    };
+    let file = custom_artifact_file_name(
+        kind.as_str(),
+        base,
+        if extension.is_empty() {
+            None
+        } else {
+            Some(extension)
+        },
+    );
+    if let Some(link_name) = linkable_library_name(&file) {
+        return link_name;
+    }
+
+    // Exact filename (e.g. an explicit `extension`): `-l` cannot find it, so
+    // pass the packaged artifact by absolute path instead. `canonicalize_path`
+    // also strips the Windows `\\?\` verbatim prefix, which MinGW gcc mangles.
+    let file_name = Path::new(&file)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or(file.as_str());
+    let lib_dir = match lib_root {
+        Some(dir) => dir.to_path_buf(),
+        None => path.join("target").join("lib"),
+    };
+    crate::utils::fs::canonicalize_path(&lib_dir)
+        .join(file_name)
+        .to_string_lossy()
+        .to_string()
+}
+
+/// Returns the conventional `-l`/MSVC name for an artifact, or `None` when the
+/// filename needs to be passed to the linker as an exact path.
+fn linkable_library_name(file: &str) -> Option<String> {
+    if file.contains('/') || file.contains('\\') {
+        return None;
+    }
+    #[cfg(windows)]
+    {
+        let lower = file.to_ascii_lowercase();
+        if lower.ends_with(".lib") {
+            let stem = &file[..file.len() - 4];
+            if stem.is_empty() {
+                return None;
+            }
+            return Some(stem.to_string());
+        }
+        None
+    }
+    #[cfg(not(windows))]
+    {
+        let stem = file.strip_prefix("lib")?;
+        let stem = if let Some(stem) = stem.strip_suffix(".a") {
+            stem
+        } else if cfg!(target_os = "macos") {
+            stem.strip_suffix(".dylib")?
+        } else {
+            stem.strip_suffix(".so")?
+        };
+        if stem.is_empty() {
+            None
+        } else {
+            Some(stem.to_string())
+        }
     }
 }
 

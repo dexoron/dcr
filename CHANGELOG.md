@@ -1,5 +1,61 @@
 # Changelog
 
+## [v0.9.6] - 2026-11-15 "Исправления dcrup и имён библиотечных артефактов / dcrup & Library Artifact Fixes"
+
+### RU
+
+**Добавлено:**
+
+- **Имена библиотечных артефактов** — `build.filename` и `build.extension` теперь работают для `staticlib` и `sharedlib`: `filename = "sct"` даёт `libsct.a` (`libsct.lib` на Windows), а явный `extension` полностью задаёт имя.
+- **Линковка библиотек с нестандартным именем** — зависимости, чей артефакт нельзя выразить как `-l<name>` (`libfoo.a` / `foo.lib`), передаются линкеру точным путём, включая библиотеки-члены workspace.
+- **Короткие имена ОС в секциях** — `[build.windows]`, `[build.linux.debug]` и подобные работают как алиасы полного триплета; при конфликте побеждает полный триплет.
+- **`dcr --update`** — ожидает ассеты `dcr-<triple>-<version>[.exe]`, как их публикует релизный workflow, сохраняя поддержку старых имён без версии.
+- **dcrup и Windows** — bash-установщик понимает Git Bash/MSYS2/Cygwin: ассеты и бинарники с `.exe`, `list`/`show`/`which`/`default`/`uninstall` учитывают суффикс.
+
+**Исправлено:**
+
+- **`dcr run`** — запускает артефакт, разрешённый по `filename`/`extension`, профилю и target, а не только `target/<profile>/<package>`.
+- **`dcr test`** — линкует библиотеку проекта точным путём при нестандартном имени и использует target-aware `cflags`/`ldflags`/`pkg_config`.
+- **`dcrup install VERSION@dev`** — при отсутствии `-dev`-тега откатывается на `vVERSION`; `--build` резолвит тег через git и не требует GitHub API.
+- **`dcrup default` / `dcrup uninstall`** — находят плавающую установку `stable-<version>`, а для каналов выбирают последнюю версию численно (`0.10.0` > `0.9.5`; night — по времени изменения).
+- **Неудачные установки** — больше не оставляют пустых toolchain-каталогов; `dcrup list` не показывает версии без бинарника.
+- **`dcrup uninstall` активной версии** — переключает default на одну из оставшихся, а не оставляет `dcr` без ссылки.
+- **`dcrup self-install`** — безопасен при повторном запуске, проверяет `--to` и PATH каталога установки.
+- **`--no-modify-path`** — не меняет PATH даже в текущей сессии, как и описано в документации.
+- **`--quiet`** — предупреждения уходят в stderr и не попадают в захватываемые значения; ошибки `cargo`/`git` всё равно видны.
+- **Документация** — обновлены installation, self-update, environment variables, `dcr.toml` и build profiles.
+
+**Изменено:**
+
+- Примеры `examples/*` больше не подмодули: это локальные каталоги, добавленные в `.gitignore`.
+
+### EN
+
+**Added:**
+
+- **Library artifact names** — `build.filename` and `build.extension` now apply to `staticlib` and `sharedlib`: `filename = "sct"` yields `libsct.a` (`libsct.lib` on Windows), while an explicit `extension` controls the name exactly.
+- **Linking non-conventional library names** — dependencies whose artifact cannot be expressed as `-l<name>` (`libfoo.a` / `foo.lib`) are passed to the linker by exact path, including libraries built as workspace members.
+- **Short OS names in sections** — `[build.windows]`, `[build.linux.debug]`, and similar work as aliases for the full target triple; the full triple wins on conflicts.
+- **`dcr --update`** — expects `dcr-<triple>-<version>[.exe]` assets as published by the release workflow, while still accepting the older unversioned names.
+- **dcrup on Windows** — the bash installer supports Git Bash/MSYS2/Cygwin: `.exe` assets and binaries, with `list`/`show`/`which`/`default`/`uninstall` honouring the suffix.
+
+**Fixed:**
+
+- **`dcr run`** — executes the artifact resolved from `filename`/`extension`, profile, and target instead of always `target/<profile>/<package>`.
+- **`dcr test`** — links the project library by exact path for non-conventional names and uses target-aware `cflags`/`ldflags`/`pkg_config`.
+- **`dcrup install VERSION@dev`** — falls back to `vVERSION` when no `-dev` tag exists; `--build` resolves the tag through git and needs no GitHub API.
+- **`dcrup default` / `dcrup uninstall`** — find a floating `stable-<version>` install, and pick the newest version numerically for channels (`0.10.0` > `0.9.5`; night by modification time).
+- **Failed installs** — no longer leave an empty toolchain directory behind; `dcrup list` skips versions without a binary.
+- **`dcrup uninstall` of the active version** — switches the default to one of the remaining toolchains instead of leaving `dcr` unlinked.
+- **`dcrup self-install`** — safe to re-run and validates `--to` and the install directory's PATH entry.
+- **`--no-modify-path`** — no longer edits PATH even for the current session, matching the documentation.
+- **`--quiet`** — warnings go to stderr and cannot leak into captured values, while `cargo`/`git` errors are still shown.
+- **Documentation** — installation, self-update, environment variables, `dcr.toml`, and build profiles updated.
+
+**Changed:**
+
+- `examples/*` are no longer submodules: they are local checkouts ignored via `.gitignore`.
+
 ## [v0.9.5] - 2026-10-21 "Структурированный вывод CLI / Structured CLI Output"
 
 ### RU

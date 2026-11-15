@@ -22,14 +22,17 @@ dcr --update
 
 ## Asset naming
 
-Pattern: `dcr-<triple>` or `dcr-<triple>.exe`
+Pattern: `dcr-<triple>-<version>` or `dcr-<triple>-<version>.exe`
 
 | Platform | Asset name |
 |----------|-----------|
-| Linux x86_64 | `dcr-x86_64-unknown-linux-gnu` |
-| macOS x86_64 | `dcr-x86_64-apple-darwin` |
-| macOS ARM64 | `dcr-aarch64-apple-darwin` |
-| Windows x86_64 | `dcr-x86_64-pc-windows-msvc.exe` |
+| Linux x86_64 | `dcr-x86_64-unknown-linux-gnu-0.9.6` |
+| macOS x86_64 | `dcr-x86_64-apple-darwin-0.9.6` |
+| macOS ARM64 | `dcr-aarch64-apple-darwin-0.9.6` |
+| Windows x86_64 | `dcr-x86_64-pc-windows-msvc-0.9.6.exe` |
+
+Older releases that published `dcr-<triple>` without the version suffix are
+still accepted as a fallback.
 
 ## AUR
 

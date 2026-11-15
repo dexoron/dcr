@@ -21,9 +21,20 @@
 /// projects, including object compilation and linking for executables, static
 /// libraries, shared libraries, and flat binaries.
 use crate::core::build::{builder::BuildContext, builder::artifact, common};
-use crate::platform;
 use crate::utils::build::{is_compile_only, is_flat_bin};
 use std::{fs, path::Path, process::Command, time::Instant};
+
+/// Appends a library reference to an MSVC link command.
+///
+/// Absolute paths come from dependencies whose custom filename cannot be
+/// expressed as `<name>.lib`; pass those through unchanged.
+fn push_msvc_lib(cmd: &mut Command, lib: &str) {
+    if Path::new(lib).is_absolute() || lib.to_ascii_lowercase().ends_with(".lib") {
+        cmd.arg(lib);
+    } else {
+        cmd.arg(format!("{lib}.lib"));
+    }
+}
 
 /// Builds the project target using the MSVC compiler.
 pub fn build(ctx: &BuildContext) -> Result<f64, String> {
@@ -56,7 +67,7 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     }
 
     if ctx.kind == "staticlib" {
-        let lib_path = platform::lib_path(ctx.profile, ctx.project_name, ctx.target_dir);
+        let lib_path = artifact::output_path(ctx);
         if !common::needs_link(&objects, &lib_path) {
             let elapsed = common::elapsed_secs(start_time);
             return Ok(elapsed);
@@ -121,11 +132,7 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
         cmd.arg(format!("/LIBPATH:{dir}"));
     }
     for lib in ctx.libs {
-        if lib.to_lowercase().ends_with(".lib") {
-            cmd.arg(lib);
-        } else {
-            cmd.arg(format!("{lib}.lib"));
-        }
+        push_msvc_lib(&mut cmd, lib);
     }
     if !ctx.ldflags.is_empty() {
         cmd.arg("/link");
@@ -133,13 +140,7 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
             cmd.arg(flag);
         }
     }
-    let out_path = if ctx.kind == "sharedlib" {
-        platform::shared_lib_path(ctx.profile, ctx.project_name, ctx.target_dir)
-    } else if ctx.kind == "elf" {
-        platform::elf_path(ctx.profile, ctx.project_name, ctx.target_dir)
-    } else {
-        platform::bin_path(ctx.profile, ctx.project_name, ctx.target_dir)
-    };
+    let out_path = artifact::output_path(ctx);
 
     if !common::needs_link(&objects, &out_path) {
         let elapsed = common::elapsed_secs(start_time);
@@ -190,11 +191,7 @@ fn link_flat_msvc(
         cmd.arg(format!("/LIBPATH:{dir}"));
     }
     for lib in ctx.libs {
-        if lib.to_lowercase().ends_with(".lib") {
-            cmd.arg(lib);
-        } else {
-            cmd.arg(format!("{lib}.lib"));
-        }
+        push_msvc_lib(&mut cmd, lib);
     }
     cmd.arg(format!("/Fe:{intermediate}"));
     if !ctx.ldflags.is_empty() {

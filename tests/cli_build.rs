@@ -356,3 +356,105 @@ fn host_target_section_ldflags_apply_without_cli_target() {
         "host target section ldflags must be applied on native build:\n{combined}"
     );
 }
+
+#[test]
+fn run_uses_custom_binary_filename() {
+    let Some(compiler) = available_compiler() else {
+        eprintln!("no compiler found; skipping custom filename run test");
+        return;
+    };
+    let dir = unique_sandbox_dir("run_custom_name");
+    let out = run_dcr(&["init"], &dir);
+    assert!(out.status.success(), "dcr init should succeed");
+
+    let toml_path = dir.join("dcr.toml");
+    let toml = std::fs::read_to_string(&toml_path).expect("read dcr.toml");
+    let updated = toml.replace("kind = \"bin\"", "kind = \"bin\"\nfilename = \"renamed\"");
+    assert!(
+        updated.contains("filename = \"renamed\""),
+        "template changed"
+    );
+    std::fs::write(&toml_path, updated).expect("write dcr.toml");
+    std::fs::write(
+        dir.join("src/main.c"),
+        "#include <stdio.h>\nint main(void) { printf(\"custom-run\\n\"); return 0; }\n",
+    )
+    .expect("write main.c");
+
+    let out = run_dcr_env(&["run"], &dir, &[("DCR_COMPILER", compiler)]);
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        out.status.success(),
+        "dcr run with a custom binary filename failed:\n{combined}"
+    );
+    assert!(combined.contains("custom-run"), "program output missing");
+    let custom = host_profile_dir(&dir, "debug").join(bin_name("renamed"));
+    assert!(
+        custom.is_file(),
+        "dcr run should build/execute {}",
+        custom.display()
+    );
+}
+
+#[test]
+fn short_target_section_sets_binary_filename() {
+    let Some(compiler) = available_compiler() else {
+        eprintln!("no compiler found; skipping short target section test");
+        return;
+    };
+    let short = if cfg!(target_os = "linux") {
+        "linux"
+    } else if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(target_os = "windows") {
+        "windows"
+    } else {
+        eprintln!("unsupported host for short target section test; skipping");
+        return;
+    };
+    let dir = unique_sandbox_dir("short_target_name");
+    let out = run_dcr(&["init"], &dir);
+    assert!(out.status.success(), "dcr init should succeed");
+
+    let toml_path = dir.join("dcr.toml");
+    let toml = std::fs::read_to_string(&toml_path).expect("read dcr.toml");
+    let updated = format!("{toml}\n[build.{short}]\nfilename = \"hostname\"\n");
+    std::fs::write(&toml_path, updated).expect("write dcr.toml");
+
+    let envs = [("DCR_COMPILER", compiler)];
+    let out = run_dcr_env(&["build"], &dir, &envs);
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        out.status.success(),
+        "build with [build.{short}] filename failed:\n{combined}"
+    );
+    let custom = host_profile_dir(&dir, "debug").join(bin_name("hostname"));
+    assert!(
+        custom.is_file(),
+        "short target section should produce {}",
+        custom.display()
+    );
+
+    let out = run_dcr_env(&["build", "--print-artifact-path"], &dir, &envs);
+    let printed = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        out.status.success(),
+        "--print-artifact-path failed:\n{printed}"
+    );
+    assert!(
+        printed.contains("hostname"),
+        "--print-artifact-path should use the target-specific filename:\n{printed}"
+    );
+}

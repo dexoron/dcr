@@ -700,19 +700,47 @@ fn build_project_at_inner(
                             ws_lib_dirs.push(dep_build_lib2.to_string_lossy().to_string());
                         }
                         let dep_toml = dep_member.path.join("dcr.toml");
-                        let is_lib = if dep_toml.is_file() {
-                            if let Ok(dep_config) = Config::open(&dep_toml.to_string_lossy()) {
-                                let kind =
-                                    get_build_string_with_profile(&dep_config, "kind", profile);
-                                kind == "staticlib" || kind == "sharedlib"
-                            } else {
-                                false
-                            }
-                        } else {
-                            false
-                        };
+                        let dep_config = dep_toml
+                            .is_file()
+                            .then(|| Config::open(&dep_toml.to_string_lossy()).ok())
+                            .flatten();
+                        let is_lib = dep_config.as_ref().is_some_and(|dep_config| {
+                            let kind = get_string_with_profile_and_target(
+                                dep_config,
+                                "kind",
+                                profile,
+                                build_target,
+                            );
+                            kind == "staticlib" || kind == "sharedlib"
+                        });
                         if is_lib {
-                            ws_libs.push(dep_member.name.clone());
+                            // Mirror `package_library`: a member's artifact is
+                            // copied into the `lib` of the nearest `target`
+                            // ancestor of that member's artifact directory.
+                            let dep_out_dir = dep_config
+                                .as_ref()
+                                .map(|dep_config| {
+                                    get_build_string_with_profile(dep_config, "out_dir", profile)
+                                })
+                                .unwrap_or_default();
+                            let dep_target_dir = resolve_artifact_target_dir(
+                                &dep_member.path,
+                                Some(wroot),
+                                profile,
+                                build_target_owned.as_str(),
+                                &dep_out_dir,
+                                has_explicit_target,
+                            );
+                            let dep_lib_root =
+                                find_target_root(&dep_target_dir, &dep_member.path.join("target"))
+                                    .join("lib");
+                            ws_libs.push(crate::core::deps::package_link_name(
+                                &dep_member.path,
+                                &dep_member.name,
+                                profile,
+                                build_target,
+                                Some(&dep_lib_root),
+                            ));
                         }
                     }
                 }
@@ -1090,19 +1118,29 @@ fn package_library(
     }
 
     let mut outputs = Vec::new();
-    if ctx.kind == "staticlib" || ctx.kind == "any" {
-        outputs.push(crate::platform::lib_path(
+    if ctx.kind == "staticlib" || ctx.kind == "sharedlib" {
+        outputs.push(crate::core::build::cache::build_output_path(ctx));
+    } else if ctx.kind == "any" {
+        if let Some(path) = crate::core::build::builder::artifact::resolve_artifact_path(
+            "staticlib",
             ctx.profile,
             ctx.project_name,
             ctx.target_dir,
-        ));
-    }
-    if ctx.kind == "sharedlib" || ctx.kind == "any" {
-        outputs.push(crate::platform::shared_lib_path(
+            ctx.output_filename,
+            ctx.output_extension,
+        ) {
+            outputs.push(path);
+        }
+        if let Some(path) = crate::core::build::builder::artifact::resolve_artifact_path(
+            "sharedlib",
             ctx.profile,
             ctx.project_name,
             ctx.target_dir,
-        ));
+            ctx.output_filename,
+            ctx.output_extension,
+        ) {
+            outputs.push(path);
+        }
     }
 
     for output in outputs {

@@ -38,6 +38,14 @@ pub fn lib_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     }
 }
 
+/// Constructs the path to a static library using an already complete filename.
+pub fn lib_path_exact(profile: &str, file: &str, target_dir: Option<&str>) -> String {
+    match target_dir {
+        Some(dir) => join_dir(dir, file),
+        None => default_lib_rel(profile, file, None),
+    }
+}
+
 /// Constructs the path to an ELF binary for the given profile, name, and optional target directory.
 pub fn elf_path(profile: &str, name: &str, target_dir: Option<&str>) -> String {
     bin_path(profile, name, target_dir)
@@ -58,5 +66,13 @@ pub fn shared_lib_path(profile: &str, name: &str, target_dir: Option<&str>) -> S
     match target_dir {
         Some(dir) => join_dir(dir, &file),
         None => default_lib_rel(profile, &file, None),
+    }
+}
+
+/// Constructs the path to a shared library using an already complete filename.
+pub fn shared_lib_path_exact(profile: &str, file: &str, target_dir: Option<&str>) -> String {
+    match target_dir {
+        Some(dir) => join_dir(dir, file),
+        None => default_lib_rel(profile, file, None),
     }
 }

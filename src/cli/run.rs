@@ -19,9 +19,13 @@ use crate::prelude::*;
 
 use crate::cli::build::build;
 use crate::cli::flags::parse_build_run_flags;
+use crate::core::build::builder::artifact::{absolute_artifact_path, resolve_artifact_path};
+use crate::core::build::resolve::get_string_with_profile_and_target;
 use crate::core::build_config::Config;
 use crate::core::runner::run_binary;
-use crate::utils::build::{normalize_target_os, parse_version_info, substitute_vars};
+use crate::utils::build::{
+    default_target_triple, normalize_kind, normalize_target_os, parse_version_info, substitute_vars,
+};
 use crate::utils::fs::{find_project_root, with_dir};
 use std::{path::Path, process::Command};
 
@@ -202,11 +206,21 @@ fn run_project(
         }
     }
 
-    let build_kind = config
-        .get(&format!("build.{}.kind", flags.profile))
-        .and_then(|v| v.as_str())
-        .or_else(|| config.get("build.kind").and_then(|v| v.as_str()))
-        .unwrap_or("");
+    let lookup_target = target.clone().unwrap_or_else(default_target_triple);
+    let build_kind =
+        get_string_with_profile_and_target(&config, "kind", &flags.profile, Some(&lookup_target));
+    let output_filename = get_string_with_profile_and_target(
+        &config,
+        "filename",
+        &flags.profile,
+        Some(&lookup_target),
+    );
+    let output_extension = get_string_with_profile_and_target(
+        &config,
+        "extension",
+        &flags.profile,
+        Some(&lookup_target),
+    );
 
     let out_dir =
         crate::cli::build::get_build_string_with_profile(&config, "out_dir", &flags.profile);
@@ -228,7 +242,7 @@ fn run_project(
         .unwrap_or("");
     let run_cmd = get_run_cmd(&config, &flags.profile, target.as_deref(), version);
 
-    let kind = build_kind.trim();
+    let kind = normalize_kind(&build_kind);
     if run_cmd.is_none()
         && (kind == "staticlib"
             || kind == "sharedlib"
@@ -239,6 +253,27 @@ fn run_project(
         return Err("Cannot run library build".to_string());
     }
 
+    let bin_path = resolve_artifact_path(
+        kind,
+        &flags.profile,
+        project_name,
+        normalized_target_dir.as_deref(),
+        (!output_filename.is_empty()).then_some(output_filename.as_str()),
+        (!output_extension.is_empty()).then_some(output_extension.as_str()),
+    )
+    .map(|path| {
+        absolute_artifact_path(root, &path)
+            .to_string_lossy()
+            .to_string()
+    })
+    .unwrap_or_else(|| {
+        crate::platform::bin_path(
+            &flags.profile,
+            project_name,
+            normalized_target_dir.as_deref(),
+        )
+    });
+
     let build_status = if let Some(wroot) = workspace_root {
         with_dir(wroot, || {
             Ok(build(&args_for_workspace_build(flags, project_name)))
@@ -247,11 +282,6 @@ fn run_project(
     } else {
         build(&args_for_build(flags))
     };
-    let bin_path = crate::platform::bin_path(
-        &flags.profile,
-        project_name,
-        normalized_target_dir.as_deref(),
-    );
     if build_status == 0 {
         if let Some(cmd) = run_cmd {
             let display = display_run_cmd(&cmd, &flags.bin_args);
@@ -260,23 +290,13 @@ fn run_project(
         }
         let display = display_bin_run(&bin_path, &flags.bin_args);
         crate::utils::output::status("run", display);
-        return Ok(run_binary(
-            project_name,
-            &flags.profile,
-            normalized_target_dir.as_deref(),
-            &flags.bin_args,
-        ));
+        return Ok(run_binary(&bin_path, &flags.bin_args));
     }
 
     let fallback_code = if let Some(cmd) = run_cmd {
         run_shell_with_args(&cmd, &flags.bin_args)
     } else {
-        run_binary(
-            project_name,
-            &flags.profile,
-            normalized_target_dir.as_deref(),
-            &flags.bin_args,
-        )
+        run_binary(&bin_path, &flags.bin_args)
     };
     if fallback_code != 1 {
         return Ok(fallback_code);

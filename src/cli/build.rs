@@ -22,11 +22,12 @@ use crate::cli::flags::parse_build_run_flags;
 use crate::cli::r#gen::{ProjectInfo, write_dcr_metadata};
 use crate::core::build::builder::artifact::{absolute_artifact_path, resolve_artifact_path};
 use crate::core::build::common;
+use crate::core::build::resolve::get_string_with_profile_and_target;
 use crate::core::build::{BuildEvent, BuildReporter, BuildRequest, run_build};
 use crate::core::build_config::Config;
 use crate::utils::build::{
-    get_config_opt, get_config_str, get_language_with_profile_or_default, get_string_with_profile,
-    normalize_kind, resolve_artifact_target_dir, resolve_compiler,
+    default_target_triple, get_config_opt, get_config_str, get_language_with_profile_or_default,
+    get_string_with_profile, normalize_kind, resolve_artifact_target_dir, resolve_compiler,
 };
 use crate::utils::fs::{canonicalize_path, find_project_root};
 use crate::utils::output;
@@ -295,17 +296,33 @@ fn resolve_post_build_info(
     }
     let name = get_config_str(&config, "package.name");
     let version = get_config_str(&config, "package.version");
-    let language = get_language_with_profile_or_default(&config, profile);
-    let standard = get_string_with_profile(&config, "standard", profile);
-    let cxx_standard = get_string_with_profile(&config, "cxx_standard", profile);
-    let compiler_s = get_string_with_profile(&config, "compiler", profile);
-    let kind = normalize_kind(&get_string_with_profile(&config, "kind", profile)).to_string();
     let build_target = cli_target
         .map(|s| s.to_string())
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| get_string_with_profile(&config, "target", profile));
-    let output_filename_s = get_string_with_profile(&config, "filename", profile);
-    let output_extension_s = get_string_with_profile(&config, "extension", profile);
+    let lookup_target = if build_target.trim().is_empty() {
+        default_target_triple()
+    } else {
+        build_target.clone()
+    };
+    let language = get_language_with_profile_or_default(&config, profile);
+    let standard =
+        get_string_with_profile_and_target(&config, "standard", profile, Some(&lookup_target));
+    let cxx_standard =
+        get_string_with_profile_and_target(&config, "cxx_standard", profile, Some(&lookup_target));
+    let compiler_s =
+        get_string_with_profile_and_target(&config, "compiler", profile, Some(&lookup_target));
+    let kind = normalize_kind(&get_string_with_profile_and_target(
+        &config,
+        "kind",
+        profile,
+        Some(&lookup_target),
+    ))
+    .to_string();
+    let output_filename_s =
+        get_string_with_profile_and_target(&config, "filename", profile, Some(&lookup_target));
+    let output_extension_s =
+        get_string_with_profile_and_target(&config, "extension", profile, Some(&lookup_target));
     let output_filename = if output_filename_s.is_empty() {
         None
     } else {
@@ -387,20 +404,42 @@ fn resolve_post_build_info(
 
 /// Best-effort absolute main artifact path when full post-build info is unavailable.
 ///
-/// Assumes a binary (`"bin"`) kind and uses the package name plus profile,
-/// target, and `out_dir` settings from config.
+/// Reads kind, target, `filename`, and `extension` from config so the fallback
+/// agrees with the builder for custom artifact names.
 fn fallback_artifact_path(root: &Path, profile: &str, target: Option<&str>) -> Option<String> {
     let config = Config::open(root.join("dcr.toml").to_str()?).ok()?;
     let name = get_config_str(&config, "package.name");
     if name.is_empty() {
         return None;
     }
-    let build_target = target.unwrap_or("").to_string();
+    let build_target = target
+        .map(str::to_string)
+        .filter(|t| !t.trim().is_empty())
+        .unwrap_or_else(|| get_string_with_profile(&config, "target", profile));
+    let lookup_target = if build_target.trim().is_empty() {
+        default_target_triple()
+    } else {
+        build_target.clone()
+    };
+    let kind_raw =
+        get_string_with_profile_and_target(&config, "kind", profile, Some(&lookup_target));
+    let kind = normalize_kind(&kind_raw);
+    let filename =
+        get_string_with_profile_and_target(&config, "filename", profile, Some(&lookup_target));
+    let extension =
+        get_string_with_profile_and_target(&config, "extension", profile, Some(&lookup_target));
     let out_dir = get_string_with_profile(&config, "out_dir", profile);
     let has_explicit = !build_target.trim().is_empty();
     let target_dir =
         resolve_artifact_target_dir(root, None, profile, &build_target, &out_dir, has_explicit);
-    let rel = resolve_artifact_path("bin", profile, &name, Some(&target_dir), None, None)?;
+    let rel = resolve_artifact_path(
+        kind,
+        profile,
+        &name,
+        Some(&target_dir),
+        (!filename.is_empty()).then_some(filename.as_str()),
+        (!extension.is_empty()).then_some(extension.as_str()),
+    )?;
     Some(
         absolute_artifact_path(root, &rel)
             .to_string_lossy()

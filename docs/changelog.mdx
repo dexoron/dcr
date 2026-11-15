@@ -4,6 +4,21 @@ sidebar_label: Changelog
 
 # Changelog
 
+## 0.9.6 (2026-11-15)
+
+- **Library artifact names** — `build.filename` / `build.extension` now apply to `staticlib` and `sharedlib`: `filename = "sct"` produces `libsct.a` (`libsct.lib` on Windows), while an explicit `extension` sets the name exactly.
+- **Non-conventional library linking** — dependencies whose artifact cannot be expressed as `-l<name>` (`libfoo.a` / `foo.lib`) are passed to the linker by exact path, including libraries built as workspace members.
+- **Short OS section names** — `[build.windows]`, `[build.linux.debug]`, and similar are accepted as aliases for the full target triple; the full triple still wins when both are present.
+- **`dcr run` / `dcr test`** — resolve the artifact from `filename`/`extension`, profile, and target, and link the project library by exact path when its name is not conventional.
+- **`dcr --update`** — expects versioned release assets `dcr-<triple>-<version>[.exe]`, with the older unversioned names kept as a fallback.
+- **`dcrup` tag resolution** — `VERSION@dev` falls back to `vVERSION` when no `-dev` tag exists, and `--build` resolves pinned tags through git (honours `DCRUP_REPO`, needs no GitHub API).
+- **`dcrup` installed-version handling** — `default`/`uninstall` find a floating `stable-<version>` install and pick the newest version numerically (`0.10.0` > `0.9.5`); uninstalling the active version switches the default to a remaining toolchain.
+- **`dcrup` robustness** — failed installs no longer leave empty toolchain directories behind, `dcrup list` hides entries without a binary, `self-install` is safe to re-run, and `--no-modify-path` also leaves the current session PATH untouched.
+- **`dcrup --quiet`** — warnings go to stderr so they cannot pollute captured values, while `cargo`/`git` errors are still shown.
+- **Windows installs from bash** — the `.sh` installer supports Git Bash/MSYS2/Cygwin with `.exe` assets and binaries, and `list`/`show`/`which`/`default`/`uninstall` honour the suffix.
+- **Examples** — `examples/*` are no longer submodules; they are local checkouts ignored via `.gitignore`.
+- **Documentation** — installation, self-update, environment variables, `dcr.toml`, and build profiles updated.
+
 ## 0.9.5 (2026-10-21)
 
 - **Structured CLI output** — shared helpers now provide Cargo-like human, plain, and JSON output modes.
