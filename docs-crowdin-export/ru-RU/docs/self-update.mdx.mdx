@@ -22,14 +22,17 @@ dcr --update
 
 ## Названия активов
 
-Шаблон: `dcr-\<triple>.\<ext> `
+Pattern: `dcr-\<triple>-\<version>` or `dcr-\<triple>-\<version>.exe`
 
-| Платформа      | Название актива                       |
-| -------------- | ------------------------------------- |
-| Linux x86_64   | `dcr-x86_64-unknown-linux-gnu.tar.gz` |
-| macOS x86_64   | `dcr-x86_64-apple-darwin.tar.gz`      |
-| macOS ARM64    | `dcr-aarch64-apple-darwin.tar.gz`     |
-| Windows x86_64 | `dcr-x86_64-pc-windows-msvc.zip`      |
+| Платформа      | Название актива                        |
+| -------------- | -------------------------------------- |
+| Linux x86_64   | `dcr-x86_64-unknown-linux-gnu-0.9.6`   |
+| macOS x86_64   | `dcr-x86_64-apple-darwin-0.9.6`        |
+| macOS ARM64    | `dcr-aarch64-apple-darwin-0.9.6`       |
+| Windows x86_64 | `dcr-x86_64-pc-windows-msvc-0.9.6.exe` |
+
+Older releases that published `dcr-\<triple>` without the version suffix are
+still accepted as a fallback.
 
 ## AUR
 
