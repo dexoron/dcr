@@ -1,0 +1,79 @@
+---
+sidebar_label: First steps
+---
+
+# First Steps
+
+## Create a project
+
+```bash
+dcr new my-app
+cd my-app
+```
+
+Structure:
+
+```
+my-app/
+├── dcr.toml
+└── src/
+    └── main.c
+```
+
+`dcr.toml`:
+
+```toml
+[package]
+name = "my-app"
+version = "0.1.0"
+type = "none"
+
+[build]
+language = "c"
+standard = "c11"
+compiler = "clang"
+kind = "bin"
+```
+
+## Build
+
+```bash
+dcr build
+```
+
+Output — `target/\<triple>/debug/my-app` (Linux) or `target/debug/my-app.exe` (Windows).
+
+Build profiles:
+
+```bash
+dcr build --release       # release build
+dcr build --debug         # debug (default)
+```
+
+## Run
+
+```bash
+dcr run
+```
+
+Builds (if needed) and runs the binary.
+
+## First test
+
+```bash
+dcr test --init      # create test template
+dcr test             # run tests
+```
+
+## Formatting
+
+```bash
+dcr fmt              # clang-format with .clang-format
+```
+
+## Linting
+
+```bash
+dcr lint             # clang-tidy checks
+dcr lint --fix       # apply fixes automatically
+```
