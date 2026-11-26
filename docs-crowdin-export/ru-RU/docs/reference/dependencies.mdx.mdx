@@ -1,10 +1,10 @@
 ---
-sidebar_label: Dependencies
+sidebar_label: Зависимости
 ---
 
-# Dependencies
+# Зависимости
 
-## Formats
+## Форматы
 
 The `[dependencies]` section supports registry, path, Git, and `pkg-config` dependencies:
 
@@ -13,13 +13,13 @@ The `[dependencies]` section supports registry, path, Git, and `pkg-config` depe
 ```toml
 [dependencies]
 fmt = "10.1.1"
-spdlog = "1.12"
-catch2 = "3.4.0"
+spdlog = "^1.12"
+catch2 = ">=3.0,<4.0"
 ```
 
-The version string is used as-is for registry lookup.
+Строка версии используется без изменений для поиска в реестре.
 
-### Table (git)
+### Табличный (git)
 
 ```toml
 [dependencies]
@@ -28,7 +28,7 @@ dcr-math = { git = "https://github.com/dexoron/dcr-math-lib.git", tag = "v0.1.0"
 
 Fields: `git`, `branch`, `tag`, `rev`, `mode`, `include`, `lib`, `libs`.
 
-### Table (path)
+### Табличный (path)
 
 ```toml
 [dependencies]
@@ -61,20 +61,22 @@ be available through pkg-config's standard search paths or via `PKG_CONFIG_PATH`
 These dependencies are not downloaded or built by DCR; they are recorded in
 `dcr.lock` with a `pkg-config+...` source.
 
-## Registry
+## Реестр
 
-DCR uses a package registry for dependency lookup by name.
+RegistryDCR использует реестр пакетов для поиска зависимостей по имени.\`\`\`toml
+
+````toml
 
 ```toml
 # ~/.dcr/config.toml
 [registry.default]
 url = "https://index.dcr.dexoron.tech"
 priority = 1
-```
+````
 
-Registry priority: order in `config.toml`. The `DCR_INDEX_PATH` variable overrides the path to `index.json`.
+Приоритет реестра: порядок в файле `config.toml`. Переменная `DCR_INDEX_PATH` переопределяет путь к index.json.
 
-## Git dependencies
+## Git-зависимости
 
 Git dependencies are cloned into `~/.dcr/git/`; their exact checked-out commit is written to `dcr.lock`.
 
@@ -94,10 +96,10 @@ dcr-math = { git = "https://github.com/dexoron/dcr-math-lib.git", tag = "v0.1.0"
 
 DCR supports specifying branch/tag/rev for git sources:
 
-* `branch` — switch to a branch
-* `tag` — switch to a tag
-* `rev` — switch to a specific commit
-* `features` — feature flags (parsed, but does not affect build)
+* `branch` — переключиться на ветку
+* `tag` — переключиться на тег
+* `rev` — переключиться на конкретный коммит
+* `features` — флаги функций (проанализированы, но не влияют на сборку)
 
 ## Path dependencies
 
