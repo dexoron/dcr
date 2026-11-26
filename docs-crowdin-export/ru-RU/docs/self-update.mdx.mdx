@@ -1,30 +1,30 @@
 ---
-sidebar_label: Self Update
+sidebar_label: Автоматическое обновление
 ---
 
-# Self Update
+# Автоматическое обновление
 
 ## dcr --update
 
-Automatic update to the latest version. Downloads a binary (not an archive) from GitHub Releases and replaces the current executable.
+Автоматическое обновление до последней версии. Загружает бинарный файл (не архив) из раздела «Релизы» на GitHub и заменяет им текущий исполняемый файл.
 
 ```bash
 dcr --update
 ```
 
-## How it works
+## Как это работает
 
-1. DCR detects the current platform and architecture
-2. Fetches the latest release from `api.github.com/repos/dexoron/dcr/releases/latest`
-3. Compares versions
-4. Downloads the matching asset (direct binary URL, not archive)
-5. Replaces the current executable via `self_replace`
+1. DCR определяет текущую платформу и архитектуру
+2. Загружает последнюю версию с `api.github.com/repos/dexoron/dcr/releases/latest`
+3. Сравнивает версии
+4. Загружает соответствующий ресурс (прямой URL-адрес двоичного файла, а не архива)
+5. Заменяет текущий исполняемый файл
 
-## Asset naming
+## Названия активов
 
 Pattern: `dcr-\<triple>-\<version>` or `dcr-\<triple>-\<version>.exe`
 
-| Platform       | Asset name                             |
+| Платформа      | Название актива                        |
 | -------------- | -------------------------------------- |
 | Linux x86_64   | `dcr-x86_64-unknown-linux-gnu-0.9.6`   |
 | macOS x86_64   | `dcr-x86_64-apple-darwin-0.9.6`        |
@@ -36,14 +36,14 @@ still accepted as a fallback.
 
 ## AUR
 
-If DCR was installed via AUR, `--update` shows a warning:
+Если DCR установлен через AUR, `--update` выводит предупреждение:
 
 ```
-Update via package manager: yay/paru -Syu {package_name} or sudo pacman -Syu {package_name}
+Обновление через менеджер пакетов: yay/paru -Syu {package_name} или sudo pacman -Syu {package_name}
 ```
 
-## Errors
+## Ошибки
 
-* Cannot detect platform — error
-* Cannot fetch release — error with URL
-* No write permission — error (use `sudo` or manual install)
+* Не удалось определить платформу — ошибка
+* Не удалось скачать релиз — ошибка с URL
+* Нет прав на запись бинарника — ошибка (нужен `sudo` или ручная установка)
