@@ -1,46 +1,41 @@
 ---
-sidebar_label: Workspaces
+sidebar_label: Рабочие пространства
 ---
 
-# Workspaces
+# Рабочие пространства
 
-Workspaces allow managing multiple packages in a single repository.
+Workspaces позволяют управлять несколькими пакетами в одном репозитории.
 
-## Configuration
+## Конфигурация
 
 ```toml
-[workspace.lib-core]
-path = "lib-core"
-
-[workspace.lib-utils]
-path = "lib-utils"
-deps = ["lib-core"]
-
-[workspace.app]
-path = "app"
-deps = ["lib-core", "lib-utils"]
-main = true
+[workspace]
+members = [
+    { path = "pkg-a" },
+    { path = "pkg-b", deps = ["pkg-a"] },
+    { path = "pkg-c", deps = ["pkg-a", "pkg-b"], main = true },
+]
 ```
 
-### Member fields
+### Поля member
 
-| Field  | Description                                      |
-| ------ | ------------------------------------------------ |
-| `path` | Path to the package (relative to workspace root) |
-| `deps` | Dependencies on other members                    |
-| `main` | Mark as the main package                         |
+| Поле   | Описание                                     |
+| ------ | -------------------------------------------- |
+| `path` | Путь к пакету (относительно корня workspace) |
+| `deps` | Зависимости от других member-ов              |
+| `main` | Пометить как главный пакет                   |
 
-## Topological sort
+## Топологическая сортировка
 
-DCR automatically sorts packages by dependencies: package A is built before B if B depends on A.
+DCR автоматически сортирует пакеты по зависимостям: пакет A собирается раньше B, если B зависит от A.
 
-Cyclic dependencies are detected and cause an error.
+Циклические зависимости обнаруживаются и приводят к ошибке.
 
-## Build
+## Сборка
 
 ```bash
-dcr build                    # build all packages in dependency order
-dcr build --workspace app    # build only app (dependencies built automatically)
+dcr build                    # собрать все пакеты
+dcr build --workspace pkg-a  # собрать только pkg-a
 ```
 
 When building a workspace, DCR automatically injects include and library paths of dependent workspace members:
@@ -48,25 +43,22 @@ When building a workspace, DCR automatically injects include and library paths o
 * **Include Paths**: Automatically resolves and injects header directories of dependencies, including the member's `src/` directory, local `include/` directory, and the packaged `target/include` directory.
 * **Library Paths**: Injects compiled library search paths (`target/lib` as well as target-specific build folders) to allow automatic linking with member libraries.
 
-## Clean
+## Очистка
 
 ```bash
-dcr clean                    # clean only root target/
-dcr clean --all              # clean target/ of all packages
+dcr clean                    # очистить только корневой target/
+dcr clean --all              # очистить target/ всех пакетов
 ```
 
-## Inheritance
+## Наследование
 
-If a member has `inherit = true` in its `[build]` section, fields from the root `[build]` are merged into the member:
+Если у member-а нет своей секции `[build]`, а в корневом `[build]` указано `inherit = true`:
 
 ```toml
-# root dcr.toml
 [build]
 inherit = true
 language = "c"
 standard = "c17"
-
-# member inherits language and standard
 ```
 
 ## Workspace-only root (no build of its own)
