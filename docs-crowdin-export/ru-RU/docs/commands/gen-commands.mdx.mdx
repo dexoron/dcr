@@ -1,12 +1,12 @@
 ---
-sidebar_label: Gen commands (vscode, clion, ...)
+sidebar_label: Gen команды (vscode, clion, ...)
 ---
 
-# Gen Commands
+# Gen команды
 
 ## `dcr gen \<target>`
 
-Generates IDE integration files.
+Генерирует файл интеграции с IDE.
 
 ### vscode
 
@@ -14,12 +14,12 @@ Generates IDE integration files.
 dcr gen vscode
 ```
 
-Creates:
+Создаёт:
 
-* `.vscode/tasks.json` — `build` task (dcr build)
-* `.vscode/launch.json` — debug launch configuration
-* `.vscode/settings.json` — C/C++ settings (clangd paths, includes)
-* `.vscode/extensions.json` — recommended extensions (vscode-clangd, vscode-lldb)
+* `.vscode/tasks.json` — `build` задача (dcr build)
+* `.vscode/launch.json` — конфигурация запуска отладки
+* `.vscode/settings.json` — настройки C/C++ (clangd пути, includes)
+* `.vscode/extensions.json` — рекомендуемые расширения (vscode-clangd, vscode-lldb)
 
 ### clion
 
@@ -27,12 +27,12 @@ Creates:
 dcr gen clion
 ```
 
-Creates:
+Создаёт:
 
-* `.idea/externalTools.xml` — external tools (build, run, clean, test)
-* `.idea/customTargets.xml` — custom build targets
-* `.idea/misc.xml` — C/C++ project settings
-* `.idea/runConfigurations/\<name>.xml` — per-binary run configurations
+* `.idea/externalTools.xml` — внешние инструменты (build, run, clean, test)
+* `.idea/customTargets.xml` — пользовательские цели сборки
+* `.idea/misc.xml` — настройки C/C++ проекта
+* `.idea/runConfigurations/\<name>.xml` — конфигурация запуска
 
 ### compile-commands
 
@@ -40,7 +40,7 @@ Creates:
 dcr gen compile-commands
 ```
 
-Generates `compile_commands.json` — standard format for clangd, cpptools, static analyzers.
+Генерирует `compile_commands.json` — стандартный формат для clangd, cpptools, статических анализаторов.
 
 ### project-info
 
@@ -48,7 +48,7 @@ Generates `compile_commands.json` — standard format for clangd, cpptools, stat
 dcr gen project-info
 ```
 
-Outputs JSON array with project metadata:
+Выводит JSON с метаданными проекта:
 
 ```json
 [
