@@ -1,18 +1,18 @@
 ---
-sidebar_label: System commands (setup, --help, ...)
+sidebar_label: Системные команды (setup, --help, ...)
 ---
 
-# System Commands
+# Системные команды
 
 ## `dcr setup`
 
-Shows configured registries from `~/.dcr/config.toml`.
+`~/.dcr/config.toml` — конфигурация реестров
 
 ```bash
 dcr setup
 ```
 
-If `~/.dcr/config.toml` is not found, DCR returns an error. Create it manually:
+Если файл `~/.dcr/config.toml` не найден, DCR возвращает ошибку. Создайте его вручную:
 
 ```toml
 [registry.default]
@@ -22,7 +22,7 @@ priority = 1
 
 ## `dcr --help`
 
-Shows help for all commands.
+Отображает справку по всем командам.
 
 ```bash
 dcr --help
@@ -38,7 +38,7 @@ dcr --version       # dcr 0.7.0 (x86_64-unknown-linux-gnu)
 
 ## `dcr --update`
 
-Self-update. Downloads the latest release binary from GitHub Releases and replaces the current one.
+Автоматическое обновление. Загружает последнюю версию бинарного файла из раздела «Релизы» на GitHub и заменяет текущую версию.
 
 ```bash
 dcr --update
@@ -46,6 +46,6 @@ dcr --update
 
 Features:
 
-* Auto-detects platform and architecture
-* Warns if installed via AUR (use package manager instead)
-* Works on Linux, macOS, Windows
+* Определяет платформу и архитектуру автоматически
+* Выдает предупреждение при установке через AUR (вместо этого используйте пакетный менеджер)
+* Работает на Linux, macOS, Windows
