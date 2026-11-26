@@ -1,50 +1,50 @@
 ---
-sidebar_label: Cross-compilation
+sidebar_label: Кросс-компиляция
 ---
 
-# Cross-Compilation
+# Кросс-компиляция
 
-## Short Names
+## Сокращённые названия
 
-DCR supports short platform names:
+DCR поддерживает короткие имена платформ, которые автоматически раскрываются в полные triples:
 
-| Short Name | Full Triple                |
-| ---------- | -------------------------- |
-| `linux`    | `x86_64-unknown-linux-gnu` |
-| `macos`    | `x86_64-apple-darwin`      |
-| `windows`  | `x86_64-pc-windows-msvc`   |
+| Краткое название | Полный тройной             |
+| ---------------- | -------------------------- |
+| `linux`          | `x86_64-unknown-linux-gnu` |
+| `macos`          | `x86_64-apple-darwin`      |
+| `windows`        | `x86_64-pc-windows-msvc`   |
 
 ```bash
 dcr build --target windows
 ```
 
-## Full Triples
+## Полные тройки
 
 ```bash
 dcr build --target aarch64-unknown-linux-gnu
-dcr build --target x86_64-pc-windows-gnu      # mingw
+dcr build --target x86_64-pc-windows-gnu
 dcr build --target armv7-unknown-linux-gnueabihf
 ```
 
 ## clang --target
 
-When using clang, DCR injects `--target=\<triple>` into CFLAGS.
+При использовании clang DCR автоматически inject-ит `--target=\<triple>` в CFLAGS/CXXFLAGS.
 
 ```toml
 [build]
 compiler = "clang"
 target = "aarch64-unknown-linux-gnu"
-# Auto: cflags += ["--target=aarch64-unknown-linux-gnu"]
+# Авто: cflags = ["--target=aarch64-unknown-linux-gnu"]
 ```
 
-## Bare-Metal / Freestanding
+## Bare-Metal
 
-For targets containing `none`, `-elf`, `eabi`, or `baremetal`, DCR automatically:
+Для целевых платформ, содержащих значения `none`, `-elf`, `eabi` или `baremetal`, DCR автоматически:
 
-1. **Disables default flags** — no system include paths, no `-l` libc
-2. **Injects `-ffreestanding`** at compile time and `-nostdlib -static` at link time
+1. Для none/elf/eabi/bare-metal target-ов отключаются DCR default флаги (нет `-I` системных путей, нет `-l` libc).
+2. **Вставляет `-ffreestanding`** на этапе компиляции и `-nostdlib -static` на этапе линковки
 
-You can also enable freestanding mode explicitly:
+Кроме того, можно явно включить автономный режим:
 
 ```toml
 [build]
@@ -55,7 +55,7 @@ freestanding = true
 dcr build --target aarch64-none-elf
 ```
 
-## Target Directory
+## Целевой каталог
 
 By default, the compilation output directories are structured as follows:
 
