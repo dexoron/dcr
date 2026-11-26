@@ -1,12 +1,12 @@
 ---
-sidebar_label: Build profiles
+sidebar_label: dcr build --profile lto
 ---
 
-# Build Profiles
+# Встроенные профили
 
-Profiles allow overriding `[build]` fields for specific build modes.
+Профили позволяют переопределять любые поля секции `[build]` для конкретного режима сборки.
 
-## Configuration
+## Конфигурация
 
 ```toml
 [build]
@@ -18,36 +18,36 @@ cflags = ["-Wall"]
 cflags = ["-O0", "-g"]
 
 [build.release]
-cflags = ["-O3", "-DNDEBUG"]
+cflags = ["-O3", "-flto"]
 ```
 
-## Merge rules
+## Правила
 
 Fields from `[build.\<profile>]` are merged on top of `[build]`:
 
-* **Scalar fields** (strings, numbers, bools) — replaced
-* **Arrays** (`cflags`, `ldflags`, ...) — **appended** (extend the `[build]` array)
+* **Скалярные поля** (строки, числа, логические значения) — заменены
+* Массивы (`cflags`, `ldflags`, ...) **заменяются полностью**, а не дополняются
 
-Set `inherit = false` to disable array inheritance (only profile's own arrays are used).
+Установите `inherit = false`, чтобы отключить наследование массивов (будут использоваться только собственные массивы профиля).
 
-## Built-in profiles
+## Кастомные профили
 
-The default flags for each profile are composed from three config fields:
+Флаги по умолчанию для каждого профиля формируются из трёх полей конфигурации:
 
-| Field       | debug default      | release default |
+| Поле        | Default cflags     | release default |
 | ----------- | ------------------ | --------------- |
-| `opt_level` | `"0"`              | `"3"`           |
+| `opt_level` | `-O0 -g`           | `"3"`           |
 | `debug`     | `true`             | `false`         |
 | `warnings`  | `["all", "extra"]` | `[]`            |
 
-Which produce the equivalent compiler flags:
+Которые генерируют соответствующие флаги компилятора:
 
-| Profile   | Effective flags                                            |
-| --------- | ---------------------------------------------------------- |
-| `debug`   | `-O0 -g -Wall -Wextra -fno-omit-frame-pointer -DDCR_DEBUG` |
-| `release` | `-O3 -DNDEBUG`                                             |
+| Профиль | Действующие флаги                                          |
+| ------- | ---------------------------------------------------------- |
+| `debug` | `-O0 -g -Wall -Wextra -fno-omit-frame-pointer -DDCR_DEBUG` |
+| `релиз` | `-O3 -DNDEBUG`                                             |
 
-Additional build options can be toggled per-profile:
+Дополнительные параметры сборки можно включать или отключать для каждого профиля:
 
 ```toml
 [build.release]
@@ -63,7 +63,7 @@ debug = false
 warnings = ["all", "error"]
 ```
 
-## Target-specific profiles
+## Target-specific профили
 
 ```toml
 [build.linux]
@@ -77,11 +77,11 @@ Short OS names (`linux`, `macos`, `windows`, ...) are aliases for the canonical
 target triple. `[build.windows]` and `[build.x86_64-pc-windows-msvc]` are
 equivalent; if both are present, the full triple wins.
 
-Application order (highest priority first):
+Порядок применения (в порядке убывания приоритета):
 
 1. `[build.\<target>.\<profile>]`
 2. `[build.\<profile>.\<target>]`
-3. `[build.\<target>]`
-4. the same three keys with a short OS name (`[build.linux.\<profile>]`, `[build.\<profile>.linux]`, `[build.linux]`)
-5. `[build.\<profile>]`
+3. ]`или`[build.\<target>]\`]\`
+4. the same three keys with a short OS name (`[build.linux.\<profile>]`, `[build.\<profile>.linux]`, `[build.linux]`)]`, `[build.\<profile>.linux]`, `[build.linux]\`)
+5. `[build.\<profile>]`.]\`
 6. `[build]`
