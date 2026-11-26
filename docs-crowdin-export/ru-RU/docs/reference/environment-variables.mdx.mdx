@@ -1,29 +1,29 @@
 ---
-sidebar_label: Environment variables
+sidebar_label: Переменные среды
 ---
 
-# Environment Variables
+# Переменные среды
 
 ## DCR_COMPILER
 
-Overrides the compiler for all languages. **Highest priority.**
+Переопределяет компилятор для всех языков. **Наивысший приоритет.**
 
 ```bash
 export DCR_COMPILER=clang
 dcr build
 ```
 
-Compiler resolution priority:
+Приоритет разрешения компилятора:
 
-1. `DCR_COMPILER` (env)
-2. `DCR_CC` / `DCR_CXX` / `DCR_AS` (env)
+1. `DCR_COMPILER` (переменная среды)
+2. `DCR_CC` / `DCR_CXX` / `DCR_AS` (переменная среды)
 3. `[toolchain]` (dcr.toml)
 4. `build.compiler` (dcr.toml)
 5. `PATH`
 
 ## DCR_CC / DCR_CXX / DCR_AS
 
-Per-language override (lower priority than `DCR_COMPILER`, higher than `[toolchain]`).
+Приоритет: `[toolchain]` > `DCR_COMPILER` > `DCR_CC` > `PATH`.
 
 ```bash
 export DCR_CC=gcc-14
@@ -42,7 +42,7 @@ export DCR_AR=llvm-ar
 
 ## DCR_DEBUG
 
-Enables debug mode — prints all compilation commands to stderr before execution.
+Включает режим отладки — печатает все команды компиляции перед выполнением.
 
 ```bash
 export DCR_DEBUG=1
@@ -51,13 +51,13 @@ dcr build
 
 ## DCR_INDEX_PATH
 
-Overrides the path to the registry `index.json`.
+Переопределяет путь к index.json реестра.
 
 ```bash
 export DCR_INDEX_PATH=/custom/path/index.json
 ```
 
-Default: `~/.dcr/index.json`.
+По умолчанию: `~/.dcr/index.json`.
 
 ## DCRUP_MIRROR
 
