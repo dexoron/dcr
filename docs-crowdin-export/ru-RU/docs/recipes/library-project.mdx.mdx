@@ -1,16 +1,15 @@
 ---
-sidebar_label: Library project
+sidebar_label: Проект библиотеки
 ---
 
-# Library Project
+# Проект библиотеки
 
-Creating a static library and using it in another project.
+Создание статической библиотеки и её использование в другом проекте.
 
-## Step 1: Create the library
+## Шаг 1: Создать библиотеку
 
 ```bash
 dcr new my-lib
-cd my-lib
 ```
 
 `dcr.toml`:
@@ -19,11 +18,11 @@ cd my-lib
 [package]
 name = "my-lib"
 version = "0.1.0"
-type = "none"
+type = "lib"
 
 [build]
 language = "c"
-standard = "c11"
+standard = "c17"
 kind = "staticlib"
 ```
 
@@ -43,28 +42,29 @@ int add(int a, int b);
 int add(int a, int b) { return a + b; }
 ```
 
-## Step 2: Build
+## Шаг 2: Собрать
 
 ```bash
+cd my-lib
 dcr build --release
 ```
 
-Artifacts:
+Артефакты:
 
-* `target/\<triple>/release/libmy-lib.a` (Linux)
+* `target/release/libmy-lib.a` (Linux/macOS)
 * `target/release/my-lib.lib` (Windows)
-* `target/include/` — header files
+* `target/include/` — заголовочные файлы
 
-## Step 3: Use in another project
+## Шаг 3: Использовать в проекте
 
 ```bash
 dcr new my-app
 cd my-app
-dcr add my-lib ../my-lib
+dcr add ../my-lib
 ```
 
-Automatically:
+Автоматически:
 
-* Adds include path to `target/include/` of the library
-* Adds lib path to `target/\<triple>/release/`
-* Links `libmy-lib.a` / `my-lib.lib`
+* Добавляется include path на `target/include/` библиотеки
+* Добавляется lib path на `target/release/`
+* Линкуется `libmy-lib.a` / `my-lib.lib`
