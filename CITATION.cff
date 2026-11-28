@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+message: "If you use DCR in your work, please cite it using the metadata from this file."
+type: software
+title: "DCR — Dexoron Cargo Realization"
+abstract: >-
+  DCR is a Cargo-style build tool and dependency manager for C and C++ projects.
+  It builds, runs, and tests projects from a single dcr.toml, supports path, Git,
+  registry, and pkg-config dependencies, workspaces, cross-compilation,
+  multiple assemblers, and IDE integration.
+authors:
+  - family-names: Bezotechestvo
+    given-names: Vladimir
+    alias: Dexoron
+    email: main@dexoron.tech
+    website: "https://dexoron.tech"
+  - alias: Kai
+    website: "https://github.com/peoplemiau1"
+version: 0.9.6
+date-released: "2026-11-15"
+license: GPL-3.0-or-later
+repository-code: "https://github.com/dexoron/dcr"
+repository-artifact: "https://github.com/dexoron/dcr/releases"
+url: "https://dcr-tool.ru"
+keywords:
+  - c
+  - cpp
+  - build-system
+  - package-manager
+  - cargo
+  - cross-compilation
+  - rust
+  - cli
