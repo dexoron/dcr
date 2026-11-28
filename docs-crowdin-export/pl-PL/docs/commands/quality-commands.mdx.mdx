@@ -1,0 +1,60 @@
+---
+sidebar_label: Quality commands (test, fmt)
+---
+
+# Quality Commands
+
+## `dcr test`
+
+Runs tests.
+
+```bash
+dcr test                          # debug profile
+dcr test --release                # release profile
+dcr test --debug                  # explicit debug
+dcr test --help                   # detailed help
+```
+
+Before first use, initialize tests:
+
+```bash
+dcr test --init
+```
+
+This creates `tests/dcr_test.h` (framework) and `tests/test.c` (template).
+
+What `dcr test` does:
+
+1. Builds the project
+2. Collects `tests/*.c` files (`.c` only, not `.cpp`)
+3. Compiles and links each test file
+4. Runs each test binary
+5. Prints summary: TOTAL, PASS, SKIP, FAIL
+6. Returns non-zero exit code on any FAIL
+
+## `dcr fmt`
+
+Formats C/C++ source files using `clang-format`.
+
+```bash
+dcr fmt
+```
+
+Processes: `src/**/*.{c,cpp,cxx,cc,h,hpp,hxx,hh}` and `tests/**/*.{c,cpp,cxx,cc,h,hpp,hxx,hh}`.
+
+Uses `.clang-format` at the project root (if present), otherwise default clang-format style.
+
+## `dcr lint`
+
+Runs `clang-tidy` on C/C++ source files for static analysis.
+
+```bash
+dcr lint              # show diagnostics
+dcr lint --fix        # apply fixes automatically
+dcr lint --help       # detailed help
+```
+
+Processes: `src/**/*.{c,cpp,cxx,cc}` and `tests/**/*.{c,cpp,cxx,cc}`.
+
+Without `--fix`, clang-tidy reports warnings and errors without modifying files.
+With `--fix`, clang-tidy applies automatic suggestions in place.

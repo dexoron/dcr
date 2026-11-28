@@ -1,0 +1,51 @@
+---
+sidebar_label: System commands (setup, --help, ...)
+---
+
+# System Commands
+
+## `dcr setup`
+
+Shows configured registries from `~/.dcr/config.toml`.
+
+```bash
+dcr setup
+```
+
+If `~/.dcr/config.toml` is not found, DCR returns an error. Create it manually:
+
+```toml
+[registry.default]
+url = "https://index.dcr.pm"
+priority = 1
+```
+
+## `dcr --help`
+
+Shows help for all commands.
+
+```bash
+dcr --help
+```
+
+## `dcr --version`
+
+Shows version and target triple.
+
+```bash
+dcr --version       # dcr 0.7.0 (x86_64-unknown-linux-gnu)
+```
+
+## `dcr --update`
+
+Self-update. Downloads the latest release binary from GitHub Releases and replaces the current one.
+
+```bash
+dcr --update
+```
+
+Features:
+
+* Auto-detects platform and architecture
+* Warns if installed via AUR (use package manager instead)
+* Works on Linux, macOS, Windows

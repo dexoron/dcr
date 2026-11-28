@@ -1,0 +1,79 @@
+---
+sidebar_label: Первые шаги
+---
+
+# Первые шаги
+
+## Создать проект
+
+```bash
+dcr new my-app
+cd my-app
+```
+
+Будет создана структура:
+
+```
+my-app/
+├── dcr.toml
+└── src/
+    └── main.c
+```
+
+`dcr.toml`:
+
+```toml
+[package]
+name = "my-app"
+version = "0.1.0"
+type = "none"
+
+[build]
+language = "c"
+standard = "c11"
+compiler = "clang"
+kind = "bin"
+```
+
+## Сборка
+
+```bash
+dcr build
+```
+
+Результат — `target/\<triple>/debug/my-app` (Linux) или `target/debug/my-app.exe` (Windows).
+
+Профиль сборки:
+
+```bash
+dcr build --release       # release сборка
+dcr build --debug         # debug (по умолчанию)
+```
+
+## Запустить
+
+```bash
+dcr run
+```
+
+Собирает (если нужно) и запускает бинарник.
+
+## Первый тест
+
+```bash
+dcr test --init      # создать шаблон теста
+dcr test             # запустить тесты
+```
+
+## Форматирование
+
+```bash
+dcr fmt              # clang-format по .clang-format
+```
+
+## Linting
+
+```bash
+dcr lint             # clang-tidy checks
+dcr lint --fix       # apply fixes automatically
+```

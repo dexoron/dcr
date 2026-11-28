@@ -1,0 +1,174 @@
+---
+sidebar_label: Переменные среды
+---
+
+# Переменные среды
+
+## DCR_COMPILER
+
+Переопределяет компилятор для всех языков. **Наивысший приоритет.**
+
+```bash
+export DCR_COMPILER=clang
+dcr build
+```
+
+Приоритет разрешения компилятора:
+
+1. `DCR_COMPILER` (переменная среды)
+2. `DCR_CC` / `DCR_CXX` / `DCR_AS` (переменная среды)
+3. `[toolchain]` (dcr.toml)
+4. `build.compiler` (dcr.toml)
+5. `PATH`
+
+## DCR_CC / DCR_CXX / DCR_AS
+
+Приоритет: `[toolchain]` > `DCR_COMPILER` > `DCR_CC` > `PATH`.
+
+```bash
+export DCR_CC=gcc-14
+export DCR_CXX=g++-14
+export DCR_AS=arm-linux-gnueabihf-as
+```
+
+## DCR_LD / DCR_AR
+
+Override linker and archiver.
+
+```bash
+export DCR_LD=ld.lld
+export DCR_AR=llvm-ar
+```
+
+## DCR_DEBUG
+
+Включает режим отладки — печатает все команды компиляции перед выполнением.
+
+```bash
+export DCR_DEBUG=1
+dcr build
+```
+
+## DCR_INDEX_PATH
+
+Переопределяет путь к index.json реестра.
+
+```bash
+export DCR_INDEX_PATH=/custom/path/index.json
+```
+
+По умолчанию: `~/.dcr/index.json`.
+
+## DCRUP_MIRROR
+
+Download mirror for `dcrup` (prebuilt binaries only).
+
+```bash
+export DCRUP_MIRROR=auto   # cf → gh → sf → ya (default)
+export DCRUP_MIRROR=cf     # CloudFlare CDN
+export DCRUP_MIRROR=gh     # GitHub Releases
+export DCRUP_MIRROR=sf     # SourceForge
+export DCRUP_MIRROR=ya     # Yandex CDN (RU fallback)
+```
+
+CLI override: `dcrup install stable --mirror cf`.
+
+## DCRUP_HOME / DCRUP_BIN / DCRUP_REPO
+
+Installer layout and source clone URL:
+
+```bash
+export DCRUP_HOME=~/.dcr
+export DCRUP_BIN=~/.dcr/bin
+export DCRUP_REPO=https://github.com/dexoron/dcr
+```
+
+`DCRUP_HOME` defaults to `~/.dcr` (`%USERPROFILE%\.dcr` on Windows; the
+PowerShell installer uses `%ProgramData%\dcr` with `DCRUP_SYSTEM=1`).
+`DCRUP_BIN` defaults to `$DCRUP_HOME/bin`. `DCRUP_REPO` is used by `--build`
+and `night`.
+
+## DCRUP_VERSION
+
+Default spec used by `dcrup install` when no positional version is given.
+The same variable also selects the default spec for the no-argument
+`irm ... | iex` PowerShell flow.
+
+```bash
+export DCRUP_VERSION=0.7.3@dev
+dcrup install
+```
+
+Default: `stable`.
+
+## DCRUP_LIBC
+
+Linux prebuilt libc selection (`.sh` installer only): `gnu`, `musl`, or `auto`.
+
+```bash
+export DCRUP_LIBC=musl
+dcrup install stable --libc musl
+```
+
+`auto` chooses musl when the host libc is musl, otherwise GNU. This variable is
+ignored on non-Linux hosts and by the PowerShell installer.
+
+## DCRUP_TARGET
+
+Windows prebuilt ABI selection (PowerShell installer only): `auto`, `msvc`, or `gnu`.
+
+```powershell
+$env:DCRUP_TARGET = 'gnu'
+dcrup install stable --target gnu
+```
+
+`auto` prefers MSVC and falls back to the self-contained GNU build when the
+Visual C++ runtime is missing. The GNU build is published for x86_64 only.
+
+## DCRUP_SYSTEM / DCRUP_NO_MODIFY_PATH / DCRUP_QUIET
+
+PowerShell installer flags:
+
+```powershell
+$env:DCRUP_SYSTEM = '1'          # install to %ProgramData%\dcr (Administrator)
+$env:DCRUP_NO_MODIFY_PATH = '1'  # do not change user/machine or current-session PATH
+$env:DCRUP_QUIET = '1'           # only warnings and errors
+```
+
+The bash installer accepts `-q`/`--quiet` and `DCRUP_QUIET=1`, but never edits
+shell startup files or PATH automatically. Errors from native tools (`cargo`,
+`git`) are shown even with `--quiet`.
+
+## DCRUP_PROXY / GITHUB_TOKEN
+
+PowerShell network options:
+
+```powershell
+$env:DCRUP_PROXY = 'http://proxy.example:8080'
+$env:GITHUB_TOKEN = 'ghp_...'   # optional, raises GitHub API rate limits
+```
+
+Without `DCRUP_PROXY`, the system proxy and the current user's credentials are
+used.
+
+## DCR_FEATURES
+
+Cargo features used by `dcrup install --build` and `night`. The value may be
+space- or comma-separated (e.g. `archive,foo`).
+
+```bash
+export DCR_FEATURES=archive
+```
+
+Default: `archive`.
+
+## DCRUP_INSTALL_URL
+
+URL of the installer script fetched by `dcrup self-install` when the installer
+was piped into the shell instead of being run from a file:
+
+```bash
+export DCRUP_INSTALL_URL=https://sh.dcr-tool.ru
+```
+
+The PowerShell installer defaults to `https://ps1.dcr-tool.ru`.

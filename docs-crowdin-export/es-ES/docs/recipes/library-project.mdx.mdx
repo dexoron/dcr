@@ -1,0 +1,70 @@
+---
+sidebar_label: Library project
+---
+
+# Library Project
+
+Creating a static library and using it in another project.
+
+## Step 1: Create the library
+
+```bash
+dcr new my-lib
+cd my-lib
+```
+
+`dcr.toml`:
+
+```toml
+[package]
+name = "my-lib"
+version = "0.1.0"
+type = "none"
+
+[build]
+language = "c"
+standard = "c11"
+kind = "staticlib"
+```
+
+`src/my_lib.h`:
+
+```c
+#ifndef MY_LIB_H
+#define MY_LIB_H
+int add(int a, int b);
+#endif
+```
+
+`src/my_lib.c`:
+
+```c
+#include "my_lib.h"
+int add(int a, int b) { return a + b; }
+```
+
+## Step 2: Build
+
+```bash
+dcr build --release
+```
+
+Artifacts:
+
+* `target/\<triple>/release/libmy-lib.a` (Linux)
+* `target/release/my-lib.lib` (Windows)
+* `target/include/` — header files
+
+## Step 3: Use in another project
+
+```bash
+dcr new my-app
+cd my-app
+dcr add my-lib ../my-lib
+```
+
+Automatically:
+
+* Adds include path to `target/include/` of the library
+* Adds lib path to `target/\<triple>/release/`
+* Links `libmy-lib.a` / `my-lib.lib`
